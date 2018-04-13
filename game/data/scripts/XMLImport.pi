@@ -1,0 +1,216 @@
+class XMLImport
+{
+	class Object
+	{
+		properties:
+			//name = "";
+			//type = "";
+			subList = [];
+			
+		function _operator_delete ()
+		{
+			for (i=0; i<sizeof(subList); i++)
+			{	
+				_list = _get(subList[i]);
+				//DebugMsg ("deleting list...", subList[i], _list);
+				for (j=0; j<sizeof(_list); j++)
+					delete _list[j];
+			}
+			subList = [];
+		}
+	};
+	
+	properties:
+		xmlDoc = null;
+		xmlElement = null;
+		subList = [];
+	
+	function _operator_delete ()
+	{
+		//DebugMsg ("Deleting VGSImport...");
+		for (i=0; i<sizeof(subList); i++)
+		{	
+			_list = _get(subList[i]);
+			//DebugMsg ("deleting list...", subList[i], _list);
+			for (j=0; j<sizeof(_list); j++)
+				delete _list[j];
+		}
+		subList = [];
+	}
+	
+	function CreateFromString (_str)
+	{
+		if (xmlDoc) XML_Close(xmlDoc);
+		xmlDoc = XML_Open (_str);
+		if (!xmlDoc)
+		{
+			DebugMsg ("XML Error");
+			return false;
+		}
+		
+		xmlElement = XML_GetRootElement (xmlDoc);
+		ReadClass (this, xmlElement);
+		XML_Close (xmlDoc);
+		return true;
+	}
+	
+	function LoadStartFromFile (_file)
+	{
+		_fileSize = File_Size(_file);
+		_buffer = Buffer_New (_fileSize);
+		File_Read (_file, _buffer, 0, _fileSize);
+		File_Close (_file);
+		
+		if (Buffer_GetByte(_buffer, 1) == 0) // Is in UNICODE Format so convert to ASCII format.
+		{
+			_buffer2 = Buffer_New (_fileSize/2);
+			for (i=0; i<_fileSize/2; i++)
+			{
+				Buffer_SetByte(_buffer2, i, Buffer_GetByte(_buffer, i*2));
+			}
+			Buffer_Delete (_buffer);
+			_buffer = _buffer2;
+		}
+		
+		_xmlStr = Buffer_GetString (_buffer, 0);
+		Buffer_Delete (_buffer);
+		
+		xmlDoc = XML_Open (_xmlStr);
+		if (!xmlDoc)
+		{
+			DebugMsg ("XML Error");
+			return 0;
+		}
+		
+		xmlElement = XML_GetRootElement (xmlDoc);
+
+		_num_steps = GetNumSteps (xmlElement);
+
+		return _num_steps;
+	}
+	
+	function LoadStart (_filename)
+	{
+		_file = File_Open (_filename, FILE_MODE_READ);
+		if (!_file)
+		{
+			DebugMsg ("MAP File <" + _filename + "> not found!");
+			return false;
+		}
+		return LoadStartFromFile (_file);
+	}
+
+	function LoadFromFile (_file)
+	{
+		if (!LoadStartFromFile (_file))
+			return false;
+		ReadClass (this, xmlElement);
+		XML_Close (xmlDoc);
+		return true;
+	}
+	
+	function Load (_filename)
+	{
+		if (!LoadStart (_filename))
+			return false;
+		ReadClass (this, xmlElement);
+		XML_Close (xmlDoc);
+		return true;
+	}
+
+	function LoadNext ()
+	{
+		if (!xmlElement) return false;
+		//Esto genera un bug chungo en en NLKEngine debido a que "xmlElement" es una property y dentro de ReadClass se crear variables en tiempo real.
+		//Lo cual corrompe el property previo a la llamada a la función.
+		//xmlElement = ReadClass (this, xmlElement, true);
+		_xmlElement = ReadClass (this, xmlElement, true);
+		xmlElement = _xmlElement;
+		if (!xmlElement)
+		{
+			XML_Close (xmlDoc);
+			return false;
+		}
+		return true;
+	}
+
+	function GetNumSteps (_e)
+	{
+		_count = 0;
+		while (_e)
+		{
+			_e = XML_NextElement (_e);
+			_count++;
+		}
+		return _count;
+	}
+
+	function NewClass (_obj, _key)
+	{
+		_class = new Object();
+
+		if (_obj._implements(_key+"list"))
+		{
+			_list = _obj._get(_key+"list");
+		}
+		else
+		{
+			_list = [];
+			_obj.subList += [_key+"list"];
+		}
+		_list += [_class];
+		_obj._set(_key+"list", _list);
+		_obj._set(_key+"text", "");
+
+		return _class;
+	}
+
+	function ReadClass (_obj, _e, _iterative = false)
+	{
+		while (_e)
+		{
+			_key = XML_GetElementValue (_e);
+			_text = XML_GetElementText (_e);
+
+			//DebugMsg ("CLASS:", _key);
+			
+			_class = new Object();
+			
+			ReadAttributes (_class, _e);
+			ReadClass (_class, XML_GetRootElement (_e));
+
+			if (_obj._implements(_key+"list"))
+			{
+				_list = _obj._get(_key+"list");
+			}
+			else
+			{
+				_list = [];
+				_obj.subList += [_key+"list"];
+			}
+			_list += [_class];
+			_obj._set(_key+"list", _list);
+			_obj._set(_key+"text", _text);
+			
+			_e = XML_NextElement (_e);
+			if (_iterative) break;
+		}
+		
+		return _e;
+	}
+
+	function ReadAttributes (_obj, _e)
+	{
+		_a = XML_FirstAttribute (_e);
+		while (_a)
+		{
+			_name = XML_GetAttributeName (_a);
+			_value = XML_GetAttributeValue (_a);
+			
+			//DebugMsg ("ATTRIBUTE NAME=", _name, "VALUE=", _value);
+			
+			_obj._set (_name, _value);
+			_a = XML_NextAttribute (_a);
+		}
+	}
+}

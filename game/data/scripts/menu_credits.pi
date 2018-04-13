@@ -1,0 +1,60 @@
+class Service
+{
+	constants:
+
+	properties:
+		frame = null;
+		sndBack = null;
+	
+	function Init ()
+	{
+		System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/menus/");
+	
+		_frame = UI_CreateFrame("GUI_Frame");
+		_frame.SetBounds (0, 0, RESX, RESY);
+		_frame.CreateImage ("menu_credits.jpg");
+		frame = _frame;
+
+		_button = frame.CreateButton (5, 5, 104, 107);
+		_button.SetNormalTexture ("back_button.png");
+		_button.SetOnClick (this, "OnBack");
+
+		System_SetDirectory (DIRECTORY_SOUND, "data/sounds/");
+		sndBack = Sound_Load ("ui_menu_back.ogg");
+	}
+	
+	function Final ()
+	{
+		Sound_Delete (sndBack);
+		delete frame;
+	}
+	
+	function Start ()
+	{
+	}
+
+	function Move ()
+	{
+	}
+	
+	function OnFadeBack()
+	{
+		_game = Service_Get ("game");
+		if (_game) // In Game Mode
+		{
+			Service_Delete (this);
+		}
+		else
+		{
+			parent.LoadMenu ("options");
+		}
+		g_fade.Off ();
+	}
+	
+	function OnBack (_button)
+	{
+		frame.SetEnabled (false);
+		g_fade.On (this, "OnFadeBack");
+		g_main.PlayFX(sndBack);
+	}
+}

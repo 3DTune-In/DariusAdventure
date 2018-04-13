@@ -1,0 +1,31 @@
+class Actor implements NPC
+{
+	properties:
+		 u = 0;
+		 v = 0;
+		 
+	virtual Init ()
+	{	
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_fountain.msh");
+		
+		EndLoadResources ();
+		name = "npc_fountain";
+		useAngles = 0;
+	}
+
+	virtual Start()
+	{
+		SetVisible (true);
+		SetCollisionable (false);
+	}
+	
+	virtual Move ()
+	{
+		SceneObj_SetMaterialDiffuseTransform (this, 1, 0, u, v, 0, 0, 0, 0, 1, 1, 1);
+		u += GetFTime() * 0.01f; 
+		v += GetFTime() * 0.01f; 
+	}
+}

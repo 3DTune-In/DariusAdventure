@@ -1,0 +1,203 @@
+class UI_Tooltip implements UI_Frame
+{
+	properties:
+		minimumWidth = 0;
+		maximumWidth = 0;
+
+		padding = [0, 0, 0, 0];
+
+		// Anchor
+		anchorOwned = null;
+		anchorOffset = [0, 0];
+		anchorType = UI_TOOLTIP_ANCHOR_CURSOR;
+		sideAnchorToCorner = false; // Para pegar el LEFT y RIGHT a los lados en vez de que sea el máximo
+
+		// Internos
+		i_MouseMoveHooked = false;
+
+	function OnInit()
+	{
+		::OnInit();
+		SetParent(uiSystem.GetDesktop());
+		SetStrata(UI_STRATA_TOOLTIP);
+		SetClampedToScreen(true);
+	}
+
+	// Returns the minimum width of the tooltip
+	function GetMinimumWidth()
+	{
+		return minimumWidth;
+	}
+
+	// Sets the minimum width of the tooltip
+	function SetMinimumWidth(_width)
+	{
+		minimumWidth = _width;
+	}
+
+	// Returns the maximunWidth width of the tooltip
+	function GetMaximumWidth()
+	{
+		return maximumWidth;
+	}
+
+	// Sets the maximunWidth width of the tooltip
+	function SetMaximumWidth(_width)
+	{
+		maximumWidth = _width;
+	}
+
+	function SetPadding(_padding)
+	{
+		padding = _padding;
+	}
+
+	function GetPadding()
+	{
+		return padding;
+	}
+
+	function SetAnchorType(_anchorType, _xoffset, _yoffset)
+	{
+		//if (!anchorOwned) return;
+		anchorType = _anchorType;
+		anchorOffset = [_xOffset, _yOffset];
+		Show();
+	}
+
+	// Returns the method for anchoring the tooltip relative to its owner
+	function GetAnchorType()
+	{
+		return anchorType;
+	}
+
+	function SetAnchorOffset(_xoffset, _yoffset)
+	{
+		anchorOffset = [_xoffset, _yoffset];
+		Show();
+	}
+
+	function SideAnchorToCorner(_value)
+	{
+		sideAnchorToCorner = _value;
+	}
+
+	// Returns whether the tooltip has an owner frame
+	function IsOwned()
+	{
+		return anchorOwned != null;
+	}
+
+
+	function Show(_owner, _anchorType, _xOffset = 0, _yOffset = 0)
+	{
+		if (anchorOwned)
+		{
+			anchorOwned.RemoveEvent(UI_EVENT_BOUNDS_CHANGED, this);
+			anchorOwned.RemoveEvent(UI_EVENT_DESTROY, this);
+		}
+
+		anchorOwned = _owner;
+		anchorType = _anchorType;
+		anchorOffset = [_xOffset, _yOffset];
+
+		if (anchorOwned)
+		{
+			anchorOwned.HookEvent(UI_EVENT_BOUNDS_CHANGED, this, "OnOwnerBoundsChanged");
+			anchorOwned.HookEvent(UI_EVENT_DESTROY, this, "OnOwnerDestroyed");
+		}
+		Show();
+	}
+
+	function Show()
+	{
+		Core_UpdateSize();
+		Core_UpdatePosition();
+		if (!i_MouseMoveHooked && !anchorOwned)
+		{
+			i_MouseMoveHooked = true;
+			uiSystem.HookEvent(UI_SYS_MOUSE_MOVE, this, "OnMouseMove");
+		}
+		::Show();
+	}
+
+	function Hide()
+	{
+		::Hide();
+
+		if (i_MouseMoveHooked)
+		{
+			uiSystem.RemoveEvent(UI_SYS_MOUSE_MOVE, this);
+			i_MouseMoveHooked = false;
+		}
+	}
+
+	function Core_UpdateSize()
+	{
+		SetSize(padding[0] + padding[2], padding[1] + padding[3]);
+	}
+
+	function Core_UpdatePosition()
+	{
+		if (anchorType == UI_TOOLTIP_ANCHOR_CURSOR)
+		{
+			_p = GetCursorPoint();
+			SetPosition(_p[0] + anchorOffset[0], _p[1] + anchorOffset[1]);
+		}
+		else if (anchorType == UI_TOOLTIP_ANCHOR_FIXED)
+		{
+			SetPosition(anchorOffset[0], anchorOffset[1]);
+		}
+		else
+		{
+			if (!anchorOwned) return;
+
+			_p = anchorOwned.PointToScreen(0, 0);
+			_w = anchorOwned.GetWidth();
+			_h = anchorOwned.GetHeight();
+			_x = _p[0] + _w / 2 + anchorOffset[0] - GetWidth() / 2;
+			_y = _p[1] + _h / 2 + anchorOffset[1] - GetHeight() / 2;
+			if ((anchorType & UI_TOOLTIP_ANCHOR_LEFT) == UI_TOOLTIP_ANCHOR_LEFT)
+			{
+				if (sideAnchorToCorner)
+					_x = _p[0] + anchorOffset[0] - GetWidth();
+				else
+					_x = _p[0] + anchorOffset[0];
+			}
+			else if ((anchorType & UI_TOOLTIP_ANCHOR_RIGHT) == UI_TOOLTIP_ANCHOR_RIGHT)
+			{
+				if (sideAnchorToCorner)
+					_x = _p[0] + _w + anchorOffset[0];
+				else
+					_x = _p[0] + _w + anchorOffset[0] - GetWidth();
+			}
+
+			if ((anchorType & UI_TOOLTIP_ANCHOR_TOP) == UI_TOOLTIP_ANCHOR_TOP)
+				_y = _p[1] + anchorOffset[1] - GetHeight();
+			else if ((anchorType & UI_TOOLTIP_ANCHOR_BOTTOM) == UI_TOOLTIP_ANCHOR_BOTTOM)
+				_y = _p[1] + _h + anchorOffset[1];
+
+			SetPosition(_x, _y);
+		}
+	}
+
+	function OnOwnerBoundsChanged(_sender, _event, _params)
+	{
+		Core_UpdatePosition();
+	}
+
+	function OnOwnerDestroyed(_sender, _event, _params)
+	{
+		if (anchorOwned)
+		{
+			anchorOwned.RemoveEvent(UI_EVENT_BOUNDS_CHANGED, this);
+			anchorOwned.RemoveEvent(UI_EVENT_DESTROY, this);
+			anchorOwned = null;
+		}
+	}
+
+	function OnMouseMove(_sender, _event, _params)
+	{
+		Core_UpdatePosition();
+	}
+}

@@ -1,0 +1,138 @@
+class Actor implements NPC
+{
+	properties:    	
+		KIN_QUIET = 0;
+		KIN_SPEAK = 0;
+		
+	virtual Init ()
+	{
+		StartLoadResources ();
+		
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_francoise.msh");
+		
+		KIN_QUIET = Actor_LoadKinematic (this, "npc_francoise_quiet.kin");
+		KIN_SPEAK = Actor_LoadKinematic (this, "npc_francoise_speak.kin");                                            
+		
+		EndLoadResources ();
+		
+		name = "npc_francoise";
+		collide = true;
+		Scene_AddStatic (scene, this);
+		bMoveHead = true;
+		
+		voiceID = VOICE_BOY;
+	}
+
+	virtual Start ()
+	{
+	}
+	
+	function Quiet ()
+	{
+		Actor_BlendKin (this, KIN_QUIET, KINMODE_LOOP);
+	}
+	
+	function Speak ()
+	{
+		Actor_BlendKin (this, KIN_SPEAK, KINMODE_LOOP);
+	}
+
+	function OnDropItem (_itemName)
+	{	
+		if (GetState() >= 1 && GetState() < 2) 
+		{
+			_flag = 0;
+			
+			switch (_itemName)
+			{
+				case "item_tomato": _flag = 1; _task = "deliver_tomato"; break;
+				case "item_parsley": _flag = 2; _task = "deliver_parsley"; break;
+				case "item_celery": _flag = 4; _task = "deliver_celery"; break;
+			}
+			
+			if (_flag)
+			{
+				game.GetPlayer().TaskDone(_task);
+			
+				_st = game.GetLandMark ("francoise_ingredients") | _flag;
+				game.AddLandmark ("francoise_ingredients", _st);
+				if (_st == 7)
+				{
+					ShowAutoDialogue ("francoise_4", 7, [game.GetPlayer(), this]);
+					SetState(2);
+				}
+				else
+				{
+					ShowAutoDialogue ("francoise_3", 2, [game.GetPlayer(), this]);
+				}
+				return true; 
+			}
+		}
+		else // GetState() == 2
+		{
+			if (_itemName == "item_pirate_cooking_book")
+			{
+				_dlg = ShowAutoDialogue ("francoise_7", 2, [this, game.GetPlayer()]);
+				_dlg.AddNPCCall (game.GetPlayer(), "AddInventory", ["item_feather"]);
+				_dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["deliver_pirate_cooking_book"]);
+				SetState(3);
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	function OnCursorClick()
+	{
+		_katty = stage.FindActor ("npc_katty");
+		_paul = stage.FindActor ("npc_paul");
+		
+		switch (GetState())
+		{
+			case 0: // Presentación
+			{
+				if (!_katty.GetVisible() || !_paul.GetVisible())
+				{
+					ShowAutoDialogue ("francoise_1", 2, [this, game.GetPlayer()]);
+					return;
+				}
+				else
+				{
+					_dlg = ShowAutoDialogue ("francoise_2", 7, [game.GetPlayer(), this]);
+					_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_tomato"]);					
+					_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_parsley"]);					
+					_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_celery"]);					
+					SetState(1);
+				}		
+			}
+			break;
+			case 1: // Esperando los ingredientes para el plato
+			{
+				ShowAutoDialogue ("francoise_5", 2, [game.GetPlayer(), this]);
+			}
+			break;
+			case 2: // Plato listo! 
+			{
+				if (_katty.GetState() >= 5 && _paul.GetState() >= 4)
+				{
+					//if ya han tuneado los platos, esperando el libro de cocina
+					_dlg = ShowAutoDialogue ("francoise_8", 4, [this, game.GetPlayer()]);
+					_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_pirate_cooking_book"]);
+				}
+				else
+				{
+					//if TODAVIA paul y katty no han tuneado los platos
+					ShowAutoDialogue ("francoise_6", 2, [this, game.GetPlayer()]);
+				}
+			}
+			break;
+			case 3: // Le ha regalado el libro de cocina - fin
+			{
+				ShowAutoDialogue ("francoise_9", 2, [this, game.GetPlayer()]);
+			}
+			break;
+		}
+	}
+}

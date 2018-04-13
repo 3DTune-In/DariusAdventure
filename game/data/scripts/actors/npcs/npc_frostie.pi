@@ -1,0 +1,202 @@
+class Actor implements NPC
+{
+	constants:
+		STATE_WE_CAN_MAKE_AN_ICE = 3;
+		
+	properties:
+		KIN_QUIET = null;
+		KIN_SPEAK = null;
+		
+	virtual Init ()
+	{	
+		StartLoadResources ();
+			
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_frostie.msh");
+		
+		KIN_QUIET = Actor_LoadKinematic (this, "npc_frostie_quiet.kin");
+		KIN_SPEAK = Actor_LoadKinematic (this, "npc_frostie_speak.kin");
+
+		EndLoadResources ();
+		
+		name = "npc_frostie";
+		bMoveHead = true;
+	}
+	
+	virtual Start ()
+	{                                
+		if (GetState() < STATE_WE_CAN_MAKE_AN_ICE) // Sin accion de helados
+		{
+			_item = stage.FindActor ("item_cone");
+			_item.SetEnabled (false);
+			_item.SetVisible (false);
+			_item = stage.FindActor ("item_chocolate");
+			_item.SetEnabled (false);
+			_item.SetVisible (false);
+		}
+		else if (GetState() == STATE_WE_CAN_MAKE_AN_ICE)
+		{
+			// No tengo que hacer nada porque estos dos items son UNIQUE_ITEM.
+			// O sea, que ya controlan si han sido cogidos y/o usados.
+			/*_item = stage.FindActor ("item_cone");
+			if (!game.IsItemUsed("item_cone") && !game.IsItemInInventory("item_cone"))
+			{
+				_item.SetEnabled (true);
+			}
+			else
+			{
+				_item.SetEnabled(false);
+				_item.SetVisible(false);
+			}
+			_item = stage.FindActor ("item_chocolate");
+			if (!game.IsItemUsed("item_chocolate") && !game.IsItemInInventory("item_chocolate"))
+			{
+				_item.SetEnabled (true);
+			}
+			else
+			{
+				_item.SetEnabled(false);
+				_item.SetVisible(false);
+			}  */
+		}
+	
+		if (GetState() < 2) // Sin Perro
+		{
+			_dog = stage.FindActor ("item_dog");
+			_dog.SetEnabled (false);
+			_dog.SetVisible (false);
+		}                  	
+		else
+		{
+			_dog = stage.FindActor ("item_dog");
+			_dog.Quiet();
+			_dog.SetEnabled (false);
+			_dog.SetVisible (true);
+			_dog.SetCollisionable (false);
+		}
+	}
+	
+	function Quiet ()
+	{
+		Actor_BlendKin (this, KIN_QUIET, KINMODE_LOOP);
+	}
+	
+	function Speak ()
+	{
+		Actor_BlendKin (this, KIN_SPEAK, KINMODE_LOOP);
+	}
+
+	function OnDropItem (_itemName)
+	{	
+		if (GetState() < 2) // Sin perro
+		{
+			if (_itemName == "item_dog")
+			{
+				_dlg = ShowAutoDialogue ("frostie_2", 3, [game.GetPlayer(), this]);
+				_dlg.AddNPCCall (game.GetPlayer(), "AddInventory", ["item_feather"]);
+				_dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["deliver_dog"]);					
+				_dog = stage.FindActor ("item_dog");
+				_dog.SetVisible (true);
+				_dog.SetCollisionable (false);
+				_dog.SetState(1);
+				SetState(2);
+				return true;
+			}
+		}
+		else if (GetState() >= STATE_WE_CAN_MAKE_AN_ICE) // Ya se pueden montar helados
+		{
+			_flag = 0;
+			
+			switch (_itemName)
+			{
+				case "item_cone": _flag = 1; _task = "deliver_cone"; break;
+				case "item_chocolate": _flag = 2; _task = "deliver_chocolate"; break;
+				case "item_milk": _flag = 4; _task = "deliver_milk"; break;
+			}
+			
+			if (_flag)
+			{
+				game.GetPlayer().TaskDone (_task);					
+
+				_st = game.GetLandMark ("frostie_ingredients") | _flag;
+				game.AddLandmark ("frostie_ingredients", _st);
+				if (_st == 7)
+				{
+					_dlg = ShowAutoDialogue ("frostie_6", 4, [this, game.GetPlayer(), this, stage.FindActor("item_dog")]);
+					_dlg.AddNPCCall (game.GetPlayer(), "AddInventory", ["item_icecreams"]);					
+					_dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["make_icecreams"]);					
+					SetState(4);
+				}
+				else
+				{
+					ShowAutoDialogue ("frostie_8", 1, [this, game.GetPlayer()]);
+				}
+				return true; 
+			}
+		}
+		return false;
+	}
+
+	function OnCursorClick()
+	{
+		switch (GetState())
+		{
+			case 0: // Presentación
+			{
+				_dlg = game.NewDialogue();
+				_dlg.AddNPCSpeak (game.GetPlayer(), "frostie_1_1");
+				_dlg.AddNPCSpeak (this, "frostie_1_2");
+
+				_dlg.AddNPCQUestion(game.GetPlayer(), "frostie_9_1", ["frostie_9_1A", "frostie_9_1B"], 0, 0, NEXT_DIALOGUE);
+
+				_dlg.AddNewCard("card_9");
+				
+				_dlg.AddNPCSpeak (this, "frostie_1_3");
+				//_dlg.AddNPCSpeak (this, "frostie_1_4");
+				_dlg.AddNPCSpeak (game.GetPlayer(), "frostie_1_5");
+				
+				_dlg.AddNPCCall (this, "SetState", [1]);
+
+			    game.ShowDialogue (_dlg);
+			
+				//ShowAutoDialogue ("frostie_1", 5, [game.GetPlayer(), this]);
+				//SetState(1);		
+			}
+			break;
+			case 1: // Esperando perro
+			{
+				ShowAutoDialogue ("frostie_3", 2, [this, game.GetPlayer()]);
+			}
+			break;
+			case 2: // Ya tiene perros, hagamos helados!
+			{
+				if (game.GetLandMark("npc_mildred_state") >= 2) // Hasta que las abuelas no te pidan los helados!
+				{
+					_dlg = ShowAutoDialogue ("frostie_4", 3, [this, game.GetPlayer(), stage.FindActor("item_dog")]);
+					_dlg.AddNPCCall (stage.FindActor("item_cone"), "SetEnabled", [true]);
+					_dlg.AddNPCCall (stage.FindActor("item_chocolate"), "SetEnabled", [true]);
+					_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_milk"]);					
+					_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_cone"]);					
+					_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_chocolate"]);					
+					_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["make_icecreams"]);					
+					SetState(3); //STATE_WE_CAN_MAKE_AN_ICE
+				}
+				else
+				{
+					ShowAutoDialogue ("frostie_7", 2, [stage.FindActor("item_dog"), game.GetPlayer()]);
+				}
+			}
+			break;
+			case 3: // Helado no montado! 
+			{
+				ShowAutoDialogue ("frostie_7", 6, [stage.FindActor("item_dog"), game.GetPlayer()]);
+			}
+			break;
+			case 4: // Con helado montado!
+			{
+				ShowAutoDialogue ("frostie_5", 6, [game.GetPlayer(), this]);
+			}
+			break;
+		}
+	}
+}

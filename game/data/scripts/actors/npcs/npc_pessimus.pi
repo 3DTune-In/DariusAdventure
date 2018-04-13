@@ -1,0 +1,120 @@
+class Actor implements NPC
+{
+	properties:    	
+		KIN_QUIET = 0;
+		KIN_SPEAK = 0;
+		
+	virtual Init ()
+	{
+		StartLoadResources ();
+		
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_pessimus.msh");
+		
+		KIN_QUIET = Actor_LoadKinematic (this, "npc_pessimus_quiet.kin");
+		KIN_SPEAK = Actor_LoadKinematic (this, "npc_pessimus_speak.kin");                                            
+		
+		EndLoadResources ();
+		
+		name = "npc_pessimus";
+		collide = true;
+		Scene_AddStatic (scene, this);
+		
+		voiceID = VOICE_BOY;
+	}
+
+	virtual Start ()
+	{
+		if (GetState() >= 3)
+		{
+			SetVisible (false);
+		}
+	}
+	
+	function Quiet ()
+	{
+		Actor_BlendKin (this, KIN_QUIET, KINMODE_LOOP);
+	}
+	
+	function Speak ()
+	{
+		Actor_BlendKin (this, KIN_SPEAK, KINMODE_LOOP);
+	}
+
+	function OnDropItem (_itemName)
+	{	
+		_flag = 0;
+			
+		switch (_itemName)
+		{
+			case "item_lettuce": 
+			{
+				_flag = 1;
+				_dlg = ShowAutoDialogue ("pessimus_2", 2, [game.GetPlayer(), this]);
+				_dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["deliver_lettuce"]);
+			} 
+			break;
+			case "item_rat": 
+			{
+				_flag = 2;
+				_dlg = ShowAutoDialogue ("pessimus_3", 2, [game.GetPlayer(), this]);
+				_dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["deliver_rat"]);
+			} 
+			break;
+			case "item_cotton_ball": 
+			{
+				_flag = 4;
+				_dlg = ShowAutoDialogue ("pessimus_4", 2, [game.GetPlayer(), this]);
+				_dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["deliver_cotton_ball"]);
+			} 
+			break;
+		}
+		
+		if (_flag)
+		{
+			_st = game.GetLandMark ("pessimus_items");
+			_st |= _flag;
+			game.AddLandmark ("pessimus_items", _st);
+			if (_st == 7)
+			{
+				game.GetPlayer().AddInventory("item_feather");
+				SetState(2);
+			}
+			return true;		
+		}
+		
+		return false;
+	}
+
+	function OnCursorClick()
+	{
+		switch (GetState())
+		{
+			case 0: // Presentation
+			{
+				_dlg = ShowAutoDialogue ("pessimus_1", 16, [this, game.GetPlayer()]);
+				_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_lettuce"]);
+				_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_rat"]);
+				_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_cotton_ball"]);
+				SetState(1);
+			}
+			break;
+			case 1: // Esperando los items (rat, cotton, lettuce) 
+			{
+				ShowAutoDialogue ("pessimus_6", 2, [this, game.GetPlayer()]);
+			}
+			break;
+			case 2: // Todos los items
+			{
+				ShowAutoDialogue ("pessimus_5", 9, [this, game.GetPlayer()]);
+				SetState(3);
+			}
+			break;
+			case 3: // Fin
+			{
+				ShowAutoDialogue ("pessimus_7", 1, [this, game.GetPlayer()]);
+			}
+			break;
+		}
+	}
+}

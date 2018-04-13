@@ -1,0 +1,21 @@
+class UI_ILayerElement
+{
+	function GetLayer(_layerManager)
+	{
+		return null;
+	}
+
+	function GetLayerPrevious(_layerManager)
+	{
+		return null;
+	}
+
+	function GetLayerNext(_layerManager)
+	{
+		return null;
+	}
+
+	function SetLayer(_layerManager, _layer)
+	{
+	}
+}

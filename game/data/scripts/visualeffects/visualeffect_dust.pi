@@ -1,0 +1,52 @@
+class VISUALEFFECT
+{
+	properties:
+		priority = PRIORITY_PLAYER;
+		genNum_Min = 1; // Numero de particulas que se generan
+		genNum_Max = 1;
+		genType = 0; // NONE = 0, RADIAL = 1, SPHERE = 2, RANDOM = 3
+		genType_offPos = [0, 0, 0];
+		drawFlags = DTE_3D_BILLBOARD; 
+
+		texName = ["visualeffects/ps_dust.tga"];
+		mshName = [];
+		
+		speed_Min = [0, 0, 0];
+		speed_Max = [0, 0, 0];
+		acc_Min = [0, 0, 0.1];
+		acc_Max = [0, 0, 0.2];
+		scl_Min = [10, 10, 0];
+		scl_Max = [20, 20, 0];
+		sclAcc_Min = [0.25, 0.25, 0];
+		sclAcc_Max = [1, 1, 0];
+		color_Min = [255, 231, 178, 72]; // ARGB
+		color_Max = [255, 231, 178, 72];
+		colorSpeed_Min = [-16, 0, 0, 0];
+		colorSpeed_Max = [-8, 0, 0, 0];
+		angle_Min = [0, 0, 0];
+		angle_Max = [NUM_PI, 0, 0];
+		angleSpeed_Min = [0.01, 0, 0];
+		angleSpeed_Max = [0.1, 0, 0];
+		posAngle_Min = 0;
+		posAngle_Max = 0;
+		posRadX_Min = 0;
+		posRadX_Max = 0;
+		posRadY_Min = 0;
+		posRadY_Max = 0;
+		posAngleSpeed_Min = 0;
+		posAngleSpeed_Max = 0;
+		
+		colorRange_Min = [0, 0, 0, 0];
+		colorRange_Max = [255, 255, 255, 255];
+		color_sa_out = 0;
+		alpha_out = 0;
+		rspeed_out = 0;
+		radius_out = 0;
+		radius_min = 0;
+		radius_max = 0;
+		
+		life_Min = -1; // BY ALPHA COLOUR DEPENDANT
+		life_Max = -1;
+		physics = false;
+		coefRest = 2.0f;
+}

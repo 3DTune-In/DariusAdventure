@@ -1,0 +1,24 @@
+class UI_Rotation implements UI_Animation
+{
+	properties:
+		a = 0;
+
+	function SetDegrees(_a)
+	{
+		a = DegToRad(_a);
+	}
+
+	function SetRadians(_a)
+	{
+		a = _a;
+	}
+
+	function Core_InternalUpdate()
+	{
+		_g = GetParent().GetParent();
+		//DebugMsg(x, GetProgress(), Interpolate(0, x, GetProgress()));
+		if (a != 0)	_g.animationCurrentPoint.angle += Interpolate(0, a, GetProgress());
+
+		_g.animationCurrentPoint.flags |= UI_ANI_FLAG_ROTATION;
+	}
+}

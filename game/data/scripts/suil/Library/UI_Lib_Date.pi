@@ -1,0 +1,153 @@
+// Partial de UI_Library
+class UI_Date
+{
+	function Core_Init_Date()
+	{
+		System_AddScriptGlobalFunction("Date_IsValid", this, "Date_IsValid");
+		System_AddScriptGlobalFunction("Date_DaysInMonth", this, "Date_DaysInMonth");
+		System_AddScriptGlobalFunction("Date_TimestampToDate", this, "Date_TimestampToDate");
+		System_AddScriptGlobalFunction("Date_DateToTimestamp", this, "Date_DateToTimestamp");
+		System_AddScriptGlobalFunction("Date_FormatTimestamp", this, "Date_FormatTimestamp");
+		System_AddScriptGlobalFunction("Date_NowTimestamp", this, "Date_NowTimestamp");
+	}
+
+	function Core_Uninit_Date()
+	{
+	}
+
+
+// De http://stackoverflow.com/questions/1433030/validate-number-of-days-in-a-given-month
+	// Mes de 1 a 12
+	function Date_DaysInMonth(y, m)
+	{
+		m--;
+	    switch (m)
+	    {
+	        case 1:
+	            return (y % 4 == 0 && y % 100) || y % 400 == 0 ? 29 : 28;
+	        case 8:
+	        case 3:
+	        case 5:
+	        case 10:
+	            return 30;
+	        default:
+	            return 31;
+	    }
+	}
+
+	function Date_IsValid(y, m, d)
+	{
+	    return (m >= 1 && m < 13) && (d > 0 && d <= Date_DaysInMonth(y, m));
+	}
+
+// De http://ptspts.blogspot.com.es/2009/11/how-to-convert-unix-timestamp-to-civil.html
+	function Date_TimestampToDate(ts)
+	{
+		_time = SysTime_New();
+		//SysTime_SetMilliseconds(_time, ulong(ts) * 1000L);
+		SysTime_SetMilliseconds(_time, ulong(ts));
+		_list = SysTime_Get(_time);
+		SysTime_Delete(_time);
+		return _list; //  [year, month, day, hour, minute, second, millisecond].
+	  // s = ts%86400;
+	  // ts /= 86400;
+	  // h = s/3600;
+	  // m = s/60%60;
+	  // s = s%60;
+	  // x = (ts*4+102032)/146097+15;
+	  // b = ts+2442113+x-(x/4);
+	  // c = (b*20-2442)/7305;
+	  // d = b-365*c-c/4;
+	  // e = d*1000/30601;
+	  // f = d-e*30-e*601/1000;
+
+	  // return (e < 14 ? [c-4716,e-1,f,h,m,s] : [c-4715,e-13,f,h,m,s]);
+		//DebugMsg(SysTime_ToString(_time, "DD/MM/YYYY hh:mm:ss"));
+	}
+
+	function Date_DateToTimestamp(y, m, d, h, mi, s)
+	{
+		_time = SysTime_New();
+		//SysTime_SetMilliseconds(_time, ulong(ts) * 1000);
+		SysTime_Set (_time, y, m, d, h, mi, s, 0);
+		//_unix = ulong(SysTime_ToMilliseconds(_time) / 1000);
+		_unix = ulong(SysTime_ToMilliseconds(_time));
+		SysTime_Delete(_time);
+		return _unix;
+
+  		// if (m <= 2)
+  		// {
+  		// 	y -= 1;
+  		// 	m += 12;
+  		// }
+  		// return (365*y + y/4 - y/100 + y/400 + 3*(m+1)/5 + 30*m + d - 719561) * 86400 + 3600 * h + 60 * mi + s;
+	}
+
+	function Date_FormatTimestamp(_ts, _format)
+	{
+		_time = SysTime_New();
+		//SysTime_SetMilliseconds(_time, ulong(_ts) * 1000L);
+		SysTime_SetMilliseconds(_time, ulong(_ts) * 1000L);
+		_str = SysTime_ToString (_time, _format);
+		SysTime_Delete(_time);
+		return _str;
+	}
+
+	function Date_NowTimestamp()
+	{
+		_time = SysTime_New();
+		SysTime_Update(_time);
+		//_unix = ulong(SysTime_ToMilliseconds(_time) / 1000);
+		_unix = ulong(SysTime_ToMilliseconds(_time));
+		SysTime_Delete(_time);
+		return _unix;
+	}
+
+// De http://alcor.concordia.ca/~gpkatch/gdate-algorithm.html
+	/*
+ Calculate day number from date.
+All division is integer division, operator % is modulus.
+Given integer y, m, d, calculate day number g as:
+
+function g(y,m,d)
+m = (m + 9) % 12
+y = y - m/10
+return 365*y + y/4 - y/100 + y/400 + (m*306 + 5)/10 + ( d - 1 )
+
+Calculate date from day number
+
+All division is integer division, operator % is modulus.
+Given day number g, calculate year, month, and day:
+
+function d(g)
+y = (10000*g + 14780)/3652425
+ddd = g - (365*y + y/4 - y/100 + y/400)
+if (ddd < 0) then
+ y = y - 1
+ ddd = g - (365*y + y/4 - y/100 + y/400)
+ endif
+mi = (100*ddd + 52)/3060
+mm = (mi + 2)%12 + 1
+y = y + (mi + 2)/12
+dd = ddd - (mi*306 + 5)/10 + 1
+return y, mm, dd
+
+Applications.
+Date differences.
+The difference in days between two dates:
+
+  g(y2,m2,d2) - g(y1,m1,d1)
+
+Day offsets.
+
+The date n days from y,m,d:
+
+  d(g(y,m,d) + n)
+
+Date legality.
+
+To check if a date is on the calendar:
+
+  if [y,m,d] = d(g(y,m,d))
+	*/
+}

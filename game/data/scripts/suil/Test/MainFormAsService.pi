@@ -1,0 +1,1156 @@
+class Service
+{
+	properties:
+		ddData = [];
+		animId = 0;
+
+		// Test para el rect de fuente
+		tr = [120, 20];
+		_font = null;
+		trtext = "ESTO ES UNA PASADA";
+		trta = DT_CENTER | DT_VCENTER; //DT_TOP | DT_LEFT;
+		ts = [0, 0];
+
+		slider = null;
+
+		_textdocMulti = null;
+		_textdocSingle = null;
+
+		mainform = null;
+		rtStatsForm = null;
+		rtControls = 0;
+		rtFSControls = [];
+
+	function Init()
+	{
+		TestGeneral();
+		//TestFuentes();
+		//TestTab();
+		//TestFrameOrder();
+		//TestStrata();
+		//TestPath();
+		//TestTexturaSimple();
+		//TextTextbox();
+		//TestXML();
+		//TestGirado();
+		//TestXML();
+		//TestRenderTarget();
+
+		// _t = new AcumulatedTimer(5);
+		// _t.Start(0);
+		// for (i = 0; i < 1000000; i++)
+		// {
+
+		// }
+		// _t.Stop(0);
+		// _t.Log(0, "Hola mi #PCTG_OF_TOTAL#%");
+		// delete _t;
+	}
+
+	function TestFuentes()
+	{
+		_font = UI_CreateFont("GameFontNormal");
+		_font.SetFont("ActionComics", 30);
+
+		mainForm = UI_CreateFrame("UI_Frame", "mainForm");
+		mainForm.PinToBounds();
+		mainForm.Show();
+
+		_fs = mainform.CreateFontString();
+		_fs.PinToBounds();
+		_fs.IncBounds(10, 10, -20, -20);
+		_fs.SetFontObject(_font);
+		_fs.SetText("1234567890 CRITICAL");
+		_fs.Show();
+	}
+
+
+	function TestGeneral()
+	{
+		DebugMsg(String_LowerCase("ÑÁÂÄÀ"), suil_library.String_GetCharCategory('_'), suil_library.String_EndsWith("hioa", "a"));
+
+		DebugMsg("String_IsNumber", float("12"), suil_library.String_IsNumber("12"));
+		DebugMsg("String_IsNumber", float("-12"), suil_library.String_IsNumber("-12"));
+		DebugMsg("String_IsNumber", float("-12.3"), suil_library.String_IsNumber("-12.3"));
+		DebugMsg("String_IsNumber", float("-12.3f"), suil_library.String_IsNumber("-12.3f"));
+		DebugMsg("String_IsNumber", float("+12.3f"), suil_library.String_IsNumber("+12.3f"));
+		DebugMsg("String_IsNumber", float("+12."), suil_library.String_IsNumber("+12."));
+		DebugMsg("String_IsNumber", float("12.12"), suil_library.String_IsNumber("12.12"));
+
+
+		DebugMsg(suil_library.File_GetFileNamePart("C:/malsdf/laskdj laskdj/hola.man"));
+		// DebugMsg(String_Capitalize("vicTor"));
+		// DebugMsg(String_Capitalize("robot penado"));
+		// DebugMsg(String_Capitalize("  robot penado"));
+		// DebugMsg(String_Capitalize(" 238 robot penado"));
+
+		// DebugMsg("-", String_TrimRight("    C:/HOLA//MANOLA/   "), "-");
+		// DebugMsg("-", String_TrimLeft("    C:/HOLA//MANOLA/   "), "-");
+		// DebugMsg(String_Split("C:/HOLA//MANOLA", "/"));
+		_font = UI_CreateFont("GameFontNormal");
+		_font.SetFont("PT_Sans_Narrow", 41);
+		//_font.SetFont("ARCENA", 40);
+		//_font.SetFont("EUROSTIB", 40);
+		//_font.SetFont("ActionComics", 40);
+
+		_text = "ASDFKASFJAS DFKASJDFKASD";
+		// DebugMsg(Font_GetTextSize(_font.Core_GetEngineFont(), _text));//, _w, _h, _flags);
+		// DebugMsg(String_AddAutoEllipsis(_font.Core_GetEngineFont(), _text, 566, 50));
+
+		//_font.EnableEffect(UI_FONT_EFFECT_SHADOW, 2, 255, 0, 0, 0);
+		//_font.EnableEffect(UI_FONT_EFFECT_BORDER, 2, 255, 0, 0, 0);
+		UI_GetSystem().DisableAnimations();
+		UI_GetSystem().EnableAnimations();
+
+		mainForm = UI_CreateFrame("UI_Frame", "mainForm");
+		//mainForm = uisystem.CreateFrame("UI_Frame", "mainForm"); // Es lo mismo
+		mainForm.SetBounds(10, 10, 800, 800);
+		mainForm.Show();
+		mainForm.HookEvent(UI_EVENT_CLICK, this, "OnClick");
+		mainForm.HookEvent(UI_EVENT_MOUSE_WHEEL, this, "OnWheel");
+
+		// tex1 = mainForm.CreateTexture("VA2");
+		// tex1.SetBounds(0, 0, 80, 140);
+		// tex1.SetTexture(255, 255, 255, 0);
+		// tex1.SetPin(UI_PIN_ALL);
+		// tex1.Show();
+
+		// tex = mainForm.CreateTexture("VA2");
+		// tex.SetBounds(80, 0, 80, 140);
+		// tex.SetTexture(255, 0, 255, 0);
+		// tex.SetPin(UI_PIN_ALL);
+		// tex.Show();
+		//delete mainform;
+
+
+		// _f1 = PrioFrame("F1", 30, 30, ARGB(255, 255, 255, 255), mainform);
+		// _f2 = PrioFrame("F2", 100, 10, ARGB(255, 255, 0, 255), mainform);
+		// _f2.SetTopMost(true);
+		// _f3 = PrioFrame("F3", 150, 150, ARGB(255, 0, 0, 255), mainform);
+		// DebugLog("---------");
+		// _f3.Lower();
+		// _f1.Raise();
+		// _f3.Raise();
+
+// _timerFormat = "START TIME %d ms";
+// _timer = new Timer(true);
+
+// 		_spFrame = UI_CreateFrame("UI_Frame", "null");
+// 		_spFrame.SetBounds(10, 10, 300, 300);
+// 		_spFrame.Show();
+
+// _timer.DeleteLog(_timerFormat);
+		//UI_GetDesktop().SetScale(0.5);
+
+		_font1 = UI_CreateFont("GameTooltipHeaderFont");
+		_font1.SetFont("PT_Sans_Narrow", 30);
+
+		_font2 = UI_CreateFont("GameTooltipNormalFont");
+		_font2.SetFont("PT_Sans_Narrow", 20);
+
+		_font3 = UI_CreateFont("GameTooltipSmallFont");
+		_font3.SetFont("PT_Sans_Narrow", 10);
+
+		// _ttip = UI_CreateFrame("UI_Tooltip", "GameTooltip");
+		// _ttip.SetPadding([5, 5, 5, 5]);
+		// _tex = _ttip.CreateTexture();
+		// //_tex.SetTextureColor(ARGB(255, 0, 0, 0));
+		// _tex.SetTextureColor(ARGB(255, 106, 109, 92));
+		// _tex.PinToBounds();
+		// _tex.Show();
+		//_ttip.Show();
+
+		// ts = String_GetFontForRect(_font.Core_GetEngineFont(), trtext, trta, tr[0], tr[1], true);
+		// Font_SetSize(_font.Core_GetEngineFont(), ts[0], ts[1]);
+		// back = UI_CreateFrame("UI_Frame", "mainForm");
+		// back.SetBounds(0, 0, RESX, RESY);
+		// tex = back.CreateTexture();
+		// tex.PinToBounds();
+		// tex.SetTexture(255, 255, 255, 255);
+		// //tex.SetTexture(255, 0, 0, 0);
+		// tex.Show();
+		// back.Show();
+
+
+		tex = mainForm.CreateTexture("tex1");
+		tex.SetBounds(0, 0, mainForm.GetWidth(), mainForm.GetHeight());
+		//tex.SetTexture(255, 255, 0, 0);
+		tex.SetPin(UI_PIN_ALL);
+		//tex.SetTexture("back.png");
+		tex.SetUrlTexture("http://s1.trrsf.com/blogs/72/JESSICA_ALBA.jpg");
+		// tex.SetDegrees(75);
+		// tex.SetTexCoord(0, 0, 2, 2);
+		tex.Show();
+
+
+		// _fs = mainform.CreateFontStringFrom(_font, "Hola", ARGB(255 * 0.5f, 255, 0, 0));
+		// _fs.SetDrawIfEmpty(false);
+		// // _fs = mainForm.CreateFontString();
+		// // _fs.SetFontObject(_font);
+		// // _fs.SetText("HOLA");
+		// // _fs.SetVertexColor(255, 0, 0);
+		// // _fs.PinToBounds();
+		// //_fs.SetTextHeight(150); // Escala la fuente en el dibujado
+		// _fs.SetTopMost(true);
+		// _fs.Show();
+
+
+		_fs = mainform.CreateFontString();
+		_fs.SetSize(300, 300);
+		_fs.EnableHTML();
+		_fs.SetFontObject(_font);
+		//_fs.SetText("|FFFF0000|Hola |FF00FF00|Manola <link url=\"http://www.nerlaska.com\">Nerlaska </link>");
+		_fs.SetText("|FFFF0000|Hola");
+		//_fs.SetText("Esto te lleva a la web de <link url=\"http://www.nerlaska.com\">Nerlaska es la number one de las</link>");
+		_fs.SetTopMost(true);
+		_fs.SetTextAlign(DT_CENTER | DT_VCENTER);
+		//_fs.SetTextHeight(150);
+		//_fs.SetAlpha(100);
+		_fs.Show();
+
+		_tg = mainform.CreateTextureGroup();
+		_tg.PinToBounds();
+		_tg.Show();
+
+		tex = _tg.CreateTexture("tex2");
+		tex.SetBounds(0, 0, 140, 140);
+		tex.SetTexture(255, 255, 255, 0);
+		tex.SetPin(UI_PIN_ALL);
+		tex.SetTopMost(true);
+		//tex.SetVertexColor(255, 255, 255);
+		//tex.SetTexture("1.png");
+		tex.Show();
+		//mainForm.SetBounds(10, 60, 200, 200);
+
+		tex1 = _tg.CreateTexture("tex3");
+		tex1.SetBounds(70, 70, 140, 140);
+		tex1.SetTexture(255, 0, 125, 0);
+		tex1.SetPin(UI_PIN_ALL);
+		//_tg.BringToFront(tex1);
+		//tex.SetVertexColor(255, 255, 255);
+		//tex.SetTexture("1.png");
+		tex1.Show();
+
+		//_tg.Hide();
+
+
+		f2 = UI_CreateFrame("UI_Frame", "form2");
+		f2.SetBounds(150, 150, 200, 200);
+		//f2.SetBounds(10, 10, 200, 200);
+		f2.Show();
+		tex = f2.CreateTexture("tex1");
+		tex.PinToBounds();
+		//tex.SetTexture("caja_tiempo.png");
+		tex.SetTexture("back.png");
+		f2.SetMask("mascara-slots.tga");
+		f2.EnableMask(true, true);
+		//tex.FlipHorizontal(true);
+		tex.Show();
+		f2.SetTopMost(true);
+		f2.HookEvent(UI_EVENT_CLICK, this, "OnClick");
+		f2.HookEvent(UI_EVENT_DRAG_RECEIVED, this, "OnDragReceived");
+		f2.HookEvent(UI_EVENT_ENTER, this, "OnEnterF2");
+		f2.HookEvent(UI_EVENT_LEAVE, this, "OnLeaveF2");
+
+		f3 = CreateFrame("caja_tiempo.png", "f3", "f3tex");
+		f3.SetBounds(290, 290, 100, 100);
+		f3.Raise();
+		f3.HookEvent(UI_EVENT_MOUSE_DOWN, this, "OnMouseDown");
+		f3.HookEvent(UI_EVENT_MOUSE_UP, this, "OnMouseUp");
+		f3.RegisterForDrag();
+		//f3.SetClampedToScreen(true);
+		f3.HookEvent(UI_EVENT_DRAG_END, this, "OnDragEnd");
+		//f3.Show();
+
+		if (f3.GetChildrenInternalRegionsCount())
+		{
+			_l = f3.GetInternalRegionIndex(0);
+			_l.SetVertexColor(255, 0, 0);
+		}
+		//mainForm.SetStrata(UI_STRATA_DIALOG);
+		// //f2.SetStrata(UI_STRATA_TOOLTIP);
+		// f2.SetStrata(UI_STRATA_NORMAL);
+		//f2.SetStrata(UI_STRATA_DIALOG);
+		//f3.SetStrata(UI_STRATA_DIALOG);
+
+
+		btn = UI_CreateFrame("UI_Button", "btn");
+		btn.SetBounds(10, 600, 400, 400);
+		btn.SetNormalFontObject(_font);
+		btn.GetFontString().SetTextColor(255, 255, 255, 0);
+		btn.SetNormalTexture("btnNormal.png");
+		btn.SetPressedTexture("btnPressed.png");
+		btn.SetHighlightTexture("btnHighlight.png");
+		btn.SetText("manola");
+		btn.HookEvent(UI_EVENT_CLICK, this, "OnManolaClick");
+		btn.Show();
+
+		chkbox = UI_CreateFrame("UI_Button", "chkbox");
+		chkbox.SetTextPadding(30, 0);
+		chkbox.SetBounds(10, 720, 100, 30);
+		chkbox.SetTwoStates(true);
+		chkbox.SetNormalFontObject(_font);
+		chkbox.GetFontString().SetTextColor(255, 255, 255, 0);
+		_tex = chkbox.CreateTexture();
+		_tex.SetTexture("btnNormal.png");
+		_tex.SetSize(30, 30);
+		chkbox.SetNormalTexture(_tex);
+		_tex = chkbox.CreateTexture();
+		_tex.SetTexture("btnHighlight.png");
+		_tex.SetSize(30, 30);
+		chkbox.SetHighlightTexture(_tex, false);
+		_tex = chkbox.CreateTexture();
+		_tex.SetTexture("btnPressed.png");
+		_tex.SetSize(30, 30);
+		chkbox.SetPressedTexture(_tex);
+		chkbox.SetPressedTextOffset(0, 0);
+		_tex = chkbox.CreateTexture();
+		_tex.SetTexture("CheckboxChecked.png", true);
+		_tex.SetSize(30, 30);
+		chkbox.SetCheckedTexture(_tex);
+		chkbox.SetText("ckbox");
+		chkbox.Show();
+
+		slider = UI_CreateFrame("UI_Slider", "slider");
+		slider.SetBounds(130, 500, 200, 30);
+		_back = slider.CreateTexture();
+		_back.SetTexture("ui/SkillTree/barra_naranja.png");
+		_back.PinToBounds();
+		_back.IncSize(-20, -15);
+		_back.IncPosition(10, 7);
+		_back.Show();
+		_tex = slider.CreateTexture();
+		_tex.SetTexture("btnPressed.png");
+		_tex.SetSize(20, 30);
+		slider.SetThumbTexture(_tex);
+		slider.HookEvent(UI_EVENT_VALUE_CHANGED, this, "OnSliderValueChanged");
+		slider.Show();
+		slider.SetDoMovementOnMouseDown(false);
+
+		sliderV = UI_CreateFrame("UI_Slider", "sliderV");
+		sliderV.SetBounds(130, 550, 30, 200);
+		sliderV.SetDoStep(true);
+		_back = sliderV.CreateTexture();
+		_back.SetTexture("barra_naranja.png");
+		_back.PinToBounds();
+		_back.SetPin(UI_PIN_ALL);
+		_back.SetBounds(-85, 85, 200, 30);
+		_back.SetDegrees(90);
+		_back.Show();
+		sliderV.SetOrientation(UI_VERTICAL);
+		sliderV.SetThumbTexture("btnPressed.png");
+		sliderV.HookEvent(UI_EVENT_VALUE_CHANGED, this, "OnSliderVValueChanged");
+
+		sliderV.Show();
+
+
+		_scroll = UI_CreateFrame("UI_ScrollFrame", "UI_ScrollFrame", mainform);
+		_scroll.SetBounds(400, 400, 300, 200);
+		_scroll.Show();
+		_scroll.SetScrollChild(btn);
+
+		UI_GetDesktop().SetScale(0.5);
+
+		_textdocSingle = UI_CreateFrame("UI_TextBox", "TBSingle 1");
+		_textdocSingle.SetBounds(355, 640, 150, 60);
+		_textdocSingle.SetFontObject(_font);
+		//_textdocSingle.SetFont("EUROSTIB", 30);
+		_textdocSingle.SetTextColor(255, 255, 0, 0);
+		//_textdocSingle.SetTextPadding(10, 0, 50, 0);
+		_textdocSingle.SetText("asdfa asdw asdfa");
+		_textdocSingle.SetTabOrder(0);
+		_textdocSingle.Show();
+
+		_t = _textdocSingle.CreateTexture();
+		_t.PinToBounds();
+		_t.SetTexture(255, 255, 255, 255);
+		_t.Show();
+
+		_textdocSingle = UI_CreateFrame("UI_TextBox", "TBSingle 2");
+		_textdocSingle.SetBounds(355, 710, 150, 60);
+		_textdocSingle.SetFontObject(_font);
+		//_textdocSingle.SetFont("EUROSTIB", 30);
+		_textdocSingle.SetTextColor(255, 255, 0, 0);
+		_textdocSingle.SetTabOrder(1);
+		//_textdocSingle.SetTextPadding(10, 0, 50, 0);
+		_textdocSingle.SetText("TB2");
+		_textdocSingle.Show();
+
+#if _UISYS_SIMULATE_IOS_
+		// _ptrCenter = _textdocSingle.GetCursorPointer();
+		// _ptrCenter.SetNormalTexture("PointerCenter_normal.png");
+		// _ptrCenter.SetPressedTexture("PointerCenter_pressed.png");
+		// _ptrCenter.SetSize(41, 58);
+		// _ptrCenter.SetOffset(-41 / 2, _textdocSingle.GetCursorHeight() / 2 + 5);
+
+		// _ptr = _textdocSingle.GetLeftSelectionPointer();
+		// _ptr.SetNormalTexture("PointerLeft.png");
+		// _ptr.SetPressedTexture("PointerLeft_pressed.png");
+		// _ptr.SetSize(35, 57);
+		// _ptr.SetOffset(-_ptr.GetWidth(), _textdocSingle.GetCursorHeight() / 2 + 5);
+
+		// _ptr = _textdocSingle.GetRightSelectionPointer();
+		// _ptr.SetNormalTexture("PointerRight_normal.png");
+		// _ptr.SetPressedTexture("PointerRight_pressed.png");
+		// _ptr.SetSize(35, 57);
+		// _ptr.SetOffset(0, _textdocSingle.GetCursorHeight() / 2 + 5);
+#endif
+
+		_t = _textdocSingle.CreateTexture();
+		_t.PinToBounds();
+		_t.SetTexture(255, 255, 255, 255);
+		_t.Show();
+
+		_frameTab = UI_CreateFrame("UI_Frame", "CONT");
+		_frameTab.SetBounds(0, 780, mainForm.GetWidth(), 40);
+		_frameTab.Show();
+		//_frameTab.SetTabOrder(2);
+		_textdocSingle = UI_CreateFrame("UI_TextBox", "TBSingle 3", _frameTab);
+		_textdocSingle.SetBounds(0, 0, 150, 60);
+		_textdocSingle.SetFontObject(_font);
+		//_textdocSingle.SetFont("EUROSTIB", 30);
+		_textdocSingle.SetTextColor(255, 255, 0, 0);
+		_textdocSingle.SetTabOrder(0);
+		//_textdocSingle.SetTextPadding(10, 0, 50, 0);
+		_textdocSingle.SetText("tb3");
+		_textdocSingle.AddHistoryAction();
+		_textdocSingle.Insert("nona");
+
+		_textdocSingle.Show();
+		_t = _textdocSingle.CreateTexture();
+		_t.PinToBounds();
+		_t.SetTexture(255, 255, 255, 255);
+		_t.Show();
+
+		_rb1 = UI_CreateFrame("UI_RadioButton", "rb1");
+		_rb1.SetBounds(600, 20, 150, 60);
+		_rb1.SetNormalFontObject(_font);
+		_rb1.GetFontString().SetTextColor(255, 255, 255, 0);
+		_rb1.SetNormalTexture("btnNormal.png");
+		_rb1.SetCheckedTexture("btnPressed.png");
+		// btn.SetHighlightTexture("btnHighlight.png");
+		_rb1.SetTwoStates(true);
+		_rb1.SetText("Radio 1");
+		_rb1.Show();
+		_rb1.SetChecked(true);
+		_rb1.HookEvent(UI_EVENT_CLICK, this, "OnRadioButtonClick");
+
+		_rb2 = UI_CreateFrame("UI_RadioButton", "rb2");
+		_rb2.SetBounds(600, 90, 150, 60);
+		_rb2.SetNormalFontObject(_font);
+		_rb2.GetFontString().SetTextColor(255, 255, 255, 0);
+		_rb2.SetNormalTexture("btnNormal.png");
+		_rb2.SetTwoStates(true);
+		_rb2.SetCheckedTexture("btnPressed.png");
+		// btn.SetHighlightTexture("btnHighlight.png");
+		_rb2.SetText("Radio 2");
+		_rb2.Show();
+		_rb2.HookEvent(UI_EVENT_CLICK, this, "OnRadioButtonClick");
+
+/*
+		_textdocMulti = UI_CreateFrame("UI_TextBox", "TBMulti");
+		_textdocMulti.SetBounds(40, 40, 150, 200);
+		_textdocMulti.SetMultiLine(true);
+		_textdocMulti.SetFontObject(_font);
+		//_textdocMulti.SetCursorLineTextColor(ARGB(255, 255, 0, 255));
+		//_textdocMulti.ShowNumLines(0);
+		//_textdocMulti.SetCursorLineColor(ARGB(255, 255, 0, 0));
+		_textdocMulti.SetAlpha(100);
+		_textdocMulti.SetTextColor(255, 255, 0, 0);
+		//_textdocMulti.SetText("sdfgsdfgs\nsdfgssdfgsa");
+		_textdocMulti.SetText("1linea\n2linea\n3linea\n4linea\n5linea\n6linea\n");
+		_textdocMulti.HookEvent(UI_EVENT_MOUSE_WHEEL, this, "OnWheelTextbox");
+		_textdocMulti.HookEvent(UI_EVENT_TEXTDOC_CURSOR_CHANGED, this, "OnCursorPosChanged");
+		_textdocMulti.Show();
+
+		_t = _textdocMulti.CreateTexture();
+		_t.PinToBounds();
+		_t.SetTexture(255, 255, 255, 255);
+		_t.Show();
+
+		//_font.SetFontSize(60, false);
+
+#if _UISYS_SIMULATE_IOS_
+		_ptrCenter = _textdocMulti.GetCursorPointer();
+		_ptrCenter.SetNormalTexture("PointerCenter_normal.png");
+		_ptrCenter.SetPressedTexture("PointerCenter_pressed.png");
+		_ptrCenter.SetSize(41, 58);
+		_ptrCenter.SetOffset(-41 / 2, _textdocMulti.GetCursorHeight() / 2 + 5);
+#endif
+*/
+
+/*
+		btn = UI_CreateFrame("UI_Button", "btn");
+		btn.SetBounds(550, 660, 200, 100);
+		btn.SetNormalFontObject(_font);
+		btn.GetFontString().SetTextColor(255, 255, 255, 0);
+		btn.SetNormalTexture("btnNormal.png");
+		btn.SetPressedTexture("btnPressed.png");
+		btn.SetHighlightTexture("btnHighlight.png");
+		btn.SetText("MANOLA");
+		//btn.SetScale(0.6454);
+		btn.GetFontString().AdjustToBounds(true);
+		btn.Show();
+		btn.SetTextPadding(100, 0);
+*/
+		_desktop = UI_GetDesktop();
+		DebugMsg("Texturas cargadas", _desktop.AreAllTexturesLoaded());
+	}
+
+	function OnCursorPosChanged(_sender, _event, _params)
+	{
+		DebugMsg("PARAMS", _params);
+	}
+
+
+	function OnWheelTextbox(_sender, _event, _params)
+	{
+		_offset = 5.0f;
+		if (_params[0] < 0)
+			_offset = -5.0f;
+
+		_scroll = _sender.GetVerticalScroll() + _offset / 100.0f;
+		if (_scroll < 0) _scroll = 0;
+		if (_scroll > 1) _scroll = 1;
+		_sender.ScrollVertical(_scroll);
+	}
+
+
+	function OnManolaClick(_sender, _event, _params)
+	{
+		_textdocSingle.Undo();
+	}
+
+
+	function OnRadioButtonClick(_sender, _event, _params)
+	{
+		DebugMsg("CLICK", _sender.GetName());
+	}
+
+
+	function CreateFrame(_texture, _name, _texName = null)
+	{
+		_f2 = UI_CreateFrame("UI_Frame", _name);
+		_f2.SetBounds(150, 150, 200, 200);
+		_f2.Show();
+		_tex = _f2.CreateTexture(_texName);
+		_tex.PinToBounds();
+		_tex.SetTexture(_texture);
+		_tex.Show();
+		return _f2;
+	}
+
+	function OnSliderVValueChanged(_sender, _event, _params)
+	{
+		_sf = UI_GetObject("UI_ScrollFrame");
+		_sf.SetVerticalScrollPctg(_sender.GetValuePctg());
+	}
+
+	function OnSliderValueChanged(_sender, _event, _params)
+	{
+		_sf = UI_GetObject("UI_ScrollFrame");
+		_sf.SetHorizontalScrollPctg(_sender.GetValuePctg());
+	}
+
+
+	function OnEnterF2(_sender, _event, _params)
+	{
+// 		if (!suil_system.UI_GetSystem().IsDragging())
+// 		{
+// _timerFormat = "Create tooltip %dms";
+// _timer = new Timer(true);
+// 			_ttip = UI_GetObject("GameTooltip");
+// 			_ttip.ClearLines();
+// 			_ttip.SetColSpacing(10);
+// 			_ttip.SetText("La fuerza del viento", ARGB(255, 255, 249, 0));
+// 			_ttip.AddLine("El Maestro Marionetero te otorga el poder de cambiar los controles de tus enemigos, sumiendoles en el caos.", true, ARGB(255, 0, 232, 12));
+// 			_ttip.AddDoubleLine("El Maestro Marionetero te otorga el poder", "230.000");
+// 			_ttip.AddDoubleLine("El Maestro Marionetero te otorga el poder", "230.000");
+// 			_ttip.AddDoubleLine("El Maestro Marionetero te otorga el poder", "230.000");
+// 			_ttip.AddDoubleLine("El Maestro Marionetero te otorga el poder", "230.000");
+// 			_ttip.AddDoubleLine("El Maestro Marionetero te otorga el poder", "230.000");
+// 			_ttip.AddDoubleLine("El Maestro Marionetero te otorga el poder", "230.000");
+// 			_ttip.SetMinimumWidth(300);
+// 			_ttip.Show(slider, UI_TOOLTIP_ANCHOR_LEFT, 0, 0);
+// _timer.DeleteLog(_timerFormat);
+// 		}
+	}
+
+	function OnLeaveF2(_sender, _event, _params)
+	{
+		// _ttip = UI_GetObject("GameTooltip");
+		// _ttip.FadeOut(24000);
+	}
+
+
+	function OnClick(_sender, _event, _params)
+	{
+		_btnId = _params[0];
+		if (_btnId == MOUSE_RIGHT)
+		{
+			_f3 = UI_GetObject("f3");
+			_f3.ClampToScreen();
+			return;
+		}
+/*
+		_f3 = UI_GetObject("f3");
+		//_f3.SetLeft(0);
+		_ag = _f3.CreateAnimationGroup("A" + animId);
+		animId++;
+		_ag.SetLooping(UI_LOOP_TYPE_ENDFIX);
+
+		// _a2 = _ag.CreateAnimation("UI_Alpha");
+		// //_a2.SetOrder(0);
+		// _a2.SetAlpha(-255);
+		// _a2.SetDuration(600); // Quitarlo para probar como va sin duración
+
+		_a2 = _ag.CreateAnimation("UI_Resize");
+		_a2.SetWOffset(100);
+		_a2.SetOrder(1);
+		//_a2.SetStartDelay(1000);
+		_a2.SetDuration(300); // Quitarlo para probar como va sin duración
+
+		_a1 = _ag.CreateAnimation("UI_Translation");
+		_a1.SetXOffset(150);
+		_a1.SetDuration(1000);
+		 _ag.Play();
+*/
+
+		_f3 = UI_GetObject("f3");
+		if (!_f3.GetAnimationGroupCount())
+		{
+			//_f3.SetTopMost(!_f3.GetTopMost());
+			_ag = _f3.CreateAnimationGroup("A" + animId);
+			animId++;
+			_ag.SetLooping(UI_LOOP_TYPE_BOUNCE);
+			//_ag.SetMaxLoopCount(2);
+
+			_a1 = _ag.CreateAnimation("UI_Resize");
+			//_a1.AutoDelete(true);
+			_a1.SetXOffset(100);
+			_a1.SetSmoothing(UI_ANI_SMOOTH_IN);
+			_a1.SetDuration(300); // Quitarlo para probar como va sin duración
+			//_a1.SetWOffset(200);
+
+			// _a2 = _ag.CreateAnimation("UI_Resize");
+			// _a2.SetYOffset(100);
+			// _a2.SetOrder(1);
+			// //_a2.SetStartDelay(1000);
+			// _a2.SetDuration(300); // Quitarlo para probar como va sin duración
+
+			// _a2 = _ag.CreateAnimation("UI_Rotation"); // Al ser sobre el frame NO HACE NADA
+			// _a2.SetDegrees(90);
+			// _a2.SetDuration(300); // Quitarlo para probar como va sin duración
+
+			_ag.Play();
+
+			_ag = _f3.CreateAnimationGroup("A" + animId);
+			_ag.SetLooping(UI_LOOP_TYPE_BOUNCE);
+			//_ag.SetMaxLoopCount(2);
+			animId++;
+			_a2 = _ag.CreateAnimation("UI_Alpha");
+			//_a2.SetOrder(0);
+			_a2.SetAlpha(-255);
+			_a2.SetDuration(600); // Quitarlo para probar como va sin duración
+			_ag.Play();
+
+
+			// _l = _f3.GetInternalRegionIndex(0);
+			// _ag = _l.CreateAnimationGroup("A" + animId);
+			// animId++;
+			// _ag.SetLooping(UI_LOOP_TYPE_REPEAT);
+			// //_ag.SetMaxLoopCount(2);
+			// _a2 = _ag.CreateAnimation("UI_Rotation");
+			// _a2.SetDegrees(90);
+			// _a2.SetDuration(300); // Quitarlo para probar como va sin duración
+
+			_ag.Play();
+		}
+		else
+		{
+			_a = _f3.GetAnimationGroupIndex(0);
+			//_a1 = _f3.GetAnimationGroupIndex(1);
+			if (_a.IsPlaying())
+			{
+				_a.Pause();
+				//_a1.Pause();
+			}
+			else
+			{
+				_a.Play();
+				//_a1.Play();
+			}
+		}
+
+
+		// DebugMsg(_textdocMulti.GetText());
+		// _z = _control.GetZoom();
+		// if (Input_IsKeyPressed(KEY_LSHIFT)) _z += 0.1;
+		// else _z -= 0.1;
+		// _control.SetZoom(_z);
+
+/*
+		_control = UI_GetObject("TBSingle 1");
+		_scale = UI_GetDesktop().GetScale();
+		if (Input_IsKeyPressed(KEY_LSHIFT)) _scale += 0.1;
+		else _scale -= 0.1;
+		UI_GetDesktop().SetScale(_scale);
+*/
+	}
+
+	function OnMouseDown(_sender, _event, _params)
+	{
+		//_sender.StartSizing(UI_LEFT | UI_TOP);
+		//_sender.StartSizing(UI_RIGHT | UI_BOTTOM);
+
+		// //_sender.StartMoving();
+		// //_p = _sender.PointToClient(Cursor_GetX(), Cursor_GetY());
+		// ddData = [_sender.GetParent(), _sender.GetPosition()];
+		// _sender.SetParent(null);
+		// //_sender.SetPosition(_p[0], _p[1]);
+		// _sender.SetPosition(Cursor_GetX(), Cursor_GetY());
+		// _sender.StartDragging();
+		// _sender.SetStrata(UI_STRATA_TOOLTIP);
+		// //_sender.StartSizing(UI_RIGHT | UI_BOTTOM);
+	}
+
+	function OnMouseUp(_sender, _event, _params)
+	{
+		DebugMsg("YEIRA");
+		//_sender.SetStrata(UI_STRATA_NORMAL);
+		//_sender.StopMovingOrSizing();
+		// _cancel = false;
+		// _over = GetFrameOnCursor();
+		// if (_over != UI_GetDesktop() && _over.GetName() != "form2")
+		// {
+		// 	_sender.SetParent(ddData[0]);
+		// 	_sender.SetPosition(ddData[1][0], ddData[1][1]);
+		// 	_cancel = true;
+		// }
+		// _sender.StopDragging();
+	}
+
+	function OnDragReceived(_sender, _event, _params)
+	{
+		_frame = _params[0];
+		_f2 = UI_GetObject("form2");
+		_frame.SetParent(_f2);
+		_frame.SetPosition(0, 0);
+	}
+
+	function OnDragEnd(_sender, _event, _params)
+	{
+		//_sender.RegisterForDrag();
+	}
+
+	function Draw()
+	{
+		// Render_DrawRect(10, 800, tr[0], tr[1], ARGB(255, 255, 255, 0));
+		// Render_PrintRect(_font.Core_GetEngineFont(), 10, 800, tr[0], tr[1], trtext, -1, trta);
+	}
+
+	function PrioFrame(_name, x, y, _color, _parent = null)
+	{
+		_f = UI_CreateFrame("UI_Frame", _name, _parent);
+		_f.SetBounds(x, y, 300, 300);
+		_f.Show();
+		//_f.HookEvent(UI_EVENT_CLICK, this, "OnClick");
+
+		tex1 = _f.CreateTexture();
+		tex1.SetTextureColor(_color);
+		tex1.PinToBounds();
+		tex1.Show();
+
+		return _f;
+	}
+
+	function OnWheel(_sender, _event, _params)
+	{
+		DebugMsg("YEA");
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Test TAB
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function TestTab()
+	{
+		_af = CreateFrame("FRAME 1", null, ARGB(255, 255, 255, 255), 0, 0, 300, 300);
+		_zf = CreateFrame("FRAME A", null, ARGB(255, 200, 200, 200), 0, 310, 300, 300);
+		_yf = CreateFrame("FRAME A", null, ARGB(255, 200, 200, 0), 0, 310, 200, 200);
+
+		_bf = CreateFrame("FRAME 2", null, ARGB(255, 255, 0, 0), 0, 0, 250, 250);
+		CreateTextBox("TB1", _bf);
+		_btn1 = CreateButton("BTN1", _yf);
+		_btn2 = CreateButton("BTN2", _yf);
+		_btn2.SetTop(60);
+		UI_GetSystem().EnableAutoTabManagement();
+
+		_font = UI_CreateFont(null);
+		_font.SetFont("PT_Sans_Narrow", 16);
+
+		_fs = _bf.CreateFontString();
+		_fs.SetBounds(0, 100, 200, 100);
+		_fs.SetFontObject(_font);
+		_fs.SetText("Manola");
+		_fs.AdjustToText();
+		_fs.Show();
+
+		//delete _font;
+	}
+
+	function CreateTextBox(_name, _parent)
+	{
+		_font = UI_CreateFont("GameFontNormal");
+		_font.SetFont("ActionComics", 16);
+
+		_textdocSingle = UI_CreateFrame("UI_TextBox", _name, _parent);
+		_textdocSingle.SetBounds(10, 10, 150, 60);
+		_textdocSingle.SetFontObject(_font);
+		_textdocSingle.SetTextColor(255, 255, 0, 0);
+		_textdocSingle.Show();
+
+		_textdocSingle.Show();
+		_t = _textdocSingle.CreateTexture();
+		_t.PinToBounds();
+		_t.SetTexture(255, 255, 255, 255);
+		_t.Show();
+		// _textdocSingle.SetTabOrder(0);
+		// _textdocSingle.SetTextPadding(10, 0, 50, 0);
+		_textdocSingle.SetText(_name);
+		// _textdocSingle.AddHistoryAction();
+		// _textdocSingle.Insert("nona");
+
+		return _textdocSingle;
+	}
+
+	function CreateFrame(_name, _parent, _color, _x, _y, _w, _h)
+	{
+		_frame = UI_CreateFrame("UI_Frame", _name, _parent);
+		_frame.SetBounds(_x, _y, _w, _h);
+		_frame.Show();
+
+		_tex1 = _frame.CreateTexture();
+		_tex1.PinToBounds();
+		_tex1.SetTextureColor(_color);
+		_tex1.Show();
+		return _frame;
+	}
+
+	function CreateButton(_name, _parent)
+	{
+		_font = UI_CreateFont("GameFontNormal");
+		_font.SetFont("ActionComics", 16);
+
+		_btn = UI_CreateFrame("UI_Button", _name, _parent);
+		_btn.SetBounds(10, 10, 150, 40);
+		_btn.SetNormalFontObject(_font);
+		_btn.GetFontString().SetTextColor(255, 255, 255, 0);
+		_btn.SetNormalTexture("btnNormal.png");
+		_btn.SetPressedTexture("btnPressed.png");
+		_btn.SetHighlightTexture("btnHighlight.png");
+		_btn.SetText("Btn");
+		_btn.Show();
+		//_btn.SetTabStop(true);
+		return _btn;
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: TestFrameOrder
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function TestFrameOrder()
+	{
+		_mf = CreateFrame("MF", null, ARGB(255, 255, 255, 255), 0, 0, 500, 500);
+		_pr = null; //_mf;
+		_af = CreateFrame("FRAME A", _pr, ARGB(255, 0, 255, 255), 0, 0, 300, 300);
+		_bf = CreateFrame("FRAME B", _pr, ARGB(255, 255, 0, 0), 210, 0, 300, 300);
+		_cf = CreateFrame("FRAME CB", _pr, ARGB(255, 0, 255, 0), 110, 110, 300, 500);
+		_bf.SetTopMost(true);
+		//_af.Raise();
+		_cf.Lower();
+
+		_t = UI_GetDesktop().CreateTexture();
+		_t.SetTexture(100, 0, 0, 255);
+		_t.PinToBounds();
+		_t.Show();
+		_mf.BringToFront(_t);
+
+		RaiseLower(_mf);
+		RaiseLower(_af);
+		RaiseLower(_bf);
+		RaiseLower(_cf);
+
+		_f = UI_CreateFrame("EventTest", null, _mf);
+		_f.Show();
+		_f2 = UI_CreateFrame("EventTest", null, _mf);
+		_f2.Show();
+	}
+
+	function TestStrata()
+	{
+		_mf = CreateFrame("MF", null, ARGB(255, 255, 255, 255), 0, 0, 300, 300);
+		_mf.SetStrata(UI_STRATA_NORMAL);
+
+		_af = CreateFrame("FRAME A", null, ARGB(255, 0, 255, 255), 100, 100, 300, 300);
+		_af.SetStrata(UI_STRATA_HIGH);
+	}
+
+	function RaiseLower(_control)
+	{
+		_control.HookEvent(UI_EVENT_CLICK, this, "OnClickRaisLowerButtons");
+	}
+
+	function OnClickRaisLowerButtons(_sender, _event, _params)
+	{
+		_btn = _params[0];
+		if (_btn == MOUSE_LEFT)
+			_sender.Raise();
+		else if (_btn == MOUSE_RIGHT)
+			_sender.Lower();
+		else if (_btn == MOUSE_MIDDLE)
+			_sender.SetTopMost(!_sender.GetTopMost());
+	}
+
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: TestPath
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function TestPath()
+	{
+		DebugMsg(Path_Combine("C:/hola/manola/per", "./../no/la"));
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Test textura simple
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function TestTexturaSimple()
+	{
+		_frame = UI_CreateFrame("UI_Frame", null, null);
+		_frame.SetBounds(0, 0, 400, 400);
+		_frame.Show();
+
+		_tex1 = _frame.CreateTexture();
+		_tex1.PinToBounds();
+		_tex1.SetTexture("back.png");
+		_tex1.Show();
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Textbox
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function TextTextbox()
+	{
+		mainForm = UI_CreateFrame("UI_Frame", "mainForm");
+		mainForm.PinToBounds();
+		mainForm.Show();
+
+		_font = UI_CreateFont("GameFontNormal");
+		_font.SetFont("ActionComics", 30);
+
+		_frameTab = UI_CreateFrame("UI_Frame", "CONT");
+		_frameTab.SetBounds(0, 50, mainForm.GetWidth(), 40);
+		_frameTab.Show();
+		//_frameTab.SetTabOrder(2);
+		_textdocSingle = UI_CreateFrame("UI_TextBox", "TBSingle 3", _frameTab);
+		_textdocSingle.SetBounds(0, 0, 150, 60);
+		_textdocSingle.SetFontObject(_font);
+		//_textdocSingle.SetFont("EUROSTIB", 30);
+		_textdocSingle.SetTextColor(255, 255, 0, 0);
+		_textdocSingle.SetTabOrder(0);
+		//_textdocSingle.SetTextPadding(10, 0, 50, 0);
+		_textdocSingle.SetText("tb3");
+		_textdocSingle.AddHistoryAction();
+		_textdocSingle.Insert("nona");
+
+		_textdocSingle.Show();
+		// _t = _textdocSingle.CreateTexture();
+		// _t.PinToBounds();
+		// _t.SetTexture(255, 255, 255, 255);
+		// _t.Show();
+
+		UI_GetDesktop().SetScale(0.5);
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: TestXML
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function TestXML()
+	{
+		_path = "./data/XML/";
+		_frame = UI_LoadTemplate(_path + "BasicFrame.xml");
+		DebugMsg("FRAME:", _frame);
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: TestGirado
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function TestGirado()
+	{
+		_font = UI_CreateFont("GameFontNormal");
+		_font.SetFont("PT_Sans_Narrow", 30);
+
+		mainForm = UI_CreateFrame("UI_Frame", "mainForm");
+		mainForm.SetBounds(10, 10, 300, 300);
+		mainForm.Show();
+
+		tex = mainform.CreateTexture("tex2");
+		tex.SetBounds(0, 0, 140, 140);
+		tex.SetTexture(255, 255, 255, 0);
+		tex.Show();
+
+		tex = mainform.CreateTexture("tex1");
+		tex.SetBounds(140, 0, 140, 140);
+		tex.SetTexture("back.png");
+		tex.Show();
+
+		btn = UI_CreateFrame("UI_Button", "btn");
+		btn.SetBounds(10, 160, 200, 50);
+		btn.SetNormalFontObject(_font);
+		btn.GetFontString().SetTextColor(255, 255, 255, 0);
+		btn.SetNormalTexture("btnNormal.png");
+		btn.SetPressedTexture("btnPressed.png");
+		btn.SetHighlightTexture("btnHighlight.png");
+		btn.SetText("manola");
+		btn.HookEvent(UI_EVENT_CLICK, this, "GiradoClick");
+		btn.Show();
+
+		_fs = mainform.CreateFontString();
+		_fs.SetBounds(10, 220, 200, 60);
+		_fs.SetFontObject(_font);
+		_fs.SetText("Test Girado");
+		_fs.Show();
+
+	}
+
+	function GiradoClick(_sender, _event, _params)
+	{
+		DebugMsg("Click");
+	}
+
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: TestRenderTarget()
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function TestRenderTarget()
+	{
+		Render_SetProperty (RP_CLEAR_COLOR, ARGB(255,255,0,0));
+
+		_font = UI_CreateFont("GameFontNormal");
+		_font.SetFont("PT_Sans_Narrow", 30);
+
+		rtStatsForm = UI_CreateFrame("UI_Frame");
+		rtStatsForm.SetBounds(0, 0, Render_GetResX(), 40);
+		rtStatsForm.Show();
+		rtStatsForm.EnableExternalMove(this, "RTMove");
+		_fs = rtStatsForm.CreateFontString();
+		_fs.PinToBounds();
+		_fs.SetFontObject(_font);
+		_fs.Show();
+
+
+		mainForm = UI_CreateFrame("UI_Frame", "mainForm");
+		mainForm.EnableRenderTarget(true, 500, 500);
+		mainForm.SetBounds(100, 100, 300, 300);
+		mainForm.Show();
+
+
+		suil_system.HookEvent(UI_SYS_KEYDOWN, this, "OnRTKeyDown");
+
+		tex = mainform.CreateTexture("tex2");
+		tex.SetBounds(0, 0, 140, 140);
+		tex.SetTexture(255, 255, 255, 0);
+		tex.Show();
+
+		tex = mainform.CreateTexture("tex1");
+		tex.SetBounds(140, 0, 140, 140);
+		tex.SetTexture("back.png");
+		tex.Show();
+
+		btn = UI_CreateFrame("UI_Button", "btn", mainform);
+		btn.SetBounds(10, 160, 200, 50);
+		btn.SetNormalFontObject(_font);
+		btn.GetFontString().SetTextColor(255, 255, 255, 0);
+		btn.SetNormalTexture("btnNormal.png");
+		btn.SetPressedTexture("btnPressed.png");
+		btn.SetHighlightTexture("btnHighlight.png");
+		btn.SetText("manola");
+		btn.HookEvent(UI_EVENT_CLICK, this, "GiradoClick");
+		btn.Show();
+
+		i = 0;
+		CreateRTControls(500);
+	}
+
+	function CreateRTControls(_size)
+	{
+		for (i = 0; i < _size; i++)
+		{
+			_fs = mainform.CreateFontString();
+			_fs.SetBounds(10, 220 + i, 200, 60);
+			_fs.SetFontObject(_font);
+			_fs.SetText("Test Girado");
+			_fs.Show();
+			rtFSControls += [_fs];
+		}
+	}
+
+
+	function RTMove()
+	{
+		_fs = rtStatsForm.GetInternalRegionIndex(0);
+		_fs.SetText("FPS: " + GetFPS() + " Controls: " + sizeof(rtFSControls) + " USAR RT: " + (mainForm.rt_enabled?"SI":"NO"));
+	}
+
+	function OnRTKeyDown(_sender, _event, _params)
+	{
+		_hookargs = _params[0];
+		_key = _hookargs.params[0];
+		if (_key == KEY_UP)
+		{
+			CreateRTControls(100);
+		}
+		else if (_key == KEY_DOWN)
+		{
+			i = 100;
+			while (sizeof(rtFSControls) && i > 0)
+			{
+				i--;
+				_c = rtFSControls[sizeof(rtFSControls) - 1];
+				rtFSControls -= [_c];
+				delete _c;
+			}
+		}
+		else if (_key == KEY_RIGHT)
+		{
+			mainForm.EnableRenderTarget(true, 500, 500);
+		}
+		else if (_key == KEY_LEFT)
+		{
+			mainForm.EnableRenderTarget(false);
+		}
+	}
+
+}

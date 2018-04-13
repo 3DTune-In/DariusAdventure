@@ -1,0 +1,95 @@
+class Service
+{
+	constants:
+
+	properties:
+		frame = null;
+		title = null;
+		angleY = 0.0f;
+		sndOk = null;
+		bg = null;
+		bgX = 0.0f;
+	
+	function Init ()
+	{
+		System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/menus/");
+	
+		_frame = UI_CreateFrame("GUI_Frame");
+		_frame.SetBounds (0, 0, RESX, RESY);
+		bg = _frame.CreateImage ("menu_background.jpg", true);
+		_frame.CreateImage ("menu_background_fixed.png");
+		frame = _frame;
+		
+		title = frame.CreateImage("menu_title.png", (RESX-512)/2, 0, 512, 256);
+		
+		_button = frame.CreateButton ((RESX-400)/2, 400, 400, 114);
+		_button.SetFontSize(40);
+		_button.SetNormalTexture ("menu_button.png");
+		_button.SetText(g_language.GetText("menu_play"));
+		_button.SetTextPadding(0, -5);
+		_button.SetOnClick (this, "OnPlay");
+
+		_button = frame.CreateButton ((RESX-400)/2, 520, 400, 114);
+		_button.SetFontSize(40);
+		_button.SetNormalTexture ("menu_button.png");
+		_button.SetText(g_language.GetText("menu_options"));
+		_button.SetTextPadding(0, -5);
+		_button.SetOnClick (this, "OnOptions");
+
+		System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/logos/");
+		frame.CreateImage("3dti.png", 10, RESY-772*0.25f, 512*0.25f, 772*0.25f);
+		frame.CreateImage("h2020.png", RESX-625*0.5f-10, RESY-169*0.5f-10, 625*0.5f, 169*0.5f);
+		
+		System_SetDirectory (DIRECTORY_SOUND, "data/sounds/");
+		sndOk = Sound_Load ("ui_menu_ok.ogg");
+	}
+	
+	function Final ()
+	{
+		Sound_Delete (sndOk);
+		delete frame;
+	}
+	
+	function Start ()
+	{
+	}
+
+	function Move ()
+	{
+		if (Input_IsKeyPressed(KEY_ESCAPE))
+		{
+			System_Exit();
+		}
+		title.SetTop (50 + sin(angleY)*25.0f);
+		angleY += GetFTime() * 0.1f;
+		
+		bg.SetTexCoordAll (bgX, 0, 1, 1);
+		bgX += GetFTime()*0.001f;
+	}
+	
+	function OnFadePlay ()
+	{
+		parent.LoadMenu ("play");
+		g_fade.Off ();
+	}
+	
+	function OnPlay (_button)
+	{
+		frame.SetEnabled (false);
+		g_fade.On (this, "OnFadePlay");
+		g_main.PlayFX(sndOk);
+	}
+
+	function OnFadeOptions ()
+	{
+		parent.LoadMenu ("options");
+		g_fade.Off ();
+	}
+	
+	function OnOptions (_button)
+	{
+		frame.SetEnabled (false);
+		g_fade.On (this, "OnFadeOptions");
+		g_main.PlayFX(sndOk);
+	}
+}

@@ -1,0 +1,45 @@
+class Actor implements Item
+{
+	properties:
+		cheatVisible = false;
+		
+	virtual Init ()
+	{	
+	}
+	
+	virtual Final ()
+	{
+	}
+
+	virtual Start ()
+	{
+		if (Actor_GetParent(this))
+			return;
+			
+		if (game.IsItemUsed(name) || game.IsItemInInventory(name)) // Item usado o en el inventario
+		{                             	
+			visible = cheatVisible;
+		}
+		else 
+		{
+			shadow = true;
+		}
+		if (!cheatVisible) SetEnabled (GetVisible());
+		else SetEnabled(true);
+		SetVisible (GetVisible());
+	}
+
+	virtual SetVisible (_v)
+	{
+		cheatVisible = _v;
+	}
+
+	function OnCursorClick()
+	{
+		if (enabled)
+		{
+			game.hud.OpenPlayerTID ("player_" + name);
+			game.GetPlayer().AddInventory(this);
+		}
+	}
+}

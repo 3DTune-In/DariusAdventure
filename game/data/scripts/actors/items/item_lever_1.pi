@@ -1,0 +1,72 @@
+class Actor implements Item
+{
+	properties:
+		ANI_OFF = 0;
+		ANI_ON = 0;
+		sndOn = null;
+		
+	virtual Init ()
+	{	
+		StartLoadResources ();
+
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "item_lever_1.msh");
+		
+		ANI_OFF = Actor_LoadKinematic (this, "item_lever_1_off.kin");
+		ANI_ON = Actor_LoadKinematic (this, "item_lever_1_on.kin");
+		
+		sndOn = LoadSound ("lever_on.ogg");
+		
+		EndLoadResources ();
+		
+		name = "item_lever_1";
+	}
+	
+	virtual Final ()
+	{
+	}
+	
+	virtual Start ()
+	{
+		if (game.stageID == STAGE_SCRAPYARD)
+		{
+			if (game.IsItemInInventory(name)) // ESTA EN EL INVENTARIO
+			{
+				visible = false;
+			}
+			else if (game.IsItemUsed(name)) // ESTA ACTIVADA
+			{
+				Actor_SetKin (this, ANI_ON, KINMODE_ENDFIX);
+				SetEnabled (true);
+			}
+			else 
+			{
+				_jim = stage.FindActor("npc_jim");
+				if (_jim.GetState() >= 1)
+				{
+					SetEnabled(true);
+				}
+			}
+		}
+	}
+	
+	virtual OnCursorClick ()
+	{
+		if (enabled)
+		{
+			if (!game.IsItemUsed(name)) // Todavia no está activada
+			{
+				game.hud.OpenPlayerTID ("player_item_lever_1_1");
+				Actor_SetKin (this, ANI_ON, KINMODE_ENDFIX);
+				main.PlayFX(sndOn);
+				game.SetItemUsed (name);
+				stage.FindActor("item_key").Fall();
+			}
+			else // Ya se ha activado
+			{
+				game.hud.OpenPlayerTID ("player_item_useful");
+				game.GetPlayer().AddInventory (this);	
+			}
+		}
+	}
+}

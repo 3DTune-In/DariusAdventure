@@ -1,0 +1,23 @@
+class Actor implements Item_Unique_Interface
+{
+	virtual Init ()
+	{	
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "item_green_ball.msh");
+		
+		EndLoadResources ();
+		
+		name = "item_green_ball";
+	}                  
+	
+	virtual Start ()
+	{
+		if (game.GetLandMark ("npc_mark_state") == 0)
+		{
+			SetEnabled (false);
+			SetVisible (false);
+		}
+	}
+}

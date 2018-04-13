@@ -1,0 +1,175 @@
+class Profile
+{
+	constants:
+		VERSION_OK = 7;
+
+	properties:
+		landmarks = null;
+		version = 1;
+		stageID = 0;
+		posX = 0;
+		posY = 0;
+		posZ = 0;
+		angleZ = 0;
+		name = "";
+		playTime = 0;
+		deafness = 0;
+		haQuality = 2; // el 1=8bit
+		hadual = true;
+		haomni = true;
+		lang = "gb";
+
+	function _operator_new ()
+	{
+		landmarks = Dictionary_New ();
+	}
+
+	function _operator_delete ()
+	{
+		if (landmarks) Dictionary_Delete (landmarks);
+	}
+	
+	function GetPath (_id)
+	{
+		return System_GetPublicDirectory("MYDOCUMENTS") + "da_profile"+string(_id);
+	}
+		
+	function SaveValue (_file, _v)
+	{
+		File_WriteByte (_file, typeof(_v));
+		switch (typeof(_v))
+		{
+			case TYPE_INT: File_WriteInt (_file, _v); break;
+			case TYPE_FLOAT: File_WriteFloat (_file, _v); break;
+			case TYPE_STRING: File_WriteString (_file, _v); break;
+			case TYPE_LIST_VALUES:
+			{
+				File_WriteInt (_file, sizeof(_v));
+				for (i=0; i<sizeof(_v); i++)
+				{
+					SaveValue (_file, _v[i]);
+				}
+			}
+			break;
+			default:
+			{
+				DebugMsg ("Profile type error!!!", typeof(_v));
+			}
+		}
+	}
+
+	function Save (_id)
+	{
+		_file = File_Open (GetPath(_id), FILE_MODE_WRITE);
+		if (_file)
+		{
+			File_WriteInt (_file, VERSION_OK);
+			File_WriteString (_file, name);
+			File_WriteInt (_file, playTime);
+			File_WriteInt (_file, deafNess);
+			File_WriteInt (_file, stageID);
+			File_WriteFloat (_file, posX);
+			File_WriteFloat (_file, posY);
+			File_WriteFloat (_file, posZ);
+			File_WriteFloat (_file, angleZ);
+			File_WriteString (_file, lang);
+			File_WriteInt (_file, haQuality);
+			File_WriteInt (_file, hadual);
+			File_WriteInt (_file, haomni);
+			
+			_num = Dictionary_GetItemCount (landmarks);
+			File_WriteInt (_file, _num);
+			for (i=0; i<_num; i++)
+			{
+				_key = Dictionary_GetItemKey (landmarks, i);
+				File_WriteString (_file, _key);
+				SaveValue (_file, Dictionary_Get (landmarks, i));
+			}
+			File_Close (_file);
+			DebugMsg ("Profile:", _id, "Saved OK!");
+			return true;
+		}
+		else
+		{
+			DebugMsg ("Profile:", _id, "Saved FAILED!");
+			return false;
+		}	
+	}
+	
+	function ReadValue (_file)
+	{
+		_v = 0;
+		_type = File_ReadByte(_file);
+		switch (_type)
+		{
+			case TYPE_INT: _v = File_ReadInt(_file); break; 
+			case TYPE_FLOAT: _v = File_ReadFloat(_file); break; 
+			case TYPE_STRING: _v = File_ReadString(_file); break; 
+			case TYPE_LIST_VALUES: 
+			{
+				_num = File_ReadInt(_file);
+				_v = [];
+				for (i=0; i<_num; i++)
+				{
+					_v += [ReadValue (_file)];
+				}
+			}
+			break; 
+		}
+		return _v;
+	}
+	
+	function Load (_id)
+	{
+		_file = File_Open (GetPath(_id), FILE_MODE_READ);
+		if (_file)
+		{
+			Dictionary_Clear (landmarks);
+			
+			version = File_ReadInt(_file);
+			if (version != VERSION_OK)
+			{
+				File_Close(_file);
+				return false;
+			}
+		
+			name = File_ReadString (_file);
+			playTime = File_ReadInt (_file);
+			deafness = File_ReadInt (_file);
+			stageID = File_ReadInt(_file);
+			posX = File_ReadFloat (_file);
+			posY = File_ReadFloat (_file);
+			posZ = File_ReadFloat (_file);
+			angleZ = File_ReadFloat (_file);
+			lang = File_ReadString (_file);
+			haQuality = File_ReadInt (_file);
+			hadual = File_ReadInt (_file);
+			haomni = File_ReadInt (_file);
+
+			_num = File_ReadInt(_file);
+			for (i=0; i<_num; i++)
+			{
+				_key = File_ReadString(_file);
+				_v = ReadValue (_file);
+				Dictionary_InsertItem (landmarks, _key, _v);
+			}
+			File_Close (_file);
+			DebugMsg ("LoadProfile:", _id, "load OK!");
+			
+			//LoadStage (_stageID, [_posX, _posY, _posZ, _angleZ]);
+			
+			return true;
+		}
+		else
+		{
+			DebugMsg ("LoadProfile:", _id, "load FAILED!");
+			return false;
+		}	
+	}
+	
+	function Remove (_id)
+	{
+		DebugMsg ("REMOVING PROFILE:", GetPath(_id)); 
+		return System_DeleteFile (GetPath(_id));	
+	}
+}

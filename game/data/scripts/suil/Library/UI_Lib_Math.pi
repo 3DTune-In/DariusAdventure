@@ -1,0 +1,86 @@
+// Partial de UI_Library
+class UI_Lib_Math
+{
+	function Core_Init_Math()
+	{
+		System_AddScriptGlobalFunction("Math_ConstrainAngle180", this, "Math_ConstrainAngle180");
+		System_AddScriptGlobalFunction("Math_ConstrainAngle360", this, "Math_ConstrainAngle360");
+		System_AddScriptGlobalFunction("Math_PointDivL", this, "Math_PointDivL");
+		System_AddScriptGlobalFunction("Math_PointMulL", this, "Math_PointMulL");
+		System_AddScriptGlobalFunction("Math_PointSub", this, "Math_PointSub");
+		System_AddScriptGlobalFunction("Math_PointAdd", this, "Math_PointAdd");
+		System_AddScriptGlobalFunction("Math_PointMul", this, "Math_PointMul");
+		System_AddScriptGlobalFunction("Math_PointDot", this, "Math_PointDot");
+		System_AddScriptGlobalFunction("Math_PointLengthSq", this, "Math_PointLengthSq");
+		System_AddScriptGlobalFunction("Math_PointScale", this, "Math_PointScale");
+   	System_AddScriptGlobalFunction("Math_InvertVector", this, "Math_InvertVector");
+	}
+
+	function Core_Uninit_Math()
+	{
+	}
+
+
+	// Normalize to [180, -180] en radianes
+	// http://stackoverflow.com/questions/11498169/dealing-with-angle-wrap-in-c-code
+	function Math_ConstrainAngle180(_angle)
+	{
+		_angle = (_angle + NUM_PI) % (2.0f * NUM_PI);
+		if (_angle < 0) _angle += 2.0f * NUM_PI;
+		return -(_angle - NUM_PI);
+	}
+
+	// Normalize to [0, 360] en radianes
+	function Math_ConstrainAngle360(_angle)
+	{
+		_angle = _angle % (2.0f * NUM_PI);
+		if (_angle < 0) _angle += 2.0f * NUM_PI;
+		return 2.0f * NUM_PI - _angle;
+	}
+
+	function Math_PointDivL(_va0, _va1, _va2, _vb0, _vb1, _vb2)
+	{
+		return PointDiv(_va0, _va1, _va2, _vb0, _vb1, _vb2); //[_va0 / _vb0, _va1 / _vb1, _va2 / _vb2];
+	}
+
+	function Math_PointMulL(_va0, _va1, _va2, _vb0, _vb1, _vb2)
+	{
+		return PointMul(_va0, _va1, _va2, _vb0, _vb1, _vb2); //[_va0 * _vb0, _va1 * _vb1, _va2 * _vb2];
+	}
+
+	function Math_PointSub(_p0, _p1)
+	{
+		return PointSub(_p0[0], _p0[1], _p0[2], _p1[0], _p1[1], _p1[2]);
+	}
+
+	function Math_PointAdd(_p0, _p1)
+	{
+		return PointAdd(_p0[0], _p0[1], _p0[2], _p1[0], _p1[1], _p1[2]);
+	}
+
+	function Math_PointMul(_p0, _p1)
+	{
+		return PointMul(_p0[0], _p0[1], _p0[2], _p1[0], _p1[1], _p1[2]);
+	}
+
+	function Math_PointDot(_p0, _p1)
+	{
+		return PointDot(_p0[0], _p0[1], _p0[2], _p1[0], _p1[1], _p1[2]);
+	}
+
+	function Math_PointLengthSq(_p)
+	{
+		return sqrt(PointLength(_p[0], _p[1], _p[2]));
+	}
+
+	function Math_PointScale(_p, _scale)
+	{
+		return PointScale(_p[0], _p[1], _p[2], _scale);
+	}
+
+   function Math_InvertVector(_v)
+   {
+   	return [-_v[0], -_v[1], -_v[2]];
+   }
+
+}

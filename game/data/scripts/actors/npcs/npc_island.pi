@@ -1,0 +1,61 @@
+class Actor implements NPC
+{
+	properties:    	
+		
+	virtual Init ()
+	{
+		StartLoadResources ();
+		
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_island.msh");
+		
+		EndLoadResources ();
+		
+		name = "npc_island";
+		shadow = false;
+		gravity = false;
+		useAngles = 0;
+		collide = true;
+		Scene_AddStatic (scene, this);
+	}
+
+	virtual Start ()
+	{
+		if (GetState() == 0)
+		{
+			_npc = stage.FindActor ("npc_treasure_cross");
+			_npc.SetVisible (false);
+		}
+		else
+		{
+			SetEnabled (false);
+		}
+	}
+	
+	function OnDropItem (_itemName)
+	{	
+		if (_itemName == "item_treasure_map")
+		{
+			_npc = stage.FindActor ("npc_treasure_cross");
+			_npc.SetEnabled (true);
+			SetState(1);
+			SetEnabled (false);
+			game.GetPlayer().TaskDone("use_treasure_map");
+			game.GetPlayer().AddTask("use_shovel");
+			return true;
+		}
+		return false;
+	}
+
+	function OnCursorClick()
+	{
+		switch (GetState())
+		{
+			case 0:
+			{
+				ShowAutoDialogue ("island_1", 1, [this]);
+			}
+			break;
+		}
+	}
+}

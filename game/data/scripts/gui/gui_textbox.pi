@@ -1,0 +1,17 @@
+class GUI_TextBox implements UI_TextBox partial GUI_Frame_Partial
+{
+	virtual OnInit ()
+	{
+		Show();
+	}
+	
+	function SetFontSize (_h)
+	{
+		SetFont (DEFAULT_MENU_FONT, _h);
+	}
+	
+	function SetTextAlign (_ta)
+	{
+		SetTextAlign (_ta);
+	}
+}

@@ -1,0 +1,12 @@
+class GUI_TextBox implements UI_Slider partial GUI_Frame_Partial
+{
+	virtual OnInit ()
+	{
+		Show();
+	}
+	
+	function SetOnChange (_ctx, _event)
+	{
+		HookEvent (UI_EVENT_VALUE_CHANGED, _ctx, _event);
+	}
+}

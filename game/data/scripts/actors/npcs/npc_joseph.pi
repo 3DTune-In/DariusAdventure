@@ -1,0 +1,231 @@
+class Actor implements NPC
+{
+	properties:    	
+		KIN_QUIET = 0;
+		KIN_SPEAK = 0;
+		KIN_SIT_QUIET = 0;
+		KIN_SIT_SPEAK = 0;
+		mobileShelving = null;
+		
+	virtual Init ()
+	{
+		StartLoadResources ();
+		
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_joseph.msh");
+		
+		KIN_QUIET = Actor_LoadKinematic (this, "npc_joseph_quiet.kin");
+		KIN_SPEAK = Actor_LoadKinematic (this, "npc_joseph_speak.kin");                                            
+		KIN_SIT_QUIET = Actor_LoadKinematic (this, "npc_joseph_sit_quiet.kin");
+		KIN_SIT_SPEAK = Actor_LoadKinematic (this, "npc_joseph_sit_speak.kin");                                            
+		
+		EndLoadResources ();
+		
+		name = "npc_joseph";
+		collide = true;
+		Scene_AddStatic (scene, this);
+		bMoveHead = true;
+		
+		voiceID = VOICE_BOY;
+	}
+
+	virtual Start ()
+	{
+		if (game.stageID == STAGE_RESTAURANT)
+		{
+			useAngles = 0;
+			if (GetState() < 2) 
+			{
+			}
+			else
+			{
+				SetVisible(false);
+			}
+		}
+		else if (game.stageID == STAGE_MOBILE_SHOP)
+		{
+			mobileShelving = stage.FindActor ("npc_mobile_shelving");
+			
+			if (GetState() >= 2)
+			{
+				_radio = stage.FindActor("npc_radio");
+				_radio.Stop();
+				
+				if (GetState() == 3)
+				{
+					OnStateWaitingSortMobiles ();	
+				}
+			}
+			else
+			{
+				SetVisible(false);
+			}
+		}
+		else
+		{
+			SetVisible (false);
+		}
+		Quiet();
+	}
+	
+	function Quiet ()
+	{
+		if (game.stageID == STAGE_RESTAURANT) _kinID = KIN_SIT_QUIET;
+		else _kinID = KIN_QUIET;
+		Actor_BlendKin (this, _kinID, KINMODE_LOOP);
+	}
+	
+	function Speak ()
+	{
+		if (game.stageID == STAGE_RESTAURANT) _kinID = KIN_SIT_SPEAK;
+		else _kinID = KIN_SPEAK;
+		Actor_BlendKin (this, _kinID, KINMODE_LOOP);
+	}
+	
+	function OnStateWaitingSortMobiles ()
+	{
+		mobileShelving.Reset();
+		mobileShelving.showText = true;
+		stage.FindActor("stage_" + string(STAGE_CROSS_STREET_1)).SetEnabled(false);
+		game.GetPlayer().SetInventory("item_mobile_phone_blue");
+		game.GetPlayer().SetInventory("item_mobile_phone_green");
+		game.GetPlayer().SetInventory("item_mobile_phone_orange");
+		game.GetPlayer().SetInventory("item_mobile_phone_red");
+		game.GetPlayer().SetInventory("item_mobile_phone_yellow");
+	}
+
+	function OnDropItem (_itemName)
+	{	
+		switch (_itemName)
+		{
+			case "item_sugar_cube":
+			{
+				if (game.GetItemQuantity ("item_sugar_cube") >= TOTAL_SUGARCUBES && game.IsItemUsed ("item_spoon"))
+				{
+					SetState(2);
+					OnCursorClick();
+				}              
+				else
+				{
+					_dlg = game.NewDialogue();
+					_dlg.AddNPCSpeak (this, "joseph_1_5");
+				    game.ShowDialogue (_dlg);
+				}
+				_v = (game.GetItemQuantity ("item_sugar_cube") >= TOTAL_SUGARCUBES);
+				if (_v)
+				{
+					game.GetPlayer().TaskDone("deliver_sugarcubes");
+				} 
+				return _v;
+			}
+			break;
+			case "item_spoon":
+			{
+				game.GetPlayer().TaskDone("deliver_spoon");
+				if (game.IsItemUsed ("item_sugar_cube"))
+				{
+					SetState(2);
+					OnCursorClick();
+				}
+				else
+				{
+					_dlg = game.NewDialogue();
+					_dlg.AddNPCSpeak (this, "joseph_1_5");
+				    game.ShowDialogue (_dlg);
+				}
+				return true;
+			}
+		}
+		return false;
+	}
+
+	function OnCursorClick()
+	{
+		switch (game.stageID)
+		{
+			case STAGE_RESTAURANT:
+			{
+				if (GetState() == 0)
+				{
+					_dlg = ShowAutoDialogue ("joseph_1", 8, [this, game.GetPlayer()]);
+					_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_spoon"]); 
+					_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_sugarcubes"]); 
+					SetState(1);
+				}	
+				else if (GetState() == 1)
+				{
+					ShowAutoDialogue ("joseph_3", 2, [this, game.GetPlayer()]);
+				}
+				else
+				{
+					ShowAutoDialogue ("joseph_2", 5, [this, game.GetPlayer()]);
+				}
+			}
+			break;
+			case STAGE_MOBILE_SHOP:
+			{
+				if (GetState() == 2)
+				{
+					_dlg = game.NewDialogue();
+					AddAutoDialogue (_dlg, "joseph_4", 1, 4, [this, game.GetPlayer()]);
+			
+					_dlg.AddNPCQUestion(game.GetPlayer(), "joseph_9_1", ["joseph_9_1A", "joseph_9_1B"], 0, 0, NEXT_DIALOGUE); // (_npc, _questionID, _answerIDList, _okID, _wrongPC, _okPC) 
+				
+					_dlg.AddNPCCall (game.GetPlayer(), "AddNewCard", ["card_6"]);
+				
+					_radio = stage.FindActor("npc_radio");
+					_dlg.AddNPCCall(_radio, "Stop");
+
+					_dlg.AddNPCSpeak (this, "joseph_4_5", []);
+				
+					//TODO: Esto no sale escrito .. solo se pronuncia!
+					_dlg.AddNPCSpeak (this, "joseph_color_red", []);
+					_dlg.AddNPCSpeak (this, "joseph_color_green", []);
+					_dlg.AddNPCSpeak (this, "joseph_color_blue", []);
+					_dlg.AddNPCSpeak (this, "joseph_color_orange", []);
+					_dlg.AddNPCSpeak (this, "joseph_color_yellow", []);
+					_dlg.AddNPCCall (this, "OnStateWaitingSortMobiles", []);
+					_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["sort_mobiles"]); 
+					_dlg.AddNPCCall (this, "SetState", [3]);
+					
+				    game.ShowDialogue (_dlg);
+				}
+				else if (GetState() == 3)
+				{
+					if (mobileShelving.IsAllPlaced())
+					{
+						if (mobileShelving.IsOk())
+						{
+							_dlg = ShowAutoDialogue ("joseph_5", 5, [this, game.GetPlayer()]);
+							_dlg.AddNPCCall (game.GetPlayer(), "AddInventory", ["item_mobile"]);
+							_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["take_michael_photo"]);
+							_dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["sort_mobiles"]); 
+							SetState(4);
+							stage.FindActor("stage_9").SetEnabled(true);
+						}
+						else
+						{
+							_dlg = ShowAutoDialogue ("joseph_8", 1, [this, game.GetPlayer()]);
+							//TODO: Esto no sale escrito .. solo se pronuncia!
+							_dlg.AddNPCSpeak (this, "joseph_color_red", []);
+							_dlg.AddNPCSpeak (this, "joseph_color_green", []);
+							_dlg.AddNPCSpeak (this, "joseph_color_blue", []);
+							_dlg.AddNPCSpeak (this, "joseph_color_orange", []);
+							_dlg.AddNPCSpeak (this, "joseph_color_yellow", []);
+							_dlg.AddNPCCall (this, "OnStateWaitingSortMobiles", []);
+						}
+					}
+					else
+					{
+						ShowAutoDialogue ("joseph_6", 1, [this, game.GetPlayer()]);
+					}
+				}
+				else
+				{
+					ShowAutoDialogue ("joseph_7", 3, [this, game.GetPlayer()]);
+				}
+			}
+			break;
+		}
+	}
+}

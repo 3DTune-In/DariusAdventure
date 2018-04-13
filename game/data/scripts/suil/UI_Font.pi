@@ -1,0 +1,264 @@
+class UI_Font implements UI_FontInstance, UI_IEventController
+{
+	properties:
+		defaultColor = 0;
+		engineFont = null;
+		name = null;
+
+		fontEffect = [0, 0, 0];
+
+		isCacheEnabled = false;
+
+		// Eventos
+		eventManager = null;
+
+
+	function _operator_new(_uisystem, _name)
+	{
+		::_operator_new(_uisystem);
+
+		name = _name;
+		eventManager = EventManager_New(UI_EVENT_MAX + uiSystem.maxUserEvents);
+	}
+
+	function _operator_delete()
+	{
+		//DebugMsg("UI_FONT delete", this);
+		// DebugStackTrace();
+		if (engineFont) Font_Delete(engineFont);
+		engineFont = null;
+
+		CallEvent(UI_EVENT_FONT_CHANGED);
+		if (eventManager) EventManager_Delete(eventManager);
+		eventManager = null;
+
+		uiSystem.UnRegisterObject(this);
+		uiSystem.Core_RemoveFont(this);
+		//::_operator_delete();
+	}
+
+	function GetName()
+	{
+		return name;
+	}
+
+	function EnableCache()
+	{
+		isCacheEnabled = true;
+	}
+
+	function DisableCache()
+	{
+		isCacheEnabled = false;
+	}
+
+	function GetFont()
+	{
+		if (engineFont == null) return [];
+
+		return Font_GetInfo(engineFont);
+		// _info = Font_GetInfo(engineFont);
+		// return [_info[0], _info[2], _info[3]];
+	}
+
+	// Para dar compatibilidad al _width
+	// function GetFontInfo()
+	// {
+	// 	if (engineFont == null) return [];
+
+	// 	return Font_GetInfo(engineFont);
+	// }
+
+	function GetFontObject()
+	{
+		return this;
+	}
+
+	function SetFont(_fileName, _height)
+	{
+		SetFont(_fileName, 0, _height, 0);
+	}
+
+	function SetFont(_fileName, _height, _flags)
+	{
+		SetFont(_fileName, 0, _height, _flags);
+	}
+
+	function SetFont(_fileName, _width, _height, _flags)
+	{
+		//_oldFont = null;
+		if (engineFont)
+		{
+			//_oldFont = engineFont;
+			Font_Delete(engineFont);
+		}
+
+		_lastMipMap = Render_GetProperty (RP_MIPMAPPING);
+		Render_SetProperty (RP_MIPMAPPING, false);
+		_cache = isCacheEnabled ? 0 : FONT_NOCACHE;
+		//_cache = FONT_NOCACHE;
+		engineFont = Font_Load(_fileName, _width, _height, _flags | _cache);
+		Render_SetProperty (RP_MIPMAPPING, _lastMipMap);
+		Core_ApplyEffect();
+
+		// if (_oldFont)
+		// 	Font_Delete(_oldFont);
+
+		CallEvent(UI_EVENT_FONT_CHANGED);
+		return engineFont != null;
+	}
+
+	function SetFontObject(_uiFont)
+	{
+		_font = Core_ObjectReq(_uiFont);
+		if (!_font) return;
+		CopyFontObject(_uiFont);
+	}
+
+	function CopyFontObject(_uiFont)
+	{
+		_font = Core_ObjectReq(_uiFont);
+		if (!_font) return;
+
+		fontEffect = _uiFont.fontEffect;
+		_info = _uiFont.GetFont();
+		SetFont(_info[0], _info[1], _info[2], _info[3]);
+	}
+
+	function SetTextColor(_a, _r, _g, _b)
+	{
+		defaultColor = ARGB(_a, _r, _g, _b);
+	}
+
+	function SetTextColor(_color)
+	{
+		defaultColor = _color;
+	}
+
+	function GetTextColor()
+	{
+		return defaultColor;
+	}
+
+	function Core_GetEngineFont()
+	{
+		return engineFont;
+	}
+
+	// function Core_SetEngineFont(_engineFont)
+	// {
+	// 	if (engineFont) Font_Delete(engineFont);
+	// 	engineFont = _engineFont;
+	// }
+
+	function GetFontHeight()
+	{
+		if (!engineFont) return 0;
+
+		_info = Font_GetInfo(engineFont);
+		return _info[2];
+	}
+
+	function GetFontWidth()
+	{
+		if (!engineFont) return 0;
+
+		_info = Font_GetInfo(engineFont);
+		return _info[1];
+	}
+
+	function SetFontSize(_height, _reload = true)
+	{
+		SetFontSize(0, _height, _reload);
+	}
+
+	function SetFontSize(_width, _height, _reload)
+	{
+		if (_reload)
+		{
+			_info = GetFont();
+			SetFont(_info[0], _width, _height, _info[3]);
+		}
+		else if (engineFont) Font_SetSize(engineFont, _width, _height);
+
+		CallEvent(UI_EVENT_FONT_CHANGED);
+	}
+
+	function EnableEffect(_effect, _size, _a, _r, _g, _b)
+	{
+		EnableEffect(_effect, _size, ARGB(_a, _r, _g, _b));
+	}
+
+	function EnableEffect(_effect, _size, _color)
+	{
+		fontEffect = [_effect, _size, _color];
+		Core_ApplyEffect();
+	}
+
+	function DisableEffect()
+	{
+		fontEffect[0] = 0;
+		Core_ApplyEffect();
+	}
+
+	function SetEffectColor(_color)
+	{
+		fontEffect[2] = _color;
+		Core_ApplyEffect();
+	}
+
+	function SetEffectSize(_size)
+	{
+		fontEffect[1] = _size;
+		Core_ApplyEffect();
+	}
+
+	function Core_ApplyEffect()
+	{
+		if (engineFont == null) return;
+
+		if (fontEffect[0] != 0)
+		{
+			_eff = FONT_EFFECT_BORDER;
+			if (fontEffect[0] == UI_FONT_EFFECT_SHADOW) _eff = FONT_EFFECT_SHADOW;
+			Font_SetProperty(engineFont, FONT_EFFECT, _eff);
+			Font_SetProperty(engineFont, FONT_EFFECT_RANGE, fontEffect[1]);
+			Font_SetProperty(engineFont, FONT_EFFECT_COLOR, fontEffect[2]);
+		}
+		else Font_SetProperty(engineFont, FONT_EFFECT, FONT_EFFECT_NONE);
+
+		CallEvent(UI_EVENT_FONT_CHANGED);
+	}
+
+	// ID es un numero que va de 0 a 9
+	function SetColorEntry(_id, _color)
+	{
+		if (engineFont)
+			Font_SetColorEntry(engineFont, _id, _color);
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Eventos
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function CallEvent(_event, _params = [])
+	{
+		//if (destroying || destroyed) return;
+		if (eventManager)
+			EventManager_DoEvent(eventManager, _event, [this, _event, _params]);
+	}
+
+	function HookEvent(_event, _context, _function)
+	{
+		if (eventManager)
+			EventManager_AddEvent(eventManager, _event, _context, _function);
+	}
+
+	function RemoveEvent(_event, _context)
+	{
+		if (eventManager)
+			EventManager_RemoveEvent(eventManager, _event, _context);
+	}
+}

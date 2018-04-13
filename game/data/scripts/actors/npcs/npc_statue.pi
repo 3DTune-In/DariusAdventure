@@ -1,0 +1,155 @@
+class Actor implements NPC
+{
+	properties:
+		lever1 = null;
+		lever2 = null;
+		lever3 = null;
+		ANI_CLOSED = null;
+		ANI_OPEN = null;
+		ANI_OPENED = null;
+		sndOpen = null;
+		     
+	virtual Init ()
+	{	
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_statue.msh");
+		
+		ANI_CLOSED = Actor_LoadKinematic(this, "npc_statue_closed.kin");
+		ANI_OPEN = Actor_LoadKinematic(this, "npc_statue_open.kin");
+		ANI_OPENED = Actor_LoadKinematic(this, "npc_statue_opened.kin");
+		
+		EndLoadResources ();
+		
+		lever1 = Scene_NewActor (scene, "lever1", "item_lever_1", 0, 0, 0);
+		Actor_AddChild (this, lever1, Actor_FindDummy (this, "lever1"));
+		lever2 = Scene_NewActor (scene, "lever2", "item_lever_2", 0, 0, 0);
+		Actor_AddChild (this, lever2, Actor_FindDummy (this, "lever2"));
+		lever3 = Scene_NewActor (scene, "lever3", "item_lever_3", 0, 0, 0);
+		Actor_AddChild (this, lever3, Actor_FindDummy (this, "lever3"));
+
+		sndOpen = LoadSound("door_open.ogg"); 
+
+		name = "npc_statue";
+		collide = true;
+		Scene_AddStatic (scene, this);
+		useAngles = 0;
+	}
+	
+	virtual Final ()
+	{
+	}
+	
+	virtual Start ()
+	{
+		_v = GetState();
+		
+		Actor_SetVisible (lever1, (_v & 0x01));
+		Actor_SetVisible (lever2, (_v & 0x02));
+		Actor_SetVisible (lever3, (_v & 0x04));
+		_connector = game.FindActor ("stage_" + string(STAGE_STATUE_ROOM)); 
+		_connector.SetEnabled ((_v & 0x07) == 0x07);
+		_connector.SetVisible ((_v & 0x07) == 0x07);
+
+		if ((_v & 0x07) == 0x07)
+		{
+			SetEnabled (false);
+			Actor_SetKin (this, ANI_OPENED, KINMODE_LOOP);
+			_change ("opened");
+		}
+		else
+		{
+			Actor_SetKin (this, ANI_CLOSED, KINMODE_LOOP);
+			_change ("closed");
+		}
+	}
+
+	state "closed"
+	{
+	}
+
+	function Open ()
+	{
+		game.SetItemUsed(name);
+		Actor_SetKin (this, ANI_OPEN, KINMODE_ENDFIX);
+		main.PlayFX(sndOpen);
+		_change ("opening");
+	}
+	
+	state "opening"
+	{
+		if (Actor_IsKinTimeEnd (this))
+		{
+			SetEnabled (false);
+			Actor_SetKin (this, ANI_OPENED, KINMODE_LOOP);
+			_change ("opened");
+		}
+	}
+	
+	state "opened"
+	{
+	}
+
+	function OnDropItem (_itemName)
+	{	
+		_v = GetState();
+		if (_itemName == "item_lever_1") 
+		{
+			game.hud.OpenPlayerTID ("statue_4_1");
+			SetState(_v | 0x01);
+			Actor_SetVisible (lever1, true);
+			return true;
+		}
+		else if (_itemName == "item_lever_2") 
+		{
+			if ((_v & 0x01) != 0x01)
+			{
+				game.hud.OpenPlayerTID ("statue_7_1");
+			}
+			else
+			{
+				game.hud.OpenPlayerTID ("statue_5_1");
+				SetState(_v | 0x02);
+				Actor_SetVisible (lever2, true);
+				return true;
+			}
+		}
+		else if (_itemName == "item_lever_3") 
+		{
+			if ((_v & 0x03) != 0x03)
+			{
+				game.hud.OpenPlayerTID ("statue_7_1");
+			}
+			else
+			{
+				game.hud.OpenPlayerTID ("statue_6_1");
+				SetState(_v | 0x04);
+				Actor_SetVisible (lever3, true);
+				game.FindActor ("stage_" + string(STAGE_STATUE_ROOM)).SetEnabled (true);
+				Open();
+				game.GetPlayer().TaskDone("put_levers");
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	function OnCursorClick()
+	{
+		_v = GetState();
+		if ((_v & 0x7) == 0)
+		{
+			game.hud.OpenPlayerTID ("statue_1_1");
+		}
+		else if ((_v & 0x7) != 7)
+		{
+			game.hud.OpenPlayerTID ("statue_3_1");
+		}
+		else
+		{
+			game.hud.OpenPlayerTID ("statue_2_1");
+		}
+	}
+}

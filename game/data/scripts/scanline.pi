@@ -1,0 +1,42 @@
+class Service
+{
+	properties:
+		tex = null;
+		fY = 0.0f;
+		factor = 8.0f;
+		
+	function Init ()
+	{
+		System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/");
+		Render_SetProperty (RP_TEXADDRU, TA_WRAP); 
+		Render_SetProperty (RP_TEXADDRV, TA_WRAP); 
+		tex = Texture_Load ("scanline.png");
+		//tex = Texture_Load ("scanline_2.png");
+		Render_SetProperty (RP_TEXADDRU, TA_CLAMP); 
+		Render_SetProperty (RP_TEXADDRV, TA_CLAMP); 
+		priority = 254;
+		SetFactor (8);
+	}
+	
+	function Final ()
+	{
+		Texture_Delete (tex);
+	}
+	
+	function Start ()
+	{
+	}
+	
+	function SetFactor (_f)
+	{
+		_f *= 2;
+		fY = Render_GetProperty(RP_RESY)/_f;
+		factor = _f;
+	}
+	
+	function Draw ()
+	{
+		_b = Render_GetProperty(RP_INRESY) / RESY;
+		Render_DrawTexUV (tex, 0, 0, RESX, RESY, 0, ARGB(100,255,255,255), 0, 0, 1, (fY/_b)*4);
+	}
+}

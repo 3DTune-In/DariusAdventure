@@ -1,0 +1,34 @@
+class Actor implements Item
+{
+	properties:
+		baseName = "";
+		
+	virtual Init ()
+	{	
+		baseName = name;
+	}
+	
+	virtual Final ()
+	{
+	}
+
+	virtual Start ()
+	{
+		if (game.GetLandMark (baseName + string(game.stageID)) == 1) // Ya hemos cogido esta manzana 
+		{
+			SetEnabled(false);
+			SetVisible(false);
+		}
+		else
+		{
+			SetEnabled(true);
+		}
+	}
+
+	function OnCursorClick()
+	{
+		game.hud.OpenPlayerTID ("player_" + name);
+		game.AddLandMark (baseName + string(game.stageID), 1);
+		game.GetPlayer().AddInventory(this);
+	}
+}

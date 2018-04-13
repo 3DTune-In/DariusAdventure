@@ -1,0 +1,133 @@
+// NOTA: TODOS LOS FRAMES QUE SE AÑADAN DEBERÁN ACTIVAR EL CLIPPING CON EnableClipping(true), YA QUE EL SPRITEMANAGER REQUIERE
+// 		QUE ESTÉ ACTIVADO EN TODOS PARA QUE FUNCIONE BIEN. El clipping del container ya se activa por defecto.
+class UI_ScrollFrame implements UI_Frame
+{
+	properties:
+		childScrollFrame = null;
+		scrollPos = [0.0, 0.0];
+
+	function _operator_new(_uisystem, _name)
+	{
+		::_operator_new(_uisystem, _name);
+
+		EnableClipping(true);
+	}
+
+   function SetScrollChild(_frame)
+   {
+   	if (childScrollFrame) childScrollFrame.SetParent(null);
+
+   	childScrollFrame = _frame;
+
+   	if (childScrollFrame)
+   	{
+   		childScrollFrame.SetParent(this);
+   		childScrollFrame.EnableClipping(true);
+   		scrollPos = [0.0, 0.0];
+   		UpdateScrollChildRect();
+   	}
+   }
+
+   // function Core_AddChild(_region)
+   // {
+
+   // }
+
+	function GetScrollChild()
+	{
+		return childScrollFrame;
+	}
+
+	function GetHorizontalScroll()
+	{
+		return scrollPos[0] * GetHorizontalScrollRange();
+	}
+
+	// Returns the scroll frame's maximum horizontal (rightmost) scroll position
+	function GetHorizontalScrollRange()
+	{
+		if (!childScrollFrame) return 0;
+		_w = childScrollFrame.GetWidth() - GetWidth();
+		if (_w < 0) _w = 0;
+		return _w;
+	}
+
+	// Returns the scroll frame's current vertical scroll position
+	function GetVerticalScroll()
+	{
+		return scrollPos[1] * GetVerticalScrollRange();
+	}
+
+ 	// Returns the scroll frame's maximum vertical (bottom) scroll position
+	function GetVerticalScrollRange()
+	{
+		if (!childScrollFrame) return 0;
+		_h = childScrollFrame.GetHeight() - GetHeight();
+		if (_h < 0) _h = 0;
+		return _h;
+	}
+
+	// Sets the scroll frame's horizontal scroll position
+	function SetHorizontalScroll(_scroll)
+	{
+		_range = GetHorizontalScrollRange();
+		_sp = 0;
+		if (_range > 0)
+			_sp = _scroll / _range;
+		scrollPos[0] = _sp;
+		UpdateScrollChildRect();
+	}
+
+ 	// Sets the scroll frame's vertical scroll position
+	function SetVerticalScroll(_scroll)
+	{
+		_range = GetVerticalScrollRange();
+		_sp = 0;
+		if (_range > 0)
+		_sp = _scroll / _range;
+		scrollPos[1] = _sp;
+		UpdateScrollChildRect();
+	}
+
+	function GetHorizontalScrollPctg()
+	{
+		_pctg = 0;
+		_range = GetHorizontalScrollRange();
+		if (_range > 0)
+			_pctg = GetHorizontalScroll() / _range;
+		return _pctg;
+	}
+
+	function SetHorizontalScrollPctg(_scroll)
+	{
+		scrollPos[0] = _scroll;
+		UpdateScrollChildRect();
+	}
+
+	function GetVerticalScrollPctg()
+	{
+		_pctg = 0;
+		_range = GetVerticalScrollRange();
+		if (_range > 0)
+			_pctg = GetVerticalScroll() / _range;
+		return _pctg;
+	}
+
+ 	// Sets the scroll frame's vertical scroll position
+	function SetVerticalScrollPctg(_scroll)
+	{
+		scrollPos[1] = _scroll;
+		UpdateScrollChildRect();
+	}
+
+	// Updates the position of the scroll frame's child. The ScrollFrame automatically adjusts the position of the child frame when scrolled,
+	// but manually updating its position may be necessary when changing the size or contents of the child frame.
+	function UpdateScrollChildRect()
+	{
+		if (!childScrollFrame) return;
+
+		_x = -scrollPos[0] * GetHorizontalScrollRange();
+		_y = -scrollPos[1] * GetVerticalScrollRange();
+		childScrollFrame.SetPosition(_x, _y);
+	}
+}

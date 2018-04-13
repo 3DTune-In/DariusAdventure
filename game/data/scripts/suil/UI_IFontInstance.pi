@@ -1,0 +1,36 @@
+class UI_IFontInstance
+{
+	function GetFont()
+	{
+		return [];
+	}
+
+	function GetFontObject()
+	{
+		return null;
+	}
+
+	function SetFont(_fileName, _size, flags = 0)
+	{
+
+	}
+
+	function SetFontObject(_font)
+	{
+
+	}
+
+	function SetTextColor(_a, _r, _g, _b)
+	{
+
+	}
+
+	function SetTextColor(_color)
+	{
+	}
+
+	function GetTextColor()
+	{
+		return 0;
+	}
+}

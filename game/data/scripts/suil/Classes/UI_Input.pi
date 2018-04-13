@@ -1,0 +1,54 @@
+class UI_Input implements UI_IEventController
+{
+	properties:
+		enabled = false;
+		eventManager = null;
+
+	function _operator_new()
+	{
+		eventManager = EventManager_New(UI_INPUTEV_MAX);
+	}
+
+	function _operator_delete()
+	{
+		EventManager_Delete(eventManager);
+	}
+
+	function Enable()
+	{
+		if (enabled) return;
+		enabled = true;
+	}
+
+	function IsEnabled()
+	{
+		return enabled;
+	}
+
+	function Disable()
+	{
+		if (!enabled) return;
+		enabled = false;
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: UI_IEventController
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function CallEvent(_event, _params)
+	{
+		EventManager_DoEvent(eventManager, _event, [this, _event, _params]);
+	}
+
+	function HookEvent(_event, _context, _function)
+	{
+		EventManager_AddEvent(eventManager, _event, _context, _function);
+	}
+
+	function RemoveEvent(_event, _context)
+	{
+		EventManager_RemoveEvent(eventManager, _event, _context);
+	}
+}

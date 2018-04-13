@@ -1,0 +1,94 @@
+class Actor implements NPC
+{
+	properties:    	
+		KIN_QUIET = 0;
+		KIN_SPEAK = 0;
+		
+	virtual Init ()
+	{
+		StartLoadResources ();
+		
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_mime.msh");
+		
+		KIN_QUIET = Actor_LoadKinematic (this, "npc_mime_quiet.kin");
+		KIN_SPEAK = Actor_LoadKinematic (this, "npc_mime_speak.kin");                                            
+		
+		EndLoadResources ();
+		
+		name = "npc_mime";
+		collide = true;
+		Scene_AddStatic (scene, this); 
+		bMoveHead = true;
+		
+		voiceID = VOICE_BOY;
+	}
+
+	virtual Start ()
+	{
+		if (game.GetLandMark ("npc_strongoroff_state") < 3)
+		{
+			SetVisible (false);
+		}
+	}
+	
+	function Quiet ()
+	{
+		Actor_BlendKin (this, KIN_QUIET, KINMODE_LOOP);
+	}
+	
+	function Speak ()
+	{
+		Actor_BlendKin (this, KIN_SPEAK, KINMODE_LOOP);
+	}
+
+	function OnDropItem (_itemName)
+	{	
+		if (GetState() >= 1 && /*game.GetLandMark("item_cat_state") >= 1 &&*/ _itemName == "item_green_ball")
+		{
+			_dlg = ShowAutoDialogue ("mime_3", 3, [game.GetPlayer(), this]);
+			_dlg.AddNPCCall (game.GetPlayer(), "AddInventory", ["item_feather"]);
+			_dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["deliver_green_ball"]);
+			SetState(2);
+            return true;
+		}
+		return false;
+	}
+
+	function OnCursorClick()
+	{
+		switch (GetState())
+		{
+			case 0: // Presentation
+			{
+				ShowAutoDialogue ("mime_1", 9, [game.GetPlayer(), this]);
+				SetState(1);
+			}
+			break;
+			case 1:
+			{
+				ShowAutoDialogue ("mime_4", 4, [this, game.GetPlayer()]);
+			}
+			break;
+			case 2:
+			{
+				_dlg = ShowAutoDialogue ("mime_5", 2, [this, game.GetPlayer()]);
+				_dlg.AddNPCCall (game.GetPlayer(), "AddInventory", ["item_cap"]);
+				_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_cap"]);
+				SetState(3);
+			}
+			break;
+			case 3:
+			{
+				ShowAutoDialogue ("mime_6", 9, [game.GetPlayer(), this]);
+				SetState(4);
+			}
+			break;
+			case 4:
+			{
+				ShowAutoDialogue ("mime_7", 2, [this, game.GetPlayer()]);
+			}
+			break;
+		}
+	}
+}

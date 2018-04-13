@@ -1,0 +1,53 @@
+class SERVICE
+{
+	defines:
+		___CHEAT_MODE___ = 1;
+		//___HL_TUNNER___ = 1;
+		CHEAT_WATERMARK = true;
+		//SHOW_TEXTS = true;
+		//FIXED_VOICE_LOCALIZATION = "gb";
+//	CHEAT_STAGE = 3;
+//		CHEAT_INTRO = 1;
+//		CHEAT_OUTRO = 1;
+		GAME_VERSION = "1.23";
+		GAME_VERSION_ID = "23";
+		RESX = 1024;
+		RESY = 768;
+		
+	function Init ()
+	{
+		System_SetParam (SP_TITLE, "DARIUS ADVENTURE - 3DTUNEIN - Nerlaska Studio :: Ver [" + GAME_VERSION + "]");
+
+		System_SetParam (SP_CURSOR, true);
+	
+		if (System_GetParam (SP_FULLSCREEN))
+		{
+			System_SetParam (SP_RESX, RESX);
+			System_SetParam (SP_RESY, RESY);
+		}
+		else
+		{
+			System_SetParam (SP_RESX, RESX);
+			System_SetParam (SP_RESY, RESY);
+		}
+		
+		System_SetParam (SP_INRESX, RESX);
+		System_SetParam (SP_INRESY, RESY);
+		
+		System_SetParam (SP_BPP, 32);
+
+		System_SetParam (SP_VSYNC, true);
+		System_SetParam (SP_SCREENROT, 1);
+		System_SetParam (SP_PLAYFRAMES, 30);
+	
+		System_SetParam (SP_SND_STEREO, true);
+		System_SetParam (SP_SND_BITS, 16);
+		System_SetParam (SP_SND_FREQ, 44100);
+
+		System_SetParam (SP_POOL_MAX3D, 256*1024);
+		System_SetParam (SP_POOL_MAX3DALPHA, 256*1024);
+		System_SetParam (SP_POOL_MAX2D, 256*1024);
+		
+		System_SetParam (SP_FTIME_MAX, 2.0f);
+	}
+}

@@ -1,0 +1,590 @@
+class Configuration2
+{
+	constants:
+		CONF_TYPE_VALUE = 0;
+		CONF_TYPE_CONTAINER = 1;
+		CONF_TYPE_LIST = 2;
+
+		INDEX_KEY = 0;
+		INDEX_VALUE = 1;
+		INDEX_CONF_TYPE = 2;
+	properties:
+		config_internal_version = 2; // Version interna
+
+		keys = null;
+		forceValidKeys = true;
+		logInvalidKeys = true;
+
+	function _operator_new()
+	{
+		keys = Dictionary_New();
+	}
+
+	function _operator_delete()
+	{
+		Clear();
+
+		if (keys)
+			Dictionary_Delete(keys);
+		keys = null;
+	}
+
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Operation
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function SaveToFile(_fileName)
+	{
+		_str = ToString();
+		return suil_library.File_SaveString(_fileName, _str);
+	}
+
+	function SaveToReg(_reg)
+	{
+		_str = ToString();
+		Registry_SetValueStr(_reg, _str);
+	}
+
+	function LoadFromFile(_fileName)
+	{
+		_result = suil_library.File_LoadString(_fileName);
+		if (_result[0] == false)
+			return false;
+
+		return Core_Parse(_result[1]);
+	}
+
+	function LoadFromReg(_reg)
+	{
+		_str = Registry_GetValueStr(_reg, "");
+		if (strlen(_str) == 0) return false;
+
+		return Core_Parse(_str);
+	}
+
+	function ExistReg(_reg)
+	{
+		_str = Registry_GetValueStr(_reg, "");
+		if (strlen(_str) == 0) return false;
+		return true;
+	}
+
+	function ExistFile(_fileName)
+	{
+		return File_Exists(_fileName);
+	}
+
+	function LoadFromString(_str)
+	{
+		return Core_Parse(_str);
+	}
+
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Getters
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function Add(_key, _value)
+	{
+		if (strlen(_key) == 0) return false;
+		_key = String_LowerCase(_key);
+		_containerInfo = NormalizeContainer(_key, true);
+		if (sizeof(_containerInfo) == 0)
+			return false;
+
+		_metadataKey = _key;
+		_container = _containerInfo[0];
+		_key = _containerInfo[1];
+		//DebugMsg(_container, _key);
+
+		if (forceValidKeys)
+		{
+			if (!IsValidKeyName(_key))
+				return false;
+		}
+
+		Dictionary_InsertItem(_container, _key, [_key, _value, CONF_TYPE_VALUE]);
+
+		return true;
+	}
+
+	function AddColor(_key, _value)
+	{
+		_a = Color_GetA(_value);
+		_r = Color_GetR(_value);
+		_g = Color_GetG(_value);
+		_b = Color_GetB(_value);
+
+		Add(_key, "ARGB(" + string(_a) + "," + string(_r) + "," + string(_g) + "," + string(_b) + ")");
+	}
+
+
+	function IsValidKeyName(_key)
+	{
+		for (i = 0; i < strlen(_key); i++)
+		{
+			if (i == 0 && !suil_library.String_CharIsLetter(_key[i]))
+			{
+				if (logInvalidKeys)
+					DebugMsg("Configuration :: La clave", _key, "es invalida (Primera letra debe ser texto)");
+				return false;
+			}
+			else
+			{
+				_cat = suil_library.String_GetCharCategory(_key[i]);
+				//DebugMsg(ascii(_key[i]), _cat);
+				_valid = false;
+				switch(_cat)
+				{
+				case CHARCATEGORY_UPPERCASELETTER:
+				case CHARCATEGORY_LOWERCASELETTER:
+				//case CHARCATEGORY_TITLECASELETTER:
+				//case CHARCATEGORY_MODIFIERLETTER:
+				//case CHARCATEGORY_OTHERLETTER:
+				//case CHARCATEGORY_NONSPACINGMARK:
+				//case CHARCATEGORY_SPACINGCOMBININGMARK:
+				//case CHARCATEGORY_ENCLOSINGMARK:
+				case CHARCATEGORY_DECIMALDIGITNUMBER:
+				//case CHARCATEGORY_LETTERNUMBER:
+				//case CHARCATEGORY_OTHERNUMBER:
+				//case CHARCATEGORY_SPACESEPARATOR:
+				//case CHARCATEGORY_LINESEPARATOR:
+				//case CHARCATEGORY_PARAGRAPHSEPARATOR:
+				//case CHARCATEGORY_CONTROL:
+				//case CHARCATEGORY_FORMAT:
+				//case CHARCATEGORY_SURROGATE:
+				//case CHARCATEGORY_PRIVATEUSE:
+				case CHARCATEGORY_CONNECTORPUNCTUATION:
+				//case CHARCATEGORY_DASHPUNCTUATION:
+				//case CHARCATEGORY_OPENPUNCTUATION:
+				//case CHARCATEGORY_CLOSEPUNCTUATION:
+				//case CHARCATEGORY_INITIALQUOTEPUNCTUATION:
+				//case CHARCATEGORY_FINALQUOTEPUNCTUATION:
+				//case CHARCATEGORY_OTHERPUNCTUATION:
+				//case CHARCATEGORY_MATHSYMBOL:
+				//case CHARCATEGORY_CURRENCYSYMBOL:
+				//case CHARCATEGORY_MODIFIERSYMBOL:
+				//case CHARCATEGORY_OTHERSYMBOL:
+				//case CHARCATEGORY_OTHERNOTASSIGNED:
+					_valid = true;
+				}
+
+				if (!_valid)
+				{
+					if (logInvalidKeys)
+						DebugMsg("Configuration :: La clave", _key, "es invalida en", ascii(_key[i]), "(Categoria invalida:", string(_cat) + ")");
+
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+
+	function NormalizeContainer(_key, _createRoute = false)
+	{
+		_route = String_ToList(_key, "/");
+
+		// Válidamos los contenedores
+		_lastContainer = keys;
+		_parentContainer = keys;
+		for (i = 0; i < sizeof(_route) - 1; i++)
+		{
+			_containerName = _route[i];
+			if (!IsValidKeyName(_containerName))
+				return [];
+
+			if (_parentContainer == null)
+				return [];
+
+			_index = Dictionary_GetItemIndex(_parentContainer, _containerName);
+			_lastContainer = null;
+			if (_index != -1)
+			{
+				_pair = Dictionary_Get(_parentContainer, _index);
+				if (_pair[2] != CONF_TYPE_CONTAINER)
+					return [];
+
+				_lastContainer = _pair[1];
+			}
+
+			if (_lastContainer == null && _createRoute)
+			{
+				_lastContainer = Dictionary_New();
+				Dictionary_InsertItem(_parentContainer, _containerName, [_containerName, _lastContainer, CONF_TYPE_CONTAINER]);
+			}
+
+			_parentContainer = _lastContainer;
+		}
+
+		_keyName = "";
+		if (sizeof(_route) > 0)
+			_keyName = _route[sizeof(_route) - 1];
+
+		return [_lastContainer, _keyName];
+	}
+
+	function GetContainer(_key)
+	{
+		_route = String_ToList(_key, "/");
+
+		// Válidamos los contenedores
+		_lastContainer = keys;
+		_parentContainer = keys;
+		for (i = 0; i < sizeof(_route); i++)
+		{
+			_containerName = _route[i];
+			if (!IsValidKeyName(_containerName))
+				return null;
+
+			if (_parentContainer == null)
+				return null;
+
+			_index = Dictionary_GetItemIndex(_parentContainer, _containerName);
+			_lastContainer = null;
+			if (_index != -1)
+			{
+				_pair = Dictionary_Get(_parentContainer, _index);
+				if (_pair[2] != CONF_TYPE_CONTAINER)
+					return null;
+
+				_lastContainer = _pair[1];
+			}
+
+			// if (_lastContainer == null && _createRoute)
+			// {
+			// 	_lastContainer = Dictionary_New();
+			// 	Dictionary_InsertItem(_parentContainer, _containerName, [_containerName, _lastContainer, CONF_TYPE_CONTAINER]);
+			// }
+
+			_parentContainer = _lastContainer;
+		}
+
+		return _lastContainer;
+	}
+
+
+	function Exists(_key)
+	{
+		_key = String_LowerCase(_key);
+
+		_containerInfo = NormalizeContainer(_key);
+		if (sizeof(_containerInfo) == 0)
+			return false;
+		_container = _containerInfo[0];
+		_key = _containerInfo[1];
+
+		return Dictionary_GetItemIndex(_container, _key) != -1;
+	}
+
+	function GetInt(_key, _default = 0)
+	{
+		_key = String_LowerCase(_key);
+		_containerInfo = NormalizeContainer(_key);
+		if (sizeof(_containerInfo) == 0)
+			return _default;
+		_container = _containerInfo[0];
+		_key = _containerInfo[1];
+
+		_index = Dictionary_GetItemIndex(_container, _key);
+		if (_index == -1)
+			return _default;
+
+		_pair = Dictionary_Get(_container, _index);
+		return int(_pair[1]);
+	}
+
+	function GetColor(_key, _default = 0)
+	{
+		_key = String_LowerCase(_key);
+		_containerInfo = NormalizeContainer(_key);
+		if (sizeof(_containerInfo) == 0)
+			return _default;
+		_container = _containerInfo[0];
+		_key = _containerInfo[1];
+
+		_index = Dictionary_GetItemIndex(_container, _key);
+		if (_index == -1)
+			return _default;
+
+		_pair = Dictionary_Get(_container, _index);
+		return _eval(_pair[1]);
+	}
+
+
+	function GetBool(_key, _default = false)
+	{
+		_key = String_LowerCase(_key);
+
+		_containerInfo = NormalizeContainer(_key);
+		if (sizeof(_containerInfo) == 0)
+			return _default;
+		_container = _containerInfo[0];
+		_key = _containerInfo[1];
+
+		_index = Dictionary_GetItemIndex(_container, _key);
+		if (_index == -1)
+			return _default;
+
+		_pair = Dictionary_Get(_container, _index);
+		return bool(_pair[1]);
+	}
+
+	function GetFloat(_key, _default = 0.0f)
+	{
+		_key = String_LowerCase(_key);
+
+		_containerInfo = NormalizeContainer(_key);
+		if (sizeof(_containerInfo) == 0)
+			return _default;
+		_container = _containerInfo[0];
+		_key = _containerInfo[1];
+
+		_index = Dictionary_GetItemIndex(_container, _key);
+		if (_index == -1)
+			return _default;
+
+		_pair = Dictionary_Get(_container, _index);
+		return float(_pair[1]);
+	}
+
+	function GetStr(_key, _default = "")
+	{
+		_key = String_LowerCase(_key);
+
+		_containerInfo = NormalizeContainer(_key);
+		if (sizeof(_containerInfo) == 0)
+			return _default;
+		_container = _containerInfo[0];
+		_key = _containerInfo[1];
+
+		_index = Dictionary_GetItemIndex(_container, _key);
+		if (_index == -1)
+			return _default;
+
+		_pair = Dictionary_Get(_container, _index);
+		return _pair[1];
+	}
+
+	function GetList(_key, _default = [])
+	{
+		_key = String_LowerCase(_key);
+
+		_containerInfo = NormalizeContainer(_key);
+		if (sizeof(_containerInfo) == 0)
+			return _default;
+		_container = _containerInfo[0];
+		_key = _containerInfo[1];
+
+		_index = Dictionary_GetItemIndex(_container, _key);
+		if (_index == -1)
+			return _default;
+
+		_pair = Dictionary_Get(_container, _index);
+		return _eval(_pair[1]);
+	}
+
+	function GetKeyList(_route, _onlyValues = true)
+	{
+		_route = String_LowerCase(_route);
+
+		_container = GetContainer(_route);
+		if (!_container)
+			return [];
+
+		_keys = [];
+		for (i = 0; i < Dictionary_GetItemCount(_container); i++)
+		{
+			_data = Dictionary_Get(_container, i);
+			_add = true;
+
+			if (_onlyValues && _data[INDEX_CONF_TYPE] != CONF_TYPE_VALUE)
+				_add = false;
+
+			if (_add)
+				_keys += [_data[0]];
+		}
+		return _keys;
+	}
+
+
+	function Clear()
+	{
+		if (keys)
+			Core_ClearDic(keys);
+	}
+
+	function Core_ClearDic(_dic)
+	{
+		for (i = 0; i < Dictionary_GetItemCount(_dic); i++)
+		{
+			_pair = Dictionary_Get(_dic, i);
+			if (_pair[2] == CONF_TYPE_CONTAINER)
+			{
+				Core_ClearDic(_pair[1]);
+				Dictionary_Delete(_pair[1]);
+			}
+		}
+
+		Dictionary_Clear(_dic);
+	}
+
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Internals
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function Core_Parse(_str)
+	{
+		_xmlDoc = XML_Open (_str);
+		if (!_xmlDoc) return false;
+
+		// Obtengo el elemento raiz del XML
+		_root = XML_GetRootElement (_xmlDoc);
+
+		_version = 0;
+		_attr = XML_FirstAttribute (_root);
+		while (_attr)
+		{
+			_aName = XML_GetAttributeName (_attr);
+			_aValue = XML_GetAttributeValue (_attr);
+			if (String_Compare(_aName, "internalver") == 0)
+				_version = int(_aValue);
+
+			_attr = XML_NextAttribute (_attr);
+		}
+
+		if (_version == 1)
+			Core_ParseVersion1(_root);
+		else if (_version == 2)
+			Core_ParseVersion2(_root);
+		else
+			DebugMsg("Configuration :: No se ha encontrado el campo internalver en el header o este es erroneo");
+
+		XML_Close(_xmlDoc);
+		return true;
+	}
+
+	// El guardado siempre tiene que ir con la última versión
+	function ToString()
+	{
+		_s = "<?xml version='1.0' encoding='iso-8859-1'?>\n";
+		_s += "<Configuration internalver=\"" + string(config_internal_version) + "\">\n";
+		_s += Core_ToStringDic(keys, "\t");
+		// for (i = 0; i < Dictionary_GetItemCount(keys); i++)
+		// {
+		// 	_pair = Dictionary_Get(keys, i);
+		// 	_key = _pair[0];
+		// 	_value = _pair[1];
+		// 	_confType = _pair[2];
+		// 	_s += "\t<" + _key + String_Format(">%s</", string(_value)) + _key + ">\n";
+		// }
+		_s += "</Configuration>\n";
+		return _s;
+	}
+
+	function Core_ToStringDic(_dic, _preffix)
+	{
+		_s = "";
+		for (i = 0; i < Dictionary_GetItemCount(_dic); i++)
+		{
+			_pair = Dictionary_Get(_dic, i);
+			_key = _pair[0];
+			_value = _pair[1];
+			_confType = _pair[2];
+			if (_confType == CONF_TYPE_CONTAINER)
+			{
+				//_s += _preffix + "<" + _key + String_Format(">%s</", string(_value)) + _key + ">\n";
+				//_s += _preffix + "<" + _key + " type=\"" + _confType + "\">\n";
+				_s += _preffix + "<" + _key + ">\n";
+				_s += Core_ToStringDic(_value, _preffix + "\t");
+				_s += _preffix + "</" + _key + ">\n";
+			}
+			else if (_confType == CONF_TYPE_VALUE)
+				_s += _preffix + "<" + _key + String_Format(">%s</", string(_value)) + _key + ">\n";
+		}
+
+		return _s;
+	}
+
+
+
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+	// SUBSECTION: Versión 1
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+
+	function Core_ParseVersion1(_root)
+	{
+		_element = XML_FirstElement(_root);
+		while (_element)
+		{
+			_key = XML_GetElementValue(_element);
+			_value = XML_GetElementText(_element);
+			//DebugMsg(_key, _value);
+			Dictionary_InsertItem(keys, _key, [_key, _value, CONF_TYPE_VALUE]);
+
+			_element = XML_NextElement (_element);
+		}
+	}
+
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+	// SUBSECTION: Versión 2
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+
+	function Core_ParseVersion2(_root)
+	{
+		ParseElement(_root, 0, keys);
+	}
+
+	function ParseElement(_base, _level, _parentContainer)
+	{
+		if (_base == null)
+			return;
+
+		_element = XML_FirstElement(_base);
+		if (_element == null)
+			return;
+
+		//_container = keys;
+		// if (_level != 0)
+		// {
+		// 	_container = Dictionary_New();
+		// 	_key = XML_GetElementValue(_base);
+		// 	DebugMsg("CONTAINER", _key);
+		// 	Dictionary_InsertItem(_parentContainer, _key, [_key, _container, CONF_TYPE_CONTAINER]);
+		// }
+
+		while (_element)
+		{
+			_isContainer = XML_FirstElement(_element) != null;
+			if (_isContainer)
+			{
+				_container = Dictionary_New();
+				_key = XML_GetElementValue(_element);
+				//DebugMsg("CONTAINER", _key);
+				Dictionary_InsertItem(_parentContainer, _key, [_key, _container, CONF_TYPE_CONTAINER]);
+				ParseElement(_element, _level + 1, _container);
+			}
+			else
+			{
+				_key = XML_GetElementValue(_element);
+				_value = XML_GetElementText(_element);
+
+				//DebugMsg(_key, _value);
+
+				Dictionary_InsertItem(_parentContainer, _key, [_key, _value, CONF_TYPE_VALUE]);
+			}
+
+			_element = XML_NextElement (_element);
+
+		}
+	}
+}

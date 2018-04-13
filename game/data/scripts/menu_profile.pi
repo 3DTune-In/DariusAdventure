@@ -1,0 +1,146 @@
+class Service
+{
+	properties:
+		frame = null;
+		profileID = 0;
+		profile = null;
+		textBox = null;
+		deafImage = [];
+		sndMove = null;
+		sndOk = null;
+		sndCancel = null;
+		bg = null;
+		bgX = 0.0f;
+	
+	function Init ()
+	{
+		System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/menus/");
+		
+		profile = new Profile();
+	
+		_frame = UI_CreateFrame("GUI_Frame");
+		_frame.SetBounds (0, 0, RESX, RESY);
+		bg = _frame.CreateImage ("menu_background.jpg", true);
+		_frame.CreateImage ("menu_background_fixed.png");
+		frame = _frame;
+		
+		_wnd = _frame.CreateFrame ((RESX-868)/2, (RESY-227)/2-100, 868, 227);
+		
+		_wnd.CreateImage ("user_window.png", 0, 0, 868, 227);
+		
+		_tb = _wnd.CreateTextBox (25, 20, 820, 78);
+		_tb.CreateImage ("user_name.png", 0, 0, 820, 78);
+		_tb.SetFontSize (40);
+		_tb.SetTextColor (ARGB(255,255,255,255));
+		_tb.SetCursorColor(ARGB(255,255,255,255));
+		_tb.SetTextPadding (20, 0);
+		_tb.SetText (g_language.GetText("menu_new") + "#" + string(profileID));
+		textBox = _tb;
+
+		_x = 120;
+		_y = 120;
+
+		/*deafImage = [];
+		deafImage += [_wnd.CreateImage ("auditive_level_1.png", _x, _y+5, 170, 48)];
+		deafImage += [_wnd.CreateImage ("auditive_level_2.png", _x, _y+5, 170, 48)];
+		deafImage += [_wnd.CreateImage ("auditive_level_3.png", _x, _y+5, 170, 48)];
+		deafImage[0].Show();
+		deafImage[1].Hide();
+		deafImage[2].Hide();
+		
+		_img = _wnd.CreateImage ("deafness_window.png", _x, _y+75, 703, 411);
+		_lab = _wnd.CreateLabel(_img.GetLeft() + 375, _img.GetTop() + 60, 300, 100);
+		_lab.SetFont(DEFAULT_MENU_FONT, 16);
+		_lab.SetText (g_language.GetText("menu_deafness"));
+		_lab.SetTextColor(ARGB(255,0,0,0));
+		
+		_button = _wnd.CreateButton (_x-51-10, _y, 51, 67);
+		_button.SetNormalTexture ("user_arrow_left.png");
+		_button.SetOnClick (this, "OnLeft"); 
+
+   		_button = _wnd.CreateButton (_x+170+10, _y, 51, 67);
+		_button.SetNormalTexture ("user_arrow_right.png");
+		_button.SetOnClick (this, "OnRight"); 
+		*/
+
+		_button = _wnd.CreateButton (_x+520, _y-10, 72, 79);
+		_button.SetNormalTexture ("user_button_accept.png");
+		okButton = _button;
+		okButton.SetOnClick (this, "OnOk");
+		okButton.Focus();
+
+		_button = _wnd.CreateButton (_x+620, _y-10, 72, 79);
+		_button.SetNormalTexture ("user_button_cancel.png");
+		cancelButton = _button;
+		cancelButton.SetOnClick (this, "OnCancel");
+		
+		System_SetDirectory (DIRECTORY_SOUND, "data/sounds/");
+		sndCancel = Sound_Load ("ui_menu_back.ogg");
+		sndOk = Sound_Load ("ui_menu_ok.ogg");
+		sndMove = Sound_Load ("ui_menu_move.ogg");
+	}
+	
+	function Final ()
+	{
+		Sound_Delete (sndCancel);
+		Sound_Delete (sndOk);
+		Sound_Delete (sndMove);
+		delete profile;
+		delete frame;
+	}
+	
+	function Start ()
+	{
+	}
+
+	function Move ()
+	{
+		bg.SetTexCoordAll (bgX, 0, 1, 1);
+		bgX += GetFTime()*0.001f;
+	}
+	
+	function OnLeft (_button)
+	{
+		deafImage[profile.deafness].Hide();
+		profile.deafness = IncreaseValue (profile.deafness, 0, 1);
+		deafImage[profile.deafness].Show();
+		g_main.PlayFX(sndMove);
+	}
+	
+	function OnRight (_button)
+	{
+		deafImage[profile.deafness].Hide();
+		profile.deafness = IncreaseValue (profile.deafness, 2, 1);
+		deafImage[profile.deafness].Show();
+		g_main.PlayFX(sndMove);
+	}
+	
+	function OnFadeBack()
+	{
+		parent.LoadMenu ("play");
+		g_fade.Off ();
+	}
+	
+	function OnCancel (_button)
+	{
+		frame.SetEnabled (false);
+		g_fade.On (this, "OnFadeBack");
+		g_main.PlayFX(sndCancel);
+	}
+	
+	function OnOk (_button)
+	{
+		profile.name = textBox.GetText();
+		profile.stageID = 1;
+		profile.lang = g_language.GetPrefix();
+		if (profile.name == "")
+		{
+			// TODO : ERror!
+		}
+		profile.Save (profileID);
+		g_main.PlayFX(sndOk);
+
+		frame.SetEnabled (false);
+		g_fade.On (this, "OnFadeBack");
+	}
+}

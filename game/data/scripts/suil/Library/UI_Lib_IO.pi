@@ -1,0 +1,273 @@
+// Partial de UI_Library
+class UI_IO
+{
+	function Core_Init_IO()
+	{
+		System_AddScriptGlobalFunction("Path_AbsoluteToRelative", this, "Path_AbsoluteToRelative");
+		System_AddScriptGlobalFunction("Path_Combine", this, "Path_Combine");
+		System_AddScriptGlobalFunction("File_SaveString", this, "File_SaveString");
+		System_AddScriptGlobalFunction("File_LoadString", this, "File_LoadString");
+		System_AddScriptGlobalFunction("File_DeepCopy", this, "File_DeepCopy");
+		System_AddScriptGlobalFunction("File_GetFileNamePart", this, "File_GetFileNamePart");
+		System_AddScriptGlobalFunction("File_SplitFileNamePart", this, "File_SplitFileNamePart");
+		System_AddScriptGlobalFunction("Folder_Delete", this, "Folder_Delete");
+		System_AddScriptGlobalFunction("Folder_DeepCopy", this, "Folder_DeepCopy");
+		System_AddScriptGlobalFunction("Folder_DeepCreate", this, "Folder_DeepCreate");
+	}
+
+	function Core_Uninit_IO()
+	{
+	}
+
+	function File_SaveString(_fileName, _str)
+	{
+		//DebugMsg("Saving to file:", _fileName, "...");
+		//DebugLog(_str);
+		if (_fileName == null || _fileName == "") return false;
+		_file = File_Open(_fileName, FILE_MODE_WRITETEXT);
+		if (!_file) return false;
+
+		File_WriteString(_file, _str);
+		File_Close(_file);
+		//DebugMsg("Saving to file completed");
+		return true;
+	}
+
+	function File_LoadString(_fileName)
+	{
+		//DebugMsg("Reading from file:", _fileName, "...");
+		//DebugLog(_str);
+		if (_fileName == null || _fileName == "") return [false, null];
+		_file = File_Open(_fileName, FILE_MODE_READTEXT);
+		if (!_file) return [false, null];
+
+		_str = File_ReadString(_file);
+		File_Close(_file);
+		//DebugMsg("File readed.");
+		return [true, _str];
+	}
+
+	// Borra todo el contenido de una carpeta
+	function Folder_Delete(_folder)
+	{
+		_folders = System_FindFolders(_folder + "*.*");
+		for (i = 0; i < sizeof(_folders); i++)
+		{
+			Folder_Delete(_folder + _folders[i] + "/");
+		}
+
+		_files = System_FindFiles(_folder + "*.*");
+		for (i = 0; i < sizeof(_files); i++)
+		{
+			_file = _folder + _files[i];
+			//DebugMsg("DELETE FILE", _file);
+			System_DeleteFile(_file);
+		}
+
+		//DebugMsg("DELETE FOLDER", _folder);
+		System_RemoveDir(_folder);
+	}
+
+	function File_DeepCopy(_fromFile, _toFile)
+	{
+		Folder_DeepCreate(_toFile);
+		//DebugMsg("DEEP COPY FILE - FILE FROM", _fromFile, "TO", _toFile);
+		System_CopyFile(_fromFile, _toFile);
+	}
+
+	function File_GetFileNamePart(_path, _withExtension = true)
+	{
+		_split = Path_Split(_path);
+		//DebugMsg(_split);
+		if (sizeof(_split) < 3)
+			return "";
+
+		_name = _split[2];
+		if (_withExtension && sizeof(_split) == 4)
+			_name += _split[3];
+		return _name;
+		// _split[1] =  String_Replace(_split[1], "\\", "/");
+		// _pathSplit = String_Split(_split[1], "/");
+	}
+
+	function File_SplitFileNamePart(_path, _withExtension = true)
+	{
+		_split = Path_Split(_path);
+		//DebugMsg(_split);
+		if (sizeof(_split) < 3)
+			return [];
+
+		_name = _split[2];
+		_ext = "";
+		if (_withExtension && sizeof(_split) == 4)
+			_ext = _split[3];
+		return [_name, _ext];
+		// _split[1] =  String_Replace(_split[1], "\\", "/");
+		// _pathSplit = String_Split(_split[1], "/");
+	}
+
+	function Folder_DeepCopy(_fromFolder, _toFolder)
+	{
+		Folder_DeepCreate(_toFolder);
+
+		_folders = System_FindFolders(_fromFolder + "*.*");
+		for (i = 0; i < sizeof(_folders); i++)
+		{
+			_fPath = _fromFolder + _folders[i] + "/";
+			_tPath = _toFolder + _folders[i] + "/";
+			if (!System_ExistsDir(_tPath))
+			{
+				//DebugMsg("DEEP COPY FOLDER - FOLDER", _tPath);
+				System_MakeDir(_tPath);
+			}
+			Folder_DeepCopy(_fPath, _tPath);
+		}
+
+		_files = System_FindFiles(_fromFolder + "*.*");
+		for (i = 0; i < sizeof(_files); i++)
+		{
+			_fFile = _fromFolder + _files[i];
+			_tFile = _toFolder + _files[i];
+			//DebugMsg("DEEP COPY FOLDER - FILE FROM", _fFile, "TO", _tFile);
+			System_CopyFile(_fFile, _tFile);
+		}
+	}
+
+	function Folder_DeepCreate(_folder)
+	{
+		_folder = String_Replace(_folder, "\\", "/");
+		_s = Path_Split(_folder);
+		_pathSplit = this.String_Split(_s[1], ['/']);
+		//DebugMsg("PATH_SPLIT", _pathSplit);
+		_path = _s[0];
+		for (i = 0; i < sizeof(_pathSplit); i++)
+		{
+			_path += _pathSplit[i];
+			if (!System_ExistsDir(_path))
+			{
+				//DebugMsg("DEEP CREATE FOLDER", _path);
+				System_MakeDir(_path);
+			}
+			_path += "/";
+		}
+	}
+
+	// Esto Path_AbsoluteToRelative("C:/hola/manola/perola/myfile.txt", "C:/hola/manola/tiovivo/");
+	// Devuelve ..\perola\myfile.txt
+	function Path_AbsoluteToRelative(_relativeTo, _absolutePath = null, _addDotSlash = true)
+	{
+		if (_absolutePath == null) _absolutePath = System_GetCurDir();
+		_absoluteDirectories = this.String_Split(_absolutePath, ['/', '\\']);
+		_relativeDirectories = this.String_Split(_relativeTo, ['/', '\\']);
+
+    //Get the shortest of the two paths
+    _length = sizeof(_absoluteDirectories) < sizeof(_relativeDirectories) ? sizeof(_absoluteDirectories) : sizeof(_relativeDirectories);
+
+    //Use to determine where in the loop we exited
+    _lastCommonRoot = -1;
+    _index = 0;
+
+    //Find common root
+    for (_index = 0; _index < _length; _index++)
+        if (String_LowerCase(_absoluteDirectories[_index]) == String_LowerCase(_relativeDirectories[_index]))
+            _lastCommonRoot = _index;
+        else
+            break;
+
+    //If we didn't find a common prefix then throw
+    if (_lastCommonRoot == -1) //throw new ArgumentException("Paths do not have a common base");
+    	return _absolutePath;
+
+    //Build up the relative path
+    _relativePath = "";
+
+    //Add on the ..
+    for (_index = _lastCommonRoot + 1; _index < sizeof(_absoluteDirectories); _index++)
+        if (strlen(_absoluteDirectories[_index]) > 0)
+            _relativePath += "../";
+
+		if (_addDotSlash && _relativePath == "") _relativePath = "./";
+
+    //Add on the folders
+    for (_index = _lastCommonRoot + 1; _index < sizeof(_relativeDirectories) - 1; _index++)
+        _relativePath += _relativeDirectories[_index] + "/";
+    _relativePath += _relativeDirectories[sizeof(_relativeDirectories) - 1];
+
+    return _relativePath;
+	}
+
+	// "If path2 contains an absolute path, this method returns path2."
+	function Path_Combine(_path1, _path2)
+	{
+		if (sizeof(_path2) == 0)
+			return _path1;
+
+		if (sizeof(_path1) == 0)
+			return _path2;
+
+		if (!this.String_EndsWith(_path2, "/"))
+			_path2 += "/";
+
+		_pathCheck = Path_Split(_path2);
+		DebugMsg("PATH_SPLIT", _pathCheck);
+		if (sizeof(_pathCheck[0]) != 0)
+			return _path2;
+
+		_path1 = String_Replace(_path1, "\\", "/");
+		_path2 = String_Replace(_path2, "\\", "/");
+
+		if (!this.String_EndsWith(_path1, "/"))
+			_path1 += "/";
+
+		_path = Path_Split(_path1);
+		//DebugMsg(_path);
+		// No se porque si empieza por / el String_ToList crea un "" al inicio
+		_pathPart = _path[1];
+		if (String_SubStr(_pathPart, 0, 1) == "/")
+			_pathPart = String_SubStr(_pathPart, 1, -1);
+		_pathPool = String_ToList(_pathPart, "/");
+		//DebugMsg("pool",_pathPool);
+
+		//_currentIndex = sizeof(_pathPool);
+		_split = String_ToList(_path2, "/");
+		for (i = 0; i < sizeof(_split); i++)
+		{
+			_item = _split[i];
+			if (_item == ".")
+				continue;
+			else if (_item == "..")
+			{
+				_pathPool /= sizeof(_pathPool) - 1;
+				//_currentIndex--;
+			}
+			else
+			{
+				_pathPool += [_item];
+				// if (_currentIndex >= sizeof(_pathPool))
+				// {
+				// 	_pathPool += [_item];
+				// 	//_currentIndex++;
+				// }
+				// else if (_currentIndex >= 0 && _currentIndex < sizeof(_pathPool))
+				// {
+				// 	_pathPool[_currentIndex] = _item;
+				// 	//_currentIndex;
+				// }
+				// else
+				// 	continue; // Como si no existiese
+			}
+		}
+
+		_build = "";
+		if (sizeof(_path[0]))
+			_build += _path[0] + "/";
+		for (i = 0; i < sizeof(_pathPool); i++)
+		{
+			_item = _pathPool[i];
+			_build += _item + "/";
+		}
+
+		return _build;
+	}
+
+}

@@ -1,0 +1,73 @@
+class GUI_Frame_Partial
+{
+	function EnableModal ()
+	{
+		SetStrata (UI_STRATA_DIALOG);
+	}
+
+	function CreateFrame (_x, _y, _w, _h)
+	{	
+		_frame = UI_CreateFrame ("GUI_Frame");
+		_frame.SetParent(this);
+		_frame.SetBounds (_x, _y, _w, _h);
+		_frame.Show();
+		return _frame;
+	}
+
+	function CreateImage (_name, _x, _y, _w, _h)
+	{
+		_tex = CreateTexture();
+		_tex.SetTexture(_name);
+		_tex.SetBounds (_x, _y, _w, _h);
+		_tex.Show();
+		return _tex;
+	}
+
+	function CreateImage (_name, _tiled = false)
+	{
+		_tex = CreateTexture();
+		if (_tiled)
+		{
+      	  	_tex.texAddr = [TA_WRAP, TA_WRAP]; // U, V
+		}
+		_tex.SetTexture(_name);
+		_tex.PinToBounds();
+		_tex.Show();
+		return _tex;
+	}
+
+	function CreateSlider (_x, _y, _w, _h)
+	{
+		_slider = UI_CreateFrame ("GUI_Slider");
+		_slider.SetParent (this);
+		_slider.SetBounds (_x, _y, _w, _h);
+		_slider.Show();
+		return _slider;
+	}
+
+	function CreateButton (_x, _y, _w, _h)
+	{
+		_button = UI_CreateFrame ("GUI_Button");
+		_button.SetParent (this);
+		_button.SetBounds (_x, _y, _w, _h);
+		_button.Show();
+		return _button;
+	}
+	
+	function CreateLabel (_x, _y, _w, _h)
+	{
+		_fs = CreateFontString();
+		_fs.SetBounds (_x, _y, _w, _h);
+		_fs.Show();
+		return _fs;
+	}
+	
+	function CreateTextBox (_x, _y, _w, _h)
+	{
+		_tb = UI_CreateFrame ("GUI_TextBox");
+		_tb.SetParent (this);
+		_tb.SetBounds (_x, _y, _w, _h);
+		_tb.Show();
+		return _tb;
+	}
+}

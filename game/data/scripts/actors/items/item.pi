@@ -1,0 +1,22 @@
+class Item<Actor> implements NPC
+{
+	virtual Init ()
+	{
+		subClassID = CLASS_TYPE_ITEM;
+		priority = PRIORITY_ITEM;
+		drawPriority = ACTOR_PRIORITY_ITEM;
+		collide = true;
+		shadow = false;
+		gravity = false;
+		useAngles = 0;
+		collisionFlags = COLLISION_FLAGS_ITEM;
+	}
+
+	function OnCursorClick()
+	{
+		if (!enabled)
+		{
+			game.hud.OpenPopupTID ("item_not_enabled");
+		}
+	}
+}

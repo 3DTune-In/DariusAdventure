@@ -1,0 +1,19 @@
+class Actor implements Item_Collectable_Interface
+{
+	virtual Init ()
+	{	
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "item_apple.msh");
+		
+		EndLoadResources ();
+
+		name = "item_apple";
+		maxq = TOTAL_APPLES;
+		
+		DEBUGMSG ("VERBOSE - ----------------!!!");
+		DEBUGMSG ("VERBOSE - APPLE!!!", game.stageID);
+		DEBUGMSG ("VERBOSE - ----------------!!!");
+	}
+}

@@ -1,0 +1,18 @@
+// Partial de UI_Library
+class UI_Font
+{
+	function Core_Init_Font()
+	{
+		System_AddScriptGlobalFunction("Font_GetSize", this, "Font_GetSize");
+	}
+
+	function Core_Uninit_Font()
+	{
+	}
+
+	function Font_GetSize(_font)
+	{
+		_i = Font_GetInfo(_font);
+		return _i[2];
+	}
+}

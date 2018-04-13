@@ -1,0 +1,228 @@
+class Service
+{
+	properties:
+		scene = null;
+		actor = null;
+		debugMode = false;
+		font = null;
+		ANI_1 = null;
+		ANI_2 = null;
+		sndMetal = null;
+		sndCassette = null;
+		sndFall = null;
+	
+	function Init ()
+	{
+		_game = Service_Get("game");
+		_game.currentMusicVol = 0;   // Para evitar que suene la musica del stage
+		Service_Pause(_game);
+		Service_SetVisible(_game, false);
+		Service_Pause(_game.hud);
+		Service_SetVisible (_game.hud, false);
+		_game.bNOAnechoic = true;
+		
+		scene = Scene_New ("", 50, 50, 50, 0,0,0, 0,0);
+		Scene_SetSize (scene, -10000, -10000, -10000, 10000, 10000, 10000);
+		
+		System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/intro/");
+		
+		actor = Scene_NewActor (scene, "intro", "sprite3D", 0, 0, 0);
+		actor.scene3D = new Scene3D(actor);
+		actor.scene3D.LoadXML ("data/textures/intro/intro.xml");
+		actor.scene3D.SetScale(1);
+		
+		actor.scene3D.SetVisible("lazarus_1", false);
+		actor.scene3D.SetVisible("lazarus_2", false);
+		actor.scene3D.SetVisible("supervisor", false);
+		actor.scene3D.SetVisible("people", false);
+		
+		ANI_1 = actor.AddAnimationRange (0, 100, -1);
+		ANI_2 = actor.AddAnimationRange (101, 300, -2);
+	
+		camera = Scene_CreateCamera (scene, "camera");
+		camera.toSrcX = 0;
+		camera.toSrcY = -1600;
+		camera.toSrcZ = 0;
+		camera.toDstX = 0;
+		camera.toDstY = 0;
+		camera.toDstZ = 0;
+		camera.Fix();
+		//camera.SetOrtho (true);
+		
+		//font = Font_Load ("Arial", 0, 30);
+		
+		sndMetal = Scene_LoadSound (scene, "metal.ogg", true);
+		sndCassette = Scene_LoadSound (scene, "cassette_off.ogg");
+		sndFall = Scene_LoadSound(scene, "angel_fall.ogg");
+
+		_game.hud.listener = this;
+		_game.hud.bEnableStopButton = true;
+	}
+	
+	function Final ()
+	{
+		_game = Service_Get("game");
+		_game.hud.bEnableStopButton = false;
+		Scene_Delete (scene);
+	}
+	
+	function OnCloseDialogue()
+	{
+		g_fade.On(this, "OnIntro3");
+		_change ("end");
+	}
+	
+	function SetVisible (_name, _v)
+	{
+		actor.scene3D.SetVisible(_name, _v);
+	}
+	
+	function Start ()
+	{
+		actor.SetAnimation (ANI_1);
+		
+		_game = Service_Get("game");
+		_player = _game.GetPlayer();
+		_game.hud.CloseDialogue();
+		
+		g_main.PlayFX(sndMetal);
+		Sound_SetProperty(sndMetal, SOUND_VOLUME, 100);
+		
+		_dlg1 = _game.NewDialogue();
+		_dlg1.AddNPCCall (this, "SetVisible", ["people", true]);
+		_dlg1.AddNPCCall (this, "SetVisible", ["lazarus_1", false]);
+		_dlg1.AddNPCTextNL (null, "intro_1", "", 2);
+		_dlg1.AddNPCCall (this, "SetVisible", ["people", false]);
+		_dlg1.AddNPCCall (this, "SetVisible", ["lazarus_1", true]);
+		_dlg1.AddNPCTextNL (_player, "intro_2", "", -1);
+		_dlg1.AddNPCCall (this, "SetVisible", ["people", true]);
+		_dlg1.AddNPCCall (this, "SetVisible", ["lazarus_1", false]);
+		_dlg1.AddNPCTextNL (null, "intro_3", "", 2);
+		_dlg1.AddNPCCall (this, "SetVisible", ["people", false]);
+		_dlg1.AddNPCCall (this, "SetVisible", ["lazarus_1", true]);
+		_dlg1.AddNPCTextNL (_player, "intro_4", "", -1);
+		_dlg1.AddNPCCall (this, "SetVisible", ["people", true]);
+		_dlg1.AddNPCCall (this, "SetVisible", ["lazarus_1", false]);
+		_dlg1.AddNPCTextNL (null, "intro_5", "", 2);
+		_dlg1.AddNPCCall (this, "SetVisible", ["people", false]);
+		_dlg1.AddNPCCall (this, "SetVisible", ["lazarus_1", true]);
+		_dlg1.AddNPCTextNL (_player, "intro_6", "", -1);
+		_dlg1.AddNPCCall (this, "SetVisible", ["supervisor", true]);
+		_dlg1.AddNPCCall (this, "SetVisible", ["lazarus_1", false]);
+		_dlg1.AddNPCTextNL (null, "intro_7", "", 1);
+		_dlg1.AddNPCCall (this, "SetVisible", ["supervisor", false]);
+		_dlg1.AddNPCCall (this, "SetVisible", ["lazarus_1", true]);
+		_dlg1.AddNPCTextNL (_player, "intro_8", "", -1);
+		_dlg1.AddNPCCall (this, "SetVisible", ["supervisor", true]);
+		_dlg1.AddNPCCall (this, "SetVisible", ["lazarus_1", false]);
+		_dlg1.AddNPCTextNL (null, "intro_9", "", 1);
+		_dlg1.AddNPCCall (this, "SetVisible", ["supervisor", false]);
+		_dlg1.AddNPCCall (this, "SetVisible", ["lazarus_1", true]);
+		_dlg1.AddNPCTextNL (_player, "intro_10", "", -1);
+		_dlg1.AddNPCCall (this, "SetVisible", ["supervisor", true]);
+		_dlg1.AddNPCCall (this, "SetVisible", ["lazarus_1", false]);
+		_dlg1.AddNPCTextNL (null, "intro_11", "", 1);
+		_dlg1.AddNPCCall (this, "SetVisible", ["supervisor", false]);
+		_dlg1.AddNPCCall (this, "SetVisible", ["lazarus_2", true]);
+		_dlg1.AddNPCCall (this, "OnIntro1");			// STOP music!
+		_dlg1.AddNPCTextNL (_player, "intro_12");
+		_dlg1.AddNPCCall (this, "SetVisible", ["supervisor", true]);
+		_dlg1.AddNPCCall (this, "SetVisible", ["lazarus_2", false]);
+		_dlg1.AddNPCTextNL (null, "intro_13", "", 1);
+		_dlg1.AddNPCCall (this, "SetVisible", ["supervisor", false]);
+		_dlg1.AddNPCCall (this, "SetVisible", ["lazarus_2", true]);
+		_dlg1.AddNPCTextNL (_player, "intro_14");
+		_dlg1.AddNPCCall (this, "SetVisible", ["supervisor", true]);
+		_dlg1.AddNPCCall (this, "SetVisible", ["lazarus_2", false]);
+		_dlg1.AddNPCTextNL (null, "intro_15", "", 1);
+		_dlg1.AddNPCCall (this, "SetVisible", ["supervisor", false]);
+		_dlg1.AddNPCCall (this, "SetVisible", ["lazarus_2", true]);
+		_dlg1.AddNPCTextNL (_player, "intro_16");
+		_dlg1.AddNPCCall (this, "SetVisible", ["supervisor", true]);
+		_dlg1.AddNPCCall (this, "SetVisible", ["lazarus_2", false]);
+		_dlg1.AddNPCTextNL (null, "intro_17", "", 1);
+		_dlg1.AddNPCCall (this, "SetVisible", ["supervisor", false]);
+		_dlg1.AddNPCCall (this, "SetVisible", ["lazarus_2", true]);
+		_dlg1.AddNPCTextNL (_player, "intro_18");
+		_dlg1.AddNPCCall (this, "SetVisible", ["supervisor", true]);
+		_dlg1.AddNPCCall (this, "SetVisible", ["lazarus_2", false]);
+		_dlg1.AddNPCTextNL (null, "intro_19", "", 1);
+		_dlg1.AddNPCCall (this, "SetVisible", ["supervisor", false]);
+		_dlg1.AddNPCCall (this, "SetVisible", ["lazarus_2", true]);
+		_dlg1.AddNPCTextNL (_player, "intro_20");
+		_dlg1.AddNPCTextNL (_player, "intro_21");
+		_dlg1.AddNPCTextNL (_player, "intro_22");
+		_dlg1.AddNPCCall (this, "SetVisible", ["lazarus_2", false]);
+		_dlg1.AddNPCCall (this, "OnIntro2");
+		_game.ShowDialogue (_dlg1);
+		
+	}
+	
+	function OnIntro1()
+	{
+		Sound_Stop (sndMetal);
+		g_main.PlayFX(sndCassette);
+		//TODO: La música que escucha Lazarus con sus auriculares se corta en seco 
+	}
+	
+	function OnIntro2()
+	{
+		Sound_Play (sndFall);
+		Sound_SetProperty(sndFall, SOUND_VOLUME, 100);
+		//TODO: Play de un sonido como que le dan una patada!
+		actor.SetAnimation (ANI_2);
+		_change ("waiting_end");
+	}
+	
+	function OnIntro3()
+	{
+		DebugMsg ("OnIntro3");
+		g_fade.Off();
+		_game = Service_Get("game");
+		Service_Resume (_game);
+		Service_SetVisible(_game, true);
+		Service_Resume(_game.hud);
+		Service_SetVisible (_game.hud, true);
+		_game.currentMusicVol = Registry_GetValueInt (DEFAULT_MUSIC_KEY, DEFAULT_MUSIC_VOLUME);
+		_game.OnStageLoadEnd();
+		_game.bNOAnechoic = false;
+		_player = _game.GetPlayer();
+		_player.Start();
+		_player.doAniState = ""; // Para hacer que enganche bien con el siguiente dialogo!
+		Service_Delete (this);
+	}
+	
+	state "waiting_end"
+	{
+		if (actor.GetNumLoops() >= 1)
+		{
+			g_fade.On(this, "OnIntro3");
+			_change ("end");
+		}
+	}
+	
+	state "end"
+	{
+	}
+	
+	function Move ()
+	{
+		Scene_Move (scene);
+#if	 ___CHEAT_MODE___
+		if (Input_IsKeyPressed(KEY_T) && _state() != "end")
+		{
+			g_fade.On(this, "OnIntro3");
+			_change ("end");
+		}
+#endif
+	}
+	
+	function Draw ()
+	{
+		Render_SetProperty (RP_ZENABLE, false);
+		Scene_Draw (scene);
+		Render_SetProperty (RP_ZENABLE, true);
+		
+		//Render_Print (font, 10, 10, actor.GetABSFrame(), ARGB(255,255,255,255));
+	}
+}

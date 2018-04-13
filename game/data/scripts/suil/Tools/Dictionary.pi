@@ -1,0 +1,45 @@
+class Dictionary
+{
+	properties:
+		items = null;
+
+	function _operator_new()
+	{
+		items = Dictionary_New();
+	}
+
+	function _operator_delete()
+	{
+		Dictionary_Delete(items);
+	}
+
+	function Add(_key, _value)
+	{
+		Dictionary_InsertItem(items, _key, _value);
+	}
+
+	function Remove(_key)
+	{
+		Dictionary_DeleteItem(items, _key);
+	}
+
+	function Clear()
+	{
+		Dictionary_Clear(items);
+	}
+
+	function Count()
+	{
+		return Dictionary_GetItemcount(items);
+	}
+
+	function Get(_key)
+	{
+		return Dictionary_GetItem(items, _key);
+	}
+
+	function GetIndex(_ix)
+	{
+		return Dictionary_Get(items, _ix);
+	}
+}

@@ -1,0 +1,88 @@
+/*
+Timer que se puede iniciar y parar y recuerda el tiempo anterior.
+
+Usar Reset() antes del Start() para reiniciarlo
+Usar Time() para saber el tiempo (ms) tanto si está parado como si está en marcha
+*/
+
+class Timer
+{
+	properties:
+		acum = 0;
+		startTime = 0;
+
+		stopped = true;
+
+	function _operator_new()
+	{
+
+	}
+
+	function _operator_new(_start)
+	{
+		if (_start) Start();
+	}
+
+	function Start()
+	{
+		if (!stopped) return;
+
+		startTime = GetHiResTime();
+		stopped = false;
+	}
+
+	function Stop()
+	{
+		if (stopped) return;
+		acum += GetHiResTime() - startTime;
+		stopped = true;
+	}
+
+	function Time()
+	{
+		if (stopped) return int(acum * 1000);
+
+		return int((acum + GetHiResTime() - startTime) * 1000);
+	}
+
+	function Reset()
+	{
+		acum = 0;
+		startTime = 0;
+
+		if (stopped)
+			startTime = 0;
+		else
+			startTime = GetHiResTime();
+	}
+
+	// Escribimos en el log un texto con el formato "%d"
+	function Log(_format, _useDebugMsg = true)
+	{
+#ifdebug
+		_str = String_Format(_format, Time());
+		if (_useDebugMsg)	DebugMsg(_str);
+		else DebugLog(_str);
+#endif
+	}
+
+	function LogRestart(_format, _useDebugMsg = true)
+	{
+#ifdebug
+		_str = String_Format(_format, Time());
+		if (_useDebugMsg)	DebugMsg(_str);
+		else DebugLog(_str);
+
+		Reset();
+#endif
+	}
+
+	// Escribimos en el log y borramos este objeto
+	function DeleteLog(_format, _useDebugMsg = true)
+	{
+#ifdebug
+		Log(_format, _useDebugMsg);
+#endif
+		delete this;
+	}
+}

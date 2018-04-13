@@ -1,0 +1,52 @@
+class Actor implements NPC
+{
+	virtual Init ()
+	{	
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_treasure_cross.msh");
+		
+		EndLoadResources ();
+		name = "npc_treasure_cross";
+		useAngles = 0;
+		collide = true;
+		Scene_AddStatic (scene, this);
+	}
+	
+	virtual Start ()
+	{
+		if (GetState())
+		{
+			SetEnabled(false);
+			SetVisible(false);
+		}
+	}
+
+	function OnDropItem (_itemName)
+	{	
+		if (_itemName == "item_shovel")
+		{
+			ShowAutoDialogue ("treasure_cross_1", 1, [game.GetPlayer()]);
+			SetState(1);
+			SetEnabled(false);
+			SetVisible(false);
+			game.GetPlayer().AddInventory("item_pirate_cooking_book");
+			game.GetPlayer().TaskDone("use_shovel");
+			return true;
+		}
+		return false;
+	}
+
+	function OnCursorClick()
+	{
+		switch (GetState())
+		{
+			case 0:
+			{
+				ShowAutoDialogue ("treasure_cross_2", 1, [game.GetPlayer()]);
+			}
+			break;
+		}
+	}
+}

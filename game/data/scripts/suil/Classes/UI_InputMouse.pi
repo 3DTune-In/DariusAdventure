@@ -1,0 +1,93 @@
+class UI_InputMouse implements UI_Input
+{
+	function Enable()
+	{
+		::Enable();
+
+		if (enabled)
+		{
+			// Los eventos de input se procesan antes que los MOVE
+			Input_AddEvent(INPUT_EVENT_MOUSEMOVE, this, "InputMouseMove");
+			Input_AddEvent(INPUT_EVENT_MOUSEWHEEL, this, "InputMouseWheel");
+			Input_AddEvent(INPUT_EVENT_MOUSEBUTTONPRESS, this, "InputMousePress");
+			Input_AddEvent(INPUT_EVENT_MOUSEBUTTONRELEASE, this, "InputMouseRelease");
+			// Input_AddEvent(INPUT_EVENT_MOUSELEFTPRESS, this, "InputMouseLeftPress");
+			// Input_AddEvent(INPUT_EVENT_MOUSELEFTRELEASE, this, "InputMouseLeftRelease");
+			// Input_AddEvent(INPUT_EVENT_MOUSERIGHTPRESS, this, "InputMouseRightPress");
+			// Input_AddEvent(INPUT_EVENT_MOUSERIGHTRELEASE, this, "InputMouseRightRelease");
+			// Input_AddEvent(INPUT_EVENT_MOUSEMIDDLEPRESS, this, "InputMouseMiddlePress");
+			// Input_AddEvent(INPUT_EVENT_MOUSEMIDDLERELEASE, this, "InputMouseMiddleRelease");
+			//Input_AddEvent (INPUT_EVENT_MOUSEDBLLEFT, this, "OnMouseDblLeft");
+			//Input_AddEvent (INPUT_EVENT_MOUSEDBLRIGHT, this, "OnMouseDblRight");
+		}
+	}
+
+	function Disable()
+	{
+		::Disable();
+
+		if (!enabled)
+		{
+			Input_RemoveEvent(INPUT_EVENT_MOUSEMOVE, this);
+			Input_RemoveEvent(INPUT_EVENT_MOUSEWHEEL, this);
+			Input_RemoveEvent(INPUT_EVENT_MOUSEBUTTONPRESS, this);
+			Input_RemoveEvent(INPUT_EVENT_MOUSEBUTTONRELEASE, this);
+			// Input_RemoveEvent(INPUT_EVENT_MOUSELEFTPRESS, this);
+			// Input_RemoveEvent(INPUT_EVENT_MOUSELEFTRELEASE, this);
+			// Input_RemoveEvent(INPUT_EVENT_MOUSERIGHTPRESS, this);
+			// Input_RemoveEvent(INPUT_EVENT_MOUSERIGHTRELEASE, this);
+		}
+	}
+
+	function InputMouseMove(_offx, _offy)
+	{
+		CallEvent(UI_INPUTEV_MOUSEMOVE, [Cursor_GetX(), Cursor_GetY(), _offx, _offy, 0]);
+	}
+
+	function InputMousePress(_btnId)
+	{
+		//DebugMsg("InputMousePress", _btnId);
+		CallEvent(UI_INPUTEV_MOUSEDOWN, [_btnId, Cursor_GetX(), Cursor_GetY()]);
+	}
+
+	function InputMouseRelease(_btnId)
+	{
+		//DebugMsg("InputMouseRelease", _btnId);
+		CallEvent(UI_INPUTEV_MOUSEUP, [_btnId, Cursor_GetX(), Cursor_GetY()]);
+	}
+
+	// function InputMouseLeftPress()
+	// {
+	// 	CallEvent(UI_INPUTEV_MOUSEDOWN, [MOUSE_LEFT, Cursor_GetX(), Cursor_GetY()]);
+	// }
+
+	// function InputMouseLeftRelease()
+	// {
+	// 	CallEvent(UI_INPUTEV_MOUSEUP, [MOUSE_LEFT, Cursor_GetX(), Cursor_GetY()]);
+	// }
+
+	// function InputMouseRightPress()
+	// {
+	// 	CallEvent(UI_INPUTEV_MOUSEDOWN, [MOUSE_RIGHT, Cursor_GetX(), Cursor_GetY()]);
+	// }
+
+	// function InputMouseRightRelease()
+	// {
+	// 	CallEvent(UI_INPUTEV_MOUSEUP, [MOUSE_RIGHT, Cursor_GetX(), Cursor_GetY()]);
+	// }
+
+	function InputMouseWheel(_z)
+	{
+		CallEvent(UI_INPUTEV_MOUSEWHEEL, [float(_z)]);
+	}
+
+	// function InputMouseMiddlePress()
+	// {
+	// 	CallEvent(UI_INPUTEV_MOUSEDOWN, [MOUSE_MIDDLE, Cursor_GetX(), Cursor_GetY()]);
+	// }
+
+	// function InputMouseMiddleRelease()
+	// {
+	// 	CallEvent(UI_INPUTEV_MOUSEUP, [MOUSE_MIDDLE, Cursor_GetX(), Cursor_GetY()]);
+	// }
+}

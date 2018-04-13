@@ -1,0 +1,2252 @@
+class UI_TextBox implements UI_Frame, UI_IFontInstance
+{
+	constants:
+		MAX_TIME_TO_SELECTION = 1500;
+		MAX_TIME_TO_POINTER = 500;
+
+	properties:
+		textDoc = null;
+		font = null; // UI_Font
+
+		backColor = ARGB(255, 255, 255, 255);
+		foreColor = ARGB(255, 0, 0, 0);
+		textPadding = [0, 0, 0, 0];
+
+// Privadas
+		mouseSelectCharStart = -1;
+		mouseSelecting = false;
+
+		editable = true; // Ni mostrará cursor ni se podrá editar
+		readOnly = false; // Mostrará el cursor pero no se podrá editar
+		modified = false; // Para saber si los datos se han modificado
+
+		selectAllOnFocusEnter = false; // Selecciona todo el texto al entrar el foco
+		selectAllOnMouseEnter = false; // Selecciona todo el texto al entrar pinchar con el mouse
+		doSelectAllOnMouseEnter = false; // Privada
+
+		scrollTimer = null;
+		scrollDirection = 0;
+
+		emptyText = "";
+		emptyTextColor = ARGB(255, 130, 130, 130);
+
+
+		drawSprite = null;
+
+		minSize = [-1, -1];
+		autoHeight = false;
+		maxLength = 0; // Nº máximo de caracteres
+
+		autoCreatedFont = false; // Interna
+
+		zoom = 1.0f;
+
+		windowsCommonActionsEnabled = true;
+		closeKeyboardOnReturn = true;
+
+		//isHistoryEnabled = true;
+		//historyList = []; // Texto, puntero
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+
+		// Scroll y gestión de entrada
+		pointerScrolling = null; // Para saber que puntero tenermos que hacer el scroll
+		mobilePointInfo = [0, 0, 0];
+
+		// Punteros
+		cursorPointer = null;
+		leftSelectionPointer = null;
+		rightSelectionPointer = null;
+
+		// Para gestionar la visibilidad de los punteros (si se oculta el controller se va a ocultar el puntero)
+		visibilityLastPosition = [0, 0];
+		cursorVisibilityController = null;
+		leftSelectionVisibilityController = null;
+		rightSelectionVisibilityController = null;
+#endif
+
+
+	function _operator_new(_uisystem, _name)
+	{
+		::_operator_new(_uisystem, _name);
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+		Sprite_SetProperty(sprite, SPRITE_CLIP_CHILDREN, true);
+#endif
+
+		textDoc = TextDoc_Create("");
+		TextDoc_SetProperty(textDoc, TEXTDOC_SELECTION_COLOR_FG, ARGB(255, 255, 255, 255));
+		TextDoc_SetProperty(textDoc, TEXTDOC_SELECTION_COLOR_BG, ARGB(255, 0, 0, 255));
+		TextDoc_SetProperty(textDoc, TEXTDOC_CURSOR_BLINK, 500);
+		TextDoc_SetProperty(textDoc, TEXTDOC_WORDWRAP, false);
+		TextDoc_SetProperty(textDoc, TEXTDOC_MULTILINE, false);
+		TextDoc_SetProperty(textDoc, TEXTDOC_CURSOR_COLOR, ARGB(255, 0, 0, 0));
+		TextDoc_SetProperty(textDoc, TEXTDOC_CURSOR_LINE_COLOR, ARGB(0,0,0,0));
+		//Core_TextDocUpdateStyle(0, GetFont(), foreColor, backColor);
+
+
+		selectable = true;
+		backColor = ARGB(255, 255, 255, 255);
+		foreColor = ARGB(255, 0, 0, 0);
+		//textPadding = [1, 1, 1, 1];
+
+		// Creamos el sprite donde se pintará (por el clipping)
+		drawSprite = Sprite_New("", uiSystem.spriteManager);
+		Sprite_AddChild(sprite, drawSprite);
+		Sprite_SetProperty(drawSprite, SPRITE_SETPROPERTY_LOCK, true); // Bloquea la actualización del sprite
+		Sprite_SetProperty(drawSprite, SPRITE_VISIBLE, true);
+		Sprite_SetProperty(drawSprite, SPRITE_STOP, true);
+		Sprite_SetProperty(drawSprite, SPRITE_COLLIDE, false);
+		Sprite_SetProperty(drawSprite, SPRITE_NAME, "drawSprite");
+		Sprite_SetDrawFunction(drawSprite, this, "DrawSprite", 1);
+		Sprite_SetProperty(drawSprite, SPRITE_SETPROPERTY_LOCK, false);
+		//Sprite_SetProperty(sprite, SPRITE_DEBUG, false);
+		//Sprite_SetProperty(drawSprite, SPRITE_DEBUG, true);
+		//Sprite_SetProperty(drawSprite, SPRITE_DEBUG_COLOR, ARGB(255, 0, 255, 255));
+
+		//TextDoc_SetProperty(textDoc, TEXTDOC_SCALE_FACTOR, GetEffectiveScale());
+		Core_UpdateScaleFactor();
+		Core_UpdateTextDocSize();
+
+		TextDoc_AddEvent(textDoc, TEXTDOC_EVENT_CURSOR_MOVE, this, "OnCursorChanged");
+		TextDoc_AddEvent (textDoc, TEXTDOC_EVENT_SCROLLH, this, "OnScrollH");
+		TextDoc_AddEvent (textDoc, TEXTDOC_EVENT_SCROLLV, this, "OnScrollV");
+
+		tabStop = true;
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+		EnableMove(true);
+#endif
+	}
+
+	function OnInit()
+	{
+		::OnInit();
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+		cursorPointer = CreatePointerControl(UI_TEXTBOX_CURSOR_POINTER);
+		cursorPointer.LinkToTextbox(this);
+		leftSelectionPointer = CreatePointerControl(UI_TEXTBOX_LEFT_SELECTION_POINTER);
+		leftSelectionPointer.LinkToTextbox(this);
+		rightSelectionPointer = CreatePointerControl(UI_TEXTBOX_RIGHT_SELECTION_POINTER);
+		rightSelectionPointer.LinkToTextbox(this);
+
+
+		cursorVisibilityController = suil_system.CreateFrame("UI_Frame", "textbox_cursorController");
+		//cursorVisibilityController.SetSelectable(false);
+		cursorVisibilityController.SetEnabled(false);
+		cursorVisibilityController.SetParent(this);
+		Sprite_SetProperty(cursorVisibilityController.sprite, SPRITE_Z, 1);
+		cursorVisibilityController.Show();
+		cursorVisibilityController.Raise();
+
+		leftSelectionVisibilityController = suil_system.CreateFrame("UI_Frame", "textbox_leftSelectionController");
+		//leftSelectionVisibilityController.SetSelectable(false);
+		leftSelectionVisibilityController.SetEnabled(false);
+		leftSelectionVisibilityController.SetParent(this);
+		Sprite_SetProperty(leftSelectionVisibilityController.sprite, SPRITE_Z, 1);
+		leftSelectionVisibilityController.Raise();
+		leftSelectionVisibilityController.Show();
+
+		rightSelectionVisibilityController = suil_system.CreateFrame("UI_Frame", "textbox_rightSelectionController");
+		//rightSelectionVisibilityController.SetSelectable(false);
+		rightSelectionVisibilityController.SetEnabled(false);
+		rightSelectionVisibilityController.SetParent(this);
+		rightSelectionVisibilityController.SetParent(this);
+		Sprite_SetProperty(rightSelectionVisibilityController.sprite, SPRITE_Z, 1);
+		rightSelectionVisibilityController.Show();
+		rightSelectionVisibilityController.Raise();
+
+		//Sprite_SetProperty(cursorVisibilityController.sprite, SPRITE_DEBUG, false);
+		// Sprite_SetProperty(leftSelectionVisibilityController.sprite, SPRITE_DEBUG, false);
+		// Sprite_SetProperty(rightSelectionVisibilityController.sprite, SPRITE_DEBUG, false);
+
+		Sprite_SetProperty(cursorVisibilityController.sprite, SPRITE_DEBUG_COLOR, ARGB(255, 0, 255, 255));
+		Sprite_SetProperty(leftSelectionVisibilityController.sprite, SPRITE_DEBUG_COLOR, ARGB(255, 0, 255, 0));
+		Sprite_SetProperty(rightSelectionVisibilityController.sprite, SPRITE_DEBUG_COLOR, ARGB(255, 255, 0, 0));
+#endif
+
+		MoveSelectionToCursor(true);
+	}
+
+
+	function _operator_delete()
+	{
+		if (scrollTimer) Timer_Delete(scrollTimer);
+
+		//DebugMsg("DESTROYING TEXBOX----------------------------------------------------------------------");
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+		//ClearPointers();
+#endif
+
+		if (textDoc)
+		{
+			TextDoc_Delete(textDoc);
+			textDoc = null;
+		}
+
+		if (drawSprite) Sprite_Delete(drawSprite);
+		::_operator_delete();
+	}
+
+	function Core_AddChild(_region)
+	{
+		::Core_AddChild(_region);
+
+		// El texto SIEMPRE encima
+		Sprite_ChangeChildOrder(sprite, drawSprite, null, true);
+	}
+
+	function OnDestroy()
+	{
+
+		::OnDestroy();
+	}
+
+	function SetParent(_parent)
+	{
+		::SetParent(_parent);
+
+		if (_parent)
+		{
+			//TextDoc_SetProperty(textDoc, TEXTDOC_SCALE_FACTOR, GetEffectiveScale());
+			Core_UpdateScaleFactor();
+			Core_UpdateTextDocSize();
+		}
+	}
+
+
+	function GetMaxLength()
+	{
+		return maxLength;
+	}
+
+	function SetMaxLength(_value)
+	{
+		maxLength = _value;
+	}
+
+	function SetModified(_value)
+	{
+		modified = _value;
+	}
+
+	function ResetChanged()
+	{
+		SetModified(false);
+	}
+
+	function HasChanged()
+	{
+		return modified;
+	}
+
+	function SetBounds(_left, _top, _width, _height)
+	{
+		if (minSize[0] != -1 && _width < minSize[0]) _width = minSize[0];
+		if (minSize[1] != -1 && _height < minSize[1]) _height = minSize[1];
+		_sizeChanged = GetWidth() != _width || GetHeight() != _height;
+		::SetBounds(_left, _top, _width, _height);
+		if (_sizeChanged) Core_UpdateTextDocSize();
+	}
+
+	function Core_UpdateTextDocSize()
+	{
+		_w = GetWidth() - textPadding[2] - textPadding[0];
+		_h = GetHeight() - textPadding[3] - textPadding[1];
+		_scale = GetEffectiveScale();
+		TextDoc_SetSize(textDoc, _w * _scale, _h * _scale);
+
+		Sprite_SetProperty(drawSprite, SPRITE_X, textPadding[0]);
+		Sprite_SetProperty(drawSprite, SPRITE_Y, textPadding[1]);
+		Sprite_SetProperty(drawSprite, SPRITE_W, _w);
+		Sprite_SetProperty(drawSprite, SPRITE_H, _h);
+	}
+
+	function CheckAutoSize()
+	{
+		if (!autoHeight) return;
+
+		_w = GetWidth() - textPadding[2] - textPadding[0];
+		_h = GetHeight() - textPadding[3] - textPadding[1];
+
+		_maxh = TextDoc_GetStat(textDoc, TEXTDOC_STAT_MAX_HEIGHT);
+		_maxh += (textPadding[1] + textPadding[3]) * 2;
+		if (_maxh < minSize[1]) _maxh = minSize[1];
+		if (_maxh != _h)
+		{
+			SetHeight(_maxh);
+		}
+	}
+
+	function SetTextPadding(_padding)
+	{
+		textPadding = _padding;
+		Core_UpdateTextDocSize();
+	}
+
+	function SetTextPadding(_left, _top, _right, _bottom)
+	{
+		textPadding = [_left, _top, _right, _bottom];
+		Core_UpdateTextDocSize();
+	}
+
+	function SetTextPadding(_left, _top)
+	{
+		textPadding = [_left, _top, 0, 0];
+		Core_UpdateTextDocSize();
+	}
+
+	function SetText(_value)
+	{
+		ClearSelection();
+		Core_SetCursorPos(0);
+		TextDoc_SetText(textDoc, _value);
+		DoMoveEnd(false);
+		MoveSelectionToCursor(true);
+		SetModified(true);
+		CheckAutoSize();
+
+		OnTextChanged();
+	}
+
+	function SetHTMLText(_value)
+	{
+		ClearSelection();
+		Core_SetCursorPos(0);
+		TextDoc_SetHTMLText(textDoc, _value);
+		MoveSelectionToCursor(true);
+		SetModified(true);
+		CheckAutoSize();
+
+		OnTextChanged();
+	}
+
+	function GetText()
+	{
+		return TextDoc_GetText(textDoc, 0, -1);
+	}
+
+	function GetHTMLText()
+	{
+		return TextDoc_GetHTMLText(textDoc, 0, -1);
+	}
+
+	function EnablePassword(_value)
+	{
+		TextDoc_SetProperty (textDoc, TEXTDOC_PASSWORD_MODE, _value);
+	}
+
+	function EnableWindowsCommonActions(_value)
+	{
+		windowsCommonActionsEnabled = _value;
+	}
+
+	function SetCloseKeyboardOnReturn(_value)
+	{
+		closeKeyboardOnReturn = _value;
+	}
+
+
+	function SetMultiLine(_value)
+	{
+		TextDoc_SetProperty(textDoc, TEXTDOC_MULTILINE, _value);
+		TextDoc_SetProperty(textDoc, TEXTDOC_WORDWRAP, _value);
+
+		//Core_CallObservers(UI_EVENT_TEXTBOX_MULTILINE_CHANGED);
+	}
+
+	function SetWordWrap(_value)
+	{
+		TextDoc_SetProperty(textDoc, TEXTDOC_WORDWRAP, _value);
+	}
+
+	function GetMultiLine()
+	{
+		return TextDoc_GetProperty(textDoc, TEXTDOC_MULTILINE);
+	}
+
+	function GetWordWrap()
+	{
+		return TextDoc_GetProperty(textDoc, TEXTDOC_WORDWRAP);
+	}
+
+	function GetItemFromPos(_pos)
+	{
+		return TextDoc_GetItemFromPos(textDoc, _pos);
+	}
+
+	function GetStat(_statId)
+	{
+		return TextDoc_GetStat (textDoc, _statId);
+	}
+
+	function GetTextHeight()
+	{
+		return TextDoc_GetStat (textDoc, TEXTDOC_STAT_MAX_HEIGHT);
+	}
+
+	function GetTextWidth()
+	{
+		return TextDoc_GetStat (textDoc, TEXTDOC_STAT_MAX_WIDTH);
+	}
+
+
+	function SetSelectionTextColor(_value)
+	{
+		TextDoc_SetProperty(textDoc, TEXTDOC_SELECTION_COLOR_FG, _value);
+	}
+
+	function SetSelectionBackColor(_value)
+	{
+		TextDoc_SetProperty(textDoc, TEXTDOC_SELECTION_COLOR_BG, _value);
+	}
+
+	function SetTextAlign(_value)
+	{
+		TextDoc_SetProperty(textDoc, TEXTDOC_ALIGN, _value);
+	}
+
+	function System_KeyDown(_key)
+	{
+		_shift = uiSystem.IsShiftPressed();
+		_ctrl = uiSystem.IsControlPressed();
+		_alt = uiSystem.IsAltPressed();
+
+#if __MACHINE_PC__ || __MACHINE_RASPBERRY__
+		if (windowsCommonActionsEnabled)
+		{
+			if ((_key == KEY_C && _ctrl && !_shift && !_alt) || (_key == KEY_INSERT && _ctrl && !_shift && !_alt)) // COPY WINDOWS
+			{
+				if (GetSelectedTextCount())
+				{
+					uiSystem.ClipboardSetText(GetSelectedText());
+				}
+			}
+		}
+#endif
+
+		if (!editable || readOnly) return;
+
+#if __MACHINE_PC__ || __MACHINE_RASPBERRY__
+		if (windowsCommonActionsEnabled)
+		{
+			if ((_key == KEY_V && _ctrl && !_shift && !_alt) || (_key == KEY_INSERT && !_ctrl && _shift && !_alt)) // PASTE WINDOWS
+			{
+				_clipboardText = uiSystem.ClipboardGetText();
+				if (!suil_library.String_IsEmptyOrNull(_clipboardText))
+				{
+					//ClearSelection(true);
+					Insert(_clipboardText);
+				}
+			}
+			else if (_key == KEY_X && _ctrl && !_shift && !_alt) // CUT WINDOWS
+			{
+				if (GetSelectedTextCount())
+				{
+					_txt = GetSelectedText();
+					ClearSelection(true);
+					uiSystem.ClipboardSetText(_txt);
+				}
+			}
+			else if (_key == KEY_Z && _ctrl && !_shift && !_alt) // Restore
+			{
+				Undo();
+			}
+			else if (_key == KEY_Y && _ctrl && !_shift && !_alt) // Redo
+			{
+				Redo();
+			}
+		}
+#endif
+
+		::System_KeyDown(_key);
+	}
+
+	function OnChar(_char)
+	{
+		if (!editable) return;
+
+		//NSUIL Esto para PC no es necesario (creo)
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+		TextDoc_SetProperty(textDoc, TEXTDOC_CURSOR_VISIBLE, true);
+#endif
+
+		_doInsertChar = true;
+
+		//_asciiChar = ascii(_char);
+		_shift = uiSystem.IsShiftPressed();
+		_ctrl = uiSystem.IsControlPressed();
+		//DebugMsg("CHAR", _char, "ASCII", _asciiChar, "IS CHAR_BACKSPACE", _char == CHAR_BACKSPACE);
+		if (_char == CHAR_LEFT)
+		{
+			if (_ctrl) DoMoveWordLeft(_shift);
+			else DoMoveLeft(_shift);
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+			HidePointers();
+#endif
+			_doInsertChar = false;
+		}
+		else if (_char == CHAR_RIGHT)
+		{
+			if (_ctrl) DoMoveWordRight(_shift);
+			else DoMoveRight(_shift);
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+			HidePointers();
+#endif
+			_doInsertChar = false;
+		}
+		else if (_char == CHAR_DOWN)
+		{
+			if (GetMultiLine()) DoMoveDown(_shift);
+			//else DoMoveRight(_shift);
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+			HidePointers();
+#endif
+			_doInsertChar = false;
+		}
+		else if (_char == CHAR_UP)
+		{
+			if (GetMultiLine()) DoMoveUp(_shift);
+			//else DoMoveLeft(_shift);
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+			HidePointers();
+#endif
+			_doInsertChar = false;
+		}
+		else if (_char == CHAR_HOME)
+		{
+			if (_ctrl) DoMoveStart(_shift);
+			else DoMoveStartOfLine(_shift);
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+			HidePointers();
+#endif
+			_doInsertChar = false;
+		}
+		else if (_char == CHAR_END)
+		{
+			if (_ctrl) DoMoveEnd(_shift);
+			else DoMoveEndOfLine(_shift);
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+			HidePointers();
+#endif
+			_doInsertChar = false;
+		}
+		else if (_char == CHAR_PRIOR)
+		{
+			DoMovePageUp(_shift);
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+			HidePointers();
+#endif
+			_doInsertChar = false;
+		}
+		else if (_char == CHAR_NEXT)
+		{
+			DoMovePageDown(_shift);
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+			HidePointers();
+#endif
+			_doInsertChar = false;
+		}
+		else if (_char == CHAR_DELETE && !readOnly)
+		{
+			if (HasSelection()) ClearSelection(true);
+			else
+			{
+				DeleteTextFromCursor(1);
+			}
+
+			OnTextChanged();
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+			HidePointers();
+#endif
+			_doInsertChar = false;
+		}
+		else if (_char == CHAR_BACKSPACE && !readOnly)
+		{
+			if (HasSelection())
+				ClearSelection(true);
+			else
+			{
+				//AddHistoryAction();
+				TextDoc_DoAction (textDoc, TEXTDOC_ACTION_BACKSPACE);
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+				HidePointers();
+#endif
+				SetModified(true);
+				CheckAutoSize();
+			}
+
+			OnTextChanged();
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+			HidePointers();
+#endif
+			_doInsertChar = false;
+		}
+		else if (_char == CHAR_RETURN && !readOnly)
+		{
+			if (GetMultiLine())
+			{
+				if (HasSelection())
+					ClearSelection(true);
+
+				Insert("\n");
+			}
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+			else if (closeKeyboardOnReturn)
+			{
+				DebugMsg("Closing VK due Return");
+				uiSystem.CloseVirtualKeyboard(this);
+			}
+#endif
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+			HidePointers();
+#endif
+			_doInsertChar = false;
+		}
+
+		if (_doInsertChar)
+		{
+			if (_char <= 255)
+			{
+				if (!suil_library.String_CharIsControl(_char))
+				{
+					_asciiChar = ascii(_char);
+					Insert(_asciiChar);
+				}
+			}
+			else
+			{
+				_unicodeChar = unicode(_char);
+				InsertW(_unicodeChar);
+			}
+		}
+
+		//DebugMsg("CHAR", _char, "ASCII", _asciiChar, "IS CHAR_BACKSPACE", _char == CHAR_BACKSPACE);
+		::OnChar(_char);
+	}
+
+	function InsertW(_string)
+	{
+		if (readOnly || !editable) return;
+
+		//DebugMsg("Insert Text", _string);
+		ClearSelection(true);
+
+		// TextDoc_InsertText(textDoc, _string, -1);
+		// for (i = 0; i < strlen(_string); i++)
+		// {
+		// 	DoMoveRight(false);
+		// }
+
+		_textChanged = false;
+		_len = strlen(_string);
+		for (i = 0; i < _len; i++)
+		{
+			_c = _string[i];
+			if (maxLength > 0 && TextDoc_GetStat(textDoc, TEXTDOC_STAT_NUM_ITEMS) >= maxLength)
+				break;
+
+			if (!AllowedCharW(_c, -1))
+				break;
+
+			_textChanged = true;
+			TextDoc_InsertText(textDoc, unicode(_c), -1);
+			DoMoveRight(false);
+		}
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+		HidePointers();
+#endif
+
+		if (_textChanged)
+		{
+			SetModified(true);
+			CheckAutoSize();
+			OnTextChanged();
+		}
+	}
+
+	function Insert(_string)
+	{
+		if (readOnly || !editable) return;
+
+		//DebugMsg("Insert Text", _string);
+		ClearSelection(true);
+
+		// TextDoc_InsertText(textDoc, _string, -1);
+		// for (i = 0; i < strlen(_string); i++)
+		// {
+		// 	DoMoveRight(false);
+		// }
+
+		_textChanged = false;
+		_len = strlen(_string);
+		for (i = 0; i < _len; i++)
+		{
+			_c = _string[i];
+			if (maxLength > 0 && TextDoc_GetStat(textDoc, TEXTDOC_STAT_NUM_ITEMS) >= maxLength)
+				break;
+
+			if (!AllowedChar(ubyte(_c), -1))
+				break;
+
+			_textChanged = true;
+			TextDoc_InsertText(textDoc, ascii(_c), -1);
+			DoMoveRight(false);
+		}
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+		HidePointers();
+#endif
+
+		if (_textChanged)
+		{
+			SetModified(true);
+			CheckAutoSize();
+			OnTextChanged();
+		}
+	}
+
+	function AllowedChar(_char, _pos)
+	{
+		return true;
+	}
+
+	function AllowedCharW(_char, _pos)
+	{
+		return true;
+	}
+
+
+	function OnMouseDown(_btnId, _mx, _my)
+	{
+		::OnMouseDown(_btnId, _mx, _my);
+
+		if (!editable) return;
+
+		_goToPoint = true;
+		if (!focused && selectAllOnMouseEnter)
+		{
+			SelectAll();
+			_goToPoint = false;
+		}
+
+#if __MACHINE_PC__ || __MACHINE_RASPBERRY__ && !_UISYS_SIMULATE_IOS_
+		//if (_goToPoint && _btnId == MOUSE_LEFT)
+		if (_goToPoint && uiSystem.IsMouseLeft(_btnId))
+		{
+			// Debugmsg("============================");
+			_scale = GetEffectiveScale();
+			_p = PointToScreen(0, 0);
+			_p[0] += textPadding[0];
+			_p[1] += textPadding[1];
+
+			_cp = GetCursorPoint();
+			_cp[0] = (_cp[0] - _p[0]) * _scale;
+			_cp[1] = (_cp[1] - _p[1]) * _scale;
+			_pos = TextDoc_ConvertScreenToPos(textDoc, _cp[0], _cp[1]);
+
+			//DebugMsg("ONMOUSDOWN X/Y:", _cp[0], _cp[1], " POS:", _pos);
+			// Si estamos fuera del recuadro de texto salimos, ya que el _pos nos devuelve un nº grande aleatorio
+			if (_pos < 0 || _pos > TextDoc_GetStat(textDoc, TEXTDOC_STAT_NUM_ITEMS)) return;
+			Core_SetCursorPos(_pos);
+			mouseSelecting = true;
+			mouseSelectCharStart = _pos;
+
+//#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+			Core_StartSelectionPos(_pos);
+			//TextDoc_SetProperty(textDoc, TEXTDOC_SELECTION_BEGIN, _pos);
+//#endif
+			_shift = uiSystem.IsShiftPressed();
+			MoveSelectionToCursor(!_shift);
+		}
+#endif
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+		mobilePointInfo = [Cursor_GetX(), Cursor_GetY(), 0];
+
+		//if (_btnId == MOUSE_LEFT)
+		if (uiSystem.IsMouseLeft(_btnId))
+		{
+			mobilePointInfo[2] = uiSystem.GetTick();
+		}
+#endif
+	}
+
+	function OnMouseUp(_btnId, _mx, _my)
+	{
+		::OnMouseUp(_btnId, _mx, _my);
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+		// if (desktop.GetCapturedScrollControl() == this)
+		// {
+		// 	desktop.ReleaseScroll();
+		// 	return;
+		// }
+
+		//if (_btnId == MOUSE_LEFT && uiSystem.GetTick() - mobilePointInfo[2] < MAX_TIME_TO_POINTER)
+		if (uiSystem.IsMouseLeft(_btnId) && uiSystem.GetTick() - mobilePointInfo[2] < MAX_TIME_TO_POINTER)
+		{
+			if (!uiSystem.IsVirtualKeyboardOpened()) uiSystem.OpenVirtualkeyBoard(this);
+
+			_clipText = uiSystem.ClipboardGetText();
+			if (TextDoc_GetStat(textDoc, TEXTDOC_STAT_NUM_ITEMS) || strlen(_clipText))
+			{
+				TextDoc_SetProperty(textDoc, TEXTDOC_CURSOR_VISIBLE, true);
+				HidePointers(false, true);
+
+				// Mostramos la seleción
+				// if (!cursorPointer)
+				// {
+				// 	cursorPointer = CreatePointerControl(UI_TEXTBOX_CURSOR_POINTER);
+				// 	cursorPointer.LinkToTextbox(this);
+				// }
+
+				if (MoveCursorToClickPoint())
+					MovePointerToCursor(cursorPointer);
+
+				OnCursorPointerShow();
+			}
+		}
+		//else if (_btnId == MOUSE_LEFT && uiSystem.GetTick() - mobilePointInfo[2] < MAX_TIME_TO_SELECTION)
+		else if (uiSystem.IsMouseLeft(_btnId) && uiSystem.GetTick() - mobilePointInfo[2] < MAX_TIME_TO_SELECTION)
+		{
+			if (TextDoc_GetStat(textDoc, TEXTDOC_STAT_NUM_ITEMS))
+			{
+				HidePointers(true, false);
+
+				// if (!leftSelectionPointer)
+				// {
+				// 	leftSelectionPointer = CreatePointerControl(UI_TEXTBOX_LEFT_SELECTION_POINTER);
+				// 	leftSelectionPointer.LinkToTextbox(this);
+				// }
+
+				// if (!rightSelectionPointer)
+				// {
+				// 	rightSelectionPointer = CreatePointerControl(UI_TEXTBOX_RIGHT_SELECTION_POINTER);
+				// 	rightSelectionPointer.LinkToTextbox(this);
+				// }
+
+				// Posicionamos los controles sobre la palabra
+				_pos = GetCharPosOfWord(mobilePointInfo[0], mobilePointInfo[1], true);
+				Core_StartSelectionPos(_pos[0]);
+				Core_EndSelectionPos(_pos[1]);
+				MovePointerToCursor(leftSelectionPointer);
+				MovePointerToCursor(rightSelectionPointer);
+
+				TextDoc_SetProperty(textDoc, TEXTDOC_CURSOR_VISIBLE, false);
+
+				OnSelectionPointerShow();
+			}
+		}
+#else
+
+		//if (_btnId == MOUSE_LEFT)
+		if (uiSystem.IsMouseLeft(_btnId))
+		{
+			if (!uiSystem.IsVirtualKeyboardOpened())
+				uiSystem.OpenVirtualkeyBoard(this);
+		}
+#endif
+
+
+		mouseSelecting = false;
+
+#if __MACHINE_PC__ || __MACHINE_RASPBERRY__ && !_UISYS_SIMULATE_IOS_
+		StopScrollTimer();
+#endif
+
+#if __OS_ANDROID__ || __OS_IOS__ || !_UISYS_SIMULATE_IOS_
+		//StopScrollTimer();
+#else
+		StopScrollTimer();
+#endif
+	}
+
+
+	function OnMouseMove(_btnId, _mx, _my)
+	{
+		::OnMouseMove(_btnId, _mx, _my);
+
+ 		// Permitimos hacer un scroll en el texto
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+		_w = GetWidth() - (textPadding[0] + textPadding[2]);
+		_maxW = TextDoc_GetStat(textDoc, TEXTDOC_STAT_MAX_WIDTH);
+		if (_maxW > _w)
+		{
+			_d = PointDistance(1, mobilePointInfo[0], 1, 1, Cursor_GetX(), 1);
+			if (_d > 5)
+			{
+				//if (!desktop.CaptureScroll(this)) return;
+
+				_diff = Cursor_GetX() - mobilePointInfo[0];
+				_diff = _diff / (_maxW - _w);
+				_old = TextDoc_GetProperty(textDoc, TEXTDOC_SCROLL_NX);
+				_value = _old - _diff;
+				if (_value > 1) _value = 1;
+				else if (_value < 0) _value = 0;
+
+				ScrollHorizontal(_value);
+				mobilePointInfo = [Cursor_GetX(), Cursor_GetY(), 0];
+				return;
+			}
+		}
+#endif
+
+#if __MACHINE_PC__ || __MACHINE_RASPBERRY__ && !_UISYS_SIMULATE_IOS_
+		//DebugMsg("mouseSelecting", mouseSelecting);
+		//NSUIL He quitado el flag de simulación en ios
+		if (mouseSelecting)
+		{
+			_scale = GetEffectiveScale();
+			//_cp = GetCursorPointerPoint();
+			_cp = GetCursorPoint();
+
+			_x = _cp[0];
+			_y = _cp[1];
+			_p = PointToScreen(0, 0);
+			_p[0] += textPadding[0];
+			_p[1] += textPadding[1];
+			_w = GetWidth() - (textPadding[0] + textPadding[2]);
+			_right = _p[0] + _w;
+			if (_x > _right && !GetMultiLine())
+			{
+				DebugLog("TIMER RIGHT");
+				_time = 1000 / (_x - _right);
+				StartScrollTimer(1, _time);
+			}
+			else if (_x < _p[0] && !GetMultiLine())
+			{
+				DebugLog("TIMER LEFT");
+				_time = 1000 / (_p[0] - _x);
+				StartScrollTimer(-1, _time);
+			}
+			else
+			{
+				StopScrollTimer();
+				//_pos = TextDoc_ConvertScreenToPos (textDoc, (_x - _p[0]) * _scale, (_y - _p[1]) * _scale);
+
+				_cp[0] = (_cp[0] - _p[0]) * _scale;
+				_cp[1] = (_cp[1] - _p[1]) * _scale;
+				_pos = TextDoc_ConvertScreenToPos(textDoc, _cp[0], _cp[1]);
+				if (_pos < 0 || _pos > TextDoc_GetStat(textDoc, TEXTDOC_STAT_NUM_ITEMS)) return;
+				Core_SetCursorPos(_pos);
+
+				if (mouseSelectCharStart == _pos) return;
+				MoveSelectionToCursor(false);
+			}
+		}
+#endif
+	}
+
+	function StartScrollTimer(_direction, _time)
+	{
+		if (scrollTimer) Timer_Delete(scrollTimer);
+		scrollTimer = null;
+
+		pointerScrolling = null;
+		scrollDirection = _direction;
+		scrollTimer = Timer_New("", this, "OnScrollTimerTick", _time);
+		Timer_Start(scrollTimer);
+
+		// Al empezar forzamos un pase de scroll
+		OnScrollTimerTick(null);
+	}
+
+	function StopScrollTimer()
+	{
+		if (scrollTimer) Timer_Delete(scrollTimer);
+		scrollTimer = null;
+		scrollDirection = 0;
+		pointerScrolling = null;
+	}
+
+	function OnScrollTimerTick(_timer)
+	{
+		//NSUIL Solo para PC
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+		if (pointerScrolling == null || pointerScrolling == cursorPointer)
+		{
+			if (scrollDirection == 1) DoMoveRight(mouseSelecting);
+			else if (scrollDirection == -1) DoMoveLeft(mouseSelecting);
+		}
+		else if (pointerScrolling == leftSelectionPointer)
+		{
+			_pos = TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_BEGIN);
+			if (scrollDirection == 1) _pos++;
+			else if (scrollDirection == -1) _pos--;
+
+			if (_pos < 0) return;
+			if (_pos >= TextDoc_GetStat(textDoc, TEXTDOC_STAT_NUM_ITEMS)) return;
+			Core_StartSelectionPos(_pos);
+			if (scrollDirection == 1) SnapPointerToSide(leftSelectionPointer, UI_RIGHT);
+			else if (scrollDirection == -1) SnapPointerToSide(leftSelectionPointer, UI_LEFT);
+		}
+		else if (pointerScrolling == rightSelectionPointer)
+		{
+			_pos = TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_END);
+			if (scrollDirection == 1) _pos++;
+			else if (scrollDirection == -1) _pos--;
+
+			if (_pos < 0) return;
+			if (_pos >= TextDoc_GetStat(textDoc, TEXTDOC_STAT_NUM_ITEMS)) return;
+			Core_EndSelectionPos(_pos);
+			if (scrollDirection == 1) SnapPointerToSide(rightSelectionPointer, UI_RIGHT);
+			else if (scrollDirection == -1) SnapPointerToSide(rightSelectionPointer, UI_LEFT);
+		}
+#else
+		if (scrollDirection == 1) DoMoveRight(mouseSelecting);
+		else if (scrollDirection == -1) DoMoveLeft(mouseSelecting);
+#endif
+	}
+
+	function System_FocusEnter(_controlLostFocus, _controlGainFocus)
+	{
+		::System_FocusEnter(_controlLostFocus, _controlGainFocus);
+
+		if (editable)
+		{
+			TextDoc_SetProperty(textDoc, TEXTDOC_CURSOR_VISIBLE, true);
+			if (selectAllOnFocusEnter) SelectAll();
+
+			uiSystem.OpenVirtualkeyBoard(this);
+		}
+	}
+
+	function System_FocusLeave(_controlLostFocus, _controlGainFocus)
+	{
+		// Podría ser que el control se borre teniendo el foco
+		if (!textDoc) return;
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+		HidePointers();
+#endif
+
+		if (editable)
+		{
+			TextDoc_SetProperty(textDoc, TEXTDOC_CURSOR_VISIBLE, false);
+			uiSystem.CloseVirtualKeyboard(this);
+		}
+
+		// TODO ¿Mirar si la selección va a un puntero?
+		ClearSelection();
+
+		::System_FocusLeave(_controlLostFocus, _controlGainFocus);
+	}
+
+	function SetReadOnly(_value)
+	{
+		if (readOnly == _value) return;
+		readOnly = _value;
+		ClearSelection();
+	}
+
+	function SetEditable(_value)
+	{
+		if (editable == _value) return;
+		editable = _value;
+		if (editable && focused)
+			TextDoc_SetProperty(textDoc, TEXTDOC_CURSOR_VISIBLE, true);
+		if (!editable)
+		{
+			TextDoc_SetProperty(textDoc, TEXTDOC_CURSOR_VISIBLE, false);
+			ClearSelection();
+		}
+	}
+
+	function HasSelection()
+	{
+		return TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_BEGIN) != TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_END);
+	}
+
+	function ClearSelection(_deleteSelected = false, _addToHistory = true)
+	{
+		if (_deleteSelected && !readOnly)
+		{
+			_selStart = int(TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_BEGIN));
+			_selEnd = int(TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_END));
+			_count = int(abs(_selEnd - _selStart));
+			// TODO Este flag solo para smartphone. En PC se debe ejecutar toda la función (¿o no?)
+			if (_count == 0) return;
+
+			// if (_addToHistory)
+			// 	AddHistoryAction();
+			_start = int(min([_selStart, _selEnd]));
+			TextDoc_DeleteText(textDoc, _start, _count);
+			SetModified(true);
+			Core_SetCursorPos(_start);
+			CheckAutoSize();
+
+			OnTextChanged();
+		}
+
+		MoveSelectionToCursor(true);
+	}
+
+	// function GetHistoryAction(_ix)
+	// {
+	// 	return historyList[_ix];
+	// }
+
+
+	function HasHistoryAction()
+	{
+		return TextDoc_GetStat (textDoc, TEXTDOC_STAT_NUM_UNDOS) > 0;
+		//return sizeof(historyList) > 0;
+	}
+
+	function GetHistoryActions()
+	{
+		return TextDoc_GetStat (textDoc, TEXTDOC_STAT_NUM_UNDOS);
+	}
+
+	function AddHistoryAction()
+	{
+		// if (isHistoryEnabled)
+		// 	historyList = [[GetHTMLText(), GetCursorPos()]];
+	}
+
+	// function EnableHistory(_value)
+	// {
+	// 	isHistoryEnabled = _value;
+	// 	if (!isHistoryEnabled)
+	// 		historyList = [];
+	// }
+
+	function Redo()
+	{
+		TextDoc_DoAction (textDoc, TEXTDOC_ACTION_REDO);
+	}
+
+	function Undo()
+	{
+		TextDoc_DoAction (textDoc, TEXTDOC_ACTION_UNDO);
+		// if (HasHistoryAction())
+		// {
+		// 	_last = GetHistoryAction(0);
+		// 	AddHistoryAction();
+		// 	TextDoc_SetHTMLText(textDoc, _last[0]);
+		// 	SetCursorPos(_last[1]);
+		// }
+	}
+
+
+
+	function SelectAll()
+	{
+		Core_StartSelectionPos(0);
+		_l = TextDoc_GetStat(textDoc, TEXTDOC_STAT_NUM_ITEMS) - 1;
+		Core_EndSelectionPos(_l);
+		Core_SetCursorPos(_l);
+
+		if (_l <= 0) return;
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+		MovePointerToCursor(leftSelectionPointer);
+		MovePointerToCursor(rightSelectionPointer);
+#endif
+	}
+
+	function IsAllSelected()
+	{
+		_min = min([TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_END), TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_BEGIN)]);
+		_max = max([TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_END), TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_BEGIN)]);
+		return _min == 0 && _max == TextDoc_GetStat(textDoc, TEXTDOC_STAT_NUM_ITEMS);
+	}
+
+	function GetSelectedTextCount()
+	{
+		_selStart = int(TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_BEGIN));
+		_selEnd = int(TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_END));
+		_count = int(abs(_selEnd - _selStart));
+		return _count;
+	}
+
+	function GetSelectedText()
+	{
+		_selStart = int(TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_BEGIN));
+		_selEnd = int(TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_END));
+		_count = int(abs(_selEnd - _selStart));
+		_start = int(min([_selStart, _selEnd]));
+		return TextDoc_GetText(textDoc, _start, _count);
+	}
+
+	function DeleteTextFromCursor(_count)
+	{
+		//AddHistoryAction();
+		TextDoc_DeleteText(textDoc, -1, _count);
+		SetModified(true);
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+		HidePointers();
+#endif
+		CheckAutoSize();
+
+		OnTextChanged();
+	}
+
+	function SetEmptyText(_text)
+	{
+		emptyText = _text;
+	}
+
+	function SetEmptyTextColor(_color)
+	{
+		emptyTextColor = _color;
+	}
+
+	function GetCursorColor()
+	{
+		return TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_COLOR);
+	}
+
+	function SetCursorColor(_color)
+	{
+		TextDoc_SetProperty(textDoc, TEXTDOC_CURSOR_COLOR, _color);
+	}
+
+	function SetCursorColor(_a, _r, _g, _b)
+	{
+		TextDoc_SetProperty(textDoc, TEXTDOC_CURSOR_COLOR, ARGB(_a, _r, _g, _b));
+	}
+
+	function GetCursorLineColor()
+	{
+		return TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_LINE_COLOR);
+	}
+
+	function SetCursorLineColor(_color)
+	{
+		TextDoc_SetProperty(textDoc, TEXTDOC_CURSOR_LINE_COLOR, _color);
+	}
+
+	function GetCursorLineTextColor()
+	{
+		return TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_LINE_TEXT_COLOR);
+	}
+
+	function SetCursorLineTextColor(_color)
+	{
+		TextDoc_SetProperty(textDoc, TEXTDOC_CURSOR_LINE_TEXT_COLOR, _color);
+	}
+
+	function MoveSelectionToCursor(_moveEnd = true)
+	{
+		if (!textDoc) return;
+
+		_pos = TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_POS);
+		Core_StartSelectionPos(_pos);
+		if (_moveEnd)
+			Core_EndSelectionPos(_pos);
+	}
+
+	function Core_StartSelectionPos(_value)
+	{
+		TextDoc_SetProperty(textDoc, TEXTDOC_SELECTION_BEGIN, _value);
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+		_sy = TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_HF);
+		_p = TextDoc_ConvertPosToScreen(textDoc, _value);
+		if (leftSelectionVisibilityController)	leftSelectionVisibilityController.SetBounds(_p[0] + textPadding[0], _p[1] + textPadding[1], 2, _sy);
+#endif
+	}
+
+	function Core_EndSelectionPos(_value)
+	{
+		TextDoc_SetProperty(textDoc, TEXTDOC_SELECTION_END, _value);
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+		_sy = TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_HF);
+		_p = TextDoc_ConvertPosToScreen(textDoc, _value);
+		if (rightSelectionVisibilityController) rightSelectionVisibilityController.SetBounds(_p[0] + textPadding[0], _p[1] + textPadding[1], 2, _sy);
+#endif
+	}
+
+	function SetCursorPos(_pos, _moveSelection = true)
+	{
+		Core_SetCursorPos(_pos);
+		MoveSelectionToCursor(_moveSelection);
+	}
+
+	function Core_SetCursorPos(_pos)
+	{
+		_oldPos = TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_POS);
+		if (_oldPos == _pos) return;
+
+		TextDoc_SetProperty (textDoc, TEXTDOC_CURSOR_POS, _pos);
+
+		CallCursorPosChanged(_pos);
+	}
+
+	function GetCursorPos()
+	{
+		return TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_POS);
+	}
+
+	function DrawSprite(_sprite, _x, _y, _w, _h, _overFlag)
+	{
+		//Render_DrawBox(_x, _y, _w, _h, ARGB(150, 255, 255, 255));
+		_cr = Sprite_GetProperty(drawsprite, SPRITE_TMP_CLIPPING);
+
+		_xc = _cr[0];
+		_yc = _cr[1];
+		_wc = _cr[2];
+		_hc = _cr[3];
+
+		Render_SetClipping(_xc, _yc, _wc, _hc);
+		//Render_DrawBox(_xc, _yc, _wc, _hc, ARGB(255, 255, 0, 255));
+		// if (font)
+		// {
+		//    _fe = font.Core_GetFontEngine();
+		// 	if (_fe && !focused && GetText() == "" && emptyText != null && emptyText != "")
+		//  		Render_Print(_fe, _x, _y, emptyText, emptyTextColor);
+		// 	else TextDoc_Draw(textDoc, _x, _y);
+		// }
+		TextDoc_Draw(textDoc, _x, _y);
+		Render_SetClipping(_cr[0], _cr[1], _cr[2], _cr[3]);
+
+		// Render_DrawRect(_x + 1, _y + 1, _w - 1, _h - 1, ARGB(255, 255, 0, 255));
+		// _tw = TextDoc_GetStat(textdoc, TEXTDOC_STAT_WIDTH);
+		// _th = TextDoc_GetStat(textdoc, TEXTDOC_STAT_HEIGHT);
+		// Render_DrawRect(_x + 1, _y + 1, _tw - 1, _th - 1, ARGB(255, 255, 255, 255));
+		return true;
+	}
+
+	function GetCursorHeight()
+	{
+		return TextDoc_GetProperty(textdoc, TEXTDOC_CURSOR_HF);
+	}
+
+	function GetHorizontalScroll()
+	{
+		return TextDoc_GetProperty(textDoc, TEXTDOC_SCROLL_NX);
+	}
+
+	function GetVerticalScroll()
+	{
+		return TextDoc_GetProperty(textDoc, TEXTDOC_SCROLL_NY);
+	}
+
+	function ScrollUp()
+	{
+		return TextDoc_DoAction (textDoc, TEXTDOC_ACTION_SCROLL_UP);
+	}
+
+	function ScrollDown()
+	{
+		return TextDoc_DoAction (textDoc, TEXTDOC_ACTION_SCROLL_DOWN);
+	}
+
+	function GetCursorCol()
+	{
+		return TextDoc_GetProperty (textDoc, TEXTDOC_CURSOR_COL);
+	}
+
+	function SetCursorLine(_line)
+	{
+		TextDoc_SetProperty (textDoc, TEXTDOC_CURSOR_LINE, _line);
+	}
+
+	function GetCursorLine()
+	{
+		return TextDoc_GetProperty (textDoc, TEXTDOC_CURSOR_LINE);
+	}
+
+	function GetCursorLinePos()
+	{
+		return TextDoc_GetProperty (textDoc, TEXTDOC_CURSOR_LINE_POS);
+	}
+
+	function SetTabWidth(_value)
+	{
+		TextDoc_SetProperty (textDoc, TEXTDOC_TAB_WIDTH, _value);
+	}
+
+	function GetTabWidth()
+	{
+		return TextDoc_GetProperty (textDoc, TEXTDOC_TAB_WIDTH);
+	}
+
+	function GetNumLines()
+	{
+		return TextDoc_GetProperty(textDoc, TEXTDOC_STAT_NUM_LINES);
+	}
+
+	function DeleteLine(_lineNumber)
+	{
+		_numLines = TextDoc_GetProperty(textDoc, TEXTDOC_STAT_NUM_LINES);
+		if (_numLines == 0 ||_numLines < _lineNumber)
+			return false;
+
+		TextDoc_SetProperty (textDoc, TEXTDOC_CURSOR_LINE, _lineNumber);
+		_start = TextDoc_GetProperty (textDoc, TEXTDOC_CURSOR_POS);
+		TextDoc_DoAction (textDoc, TEXTDOC_ACTION_END_OF_LINE);
+		_end = TextDoc_GetProperty (textDoc, TEXTDOC_CURSOR_POS);
+		TextDoc_DeleteText (textDoc, _start, (_end - _start) + 1);
+
+		return true;
+	}
+
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Estilos
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function ShowNumLines(_styleId)
+	{
+		TextDoc_SetProperty (textDoc, TEXTDOC_NUM_LINES_STYLE, _styleId);
+		TextDoc_SetProperty (textDoc, TEXTDOC_NUM_LINES_VISIBLE, true);
+	}
+
+	function HideNumLines()
+	{
+		TextDoc_SetProperty (textDoc, TEXTDOC_NUM_LINES_VISIBLE, false);
+	}
+
+	function SetStyleToChars(_startPos, _count, _styleId)
+	{
+		TextDoc_ApplyStyleFromPos (textDoc, _startPos, _count, _styleId);
+	}
+
+	function SetStyle(_styleId, _suilFont, _textColor, _backColor)
+	{
+		if (_styleId == 0)
+		{
+			SetFontObject(_suilFont);
+		}
+
+		TextDoc_SetStyleWithFont(textDoc, _styleId, _suilFont.Core_GetEngineFont(), _textColor, _backColor);
+	}
+
+
+	// NSUIL Quitado porque vamos a restringir a una fuente
+	// function Core_TextDocUpdateStyle(_id, _font, _foreColor, _backColor)
+	// {
+	// 	if (!_font) return;
+
+	// 	_info = Font_GetInfo(_font);
+	// 	TextDoc_SetStyle(textDoc, _id, _info[0], _info[1], _info[2], _info[3], _foreColor, _backColor);
+	// }
+
+	//NSUIL Revisar a ver si esto es necesario y si lo es como lo implementamos
+/*
+	// Inserta un nuevo estilo en la posición actual del cursor
+	function InsertStyle(_styleFlags, _fontName, _fontW, _fontH, _fontFlags, _colorFG, _colorBG)
+	{
+		if (readOnly || !editable) return;
+
+		_style = Core_BuildStyleString(_styleFlags, _fontName, _fontW, _fontH, _fontFlags, _colorFG, _colorBG);
+		TextDoc_InsertHtmlText(textDoc, _style, -1);
+	}
+
+	function InsertStyle(_style)
+	{
+		if (readOnly || !editable) return;
+		TextDoc_InsertHtmlText(textDoc, _style, -1);
+	}
+
+	// Cambia el estilo para la selección actual
+	function ChangeStyleToSelection(_styleFlags, _fontName, _fontW, _fontH, _fontFlags, _colorFG, _colorBG, _setToAllCharacters = true)
+	{
+		_style = Core_BuildStyleString(_styleFlags, _fontName, _fontW, _fontH, _fontFlags, _colorFG, _colorBG);
+		ChangeStyleToSelection(_style, _setToAllCharacters);
+	}
+
+	function ChangeStyleToSelection(_style, _setToAllCharacters = true)
+	{
+		_selStart = int(TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_BEGIN));
+		_selEnd = int(TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_END));
+		_min = int(min([_selStart, _selEnd]));
+		_max = int(max([_selStart, _selEnd]));
+		for (i = _min; i < _max; i++)
+		{
+			if (_setToAllCharacters || i == _min)
+			{
+				TextDoc_InsertHtmlText(textDoc, _style, i);
+			}
+			else TextDoc_InsertHtmlText(textDoc, "<style>", i); // TODO: ESTO SEGURAMENTE NO VA
+		}
+	}
+
+	function Core_BuildStyleString(_styleFlags, _fontName, _fontW, _fontH, _fontFlags, _colorFG, _colorBG)
+	{
+//<style id=0 fontname=\"Cambria\" fontW=10 fontH=20 fontflags=0 colorFG=\"FF365F91\" colorBG=\"00000000\">ESTO<br>" +
+//<style id=1 fontname=\"Calibri\" fontW=7 fontH=16 fontflags=0 colorFG=\"FF000000\" colorBG=\"00000000\">Es un pedazo tooltip";
+
+		_str = "<style ";
+		if ((_styleFlags & UI_TEXTBOX_STYLE_FONTNAME) == UI_TEXTBOX_STYLE_FONTNAME)
+			_str += "fontname=\"" + _fontName + "\" ";
+		if ((_styleFlags & UI_TEXTBOX_STYLE_FONTW) == UI_TEXTBOX_STYLE_FONTW)
+			_str += "fontW=\"" + _fontW + "\" ";
+		if ((_styleFlags & UI_TEXTBOX_STYLE_FONTH) == UI_TEXTBOX_STYLE_FONTH)
+			_str += "fontH=\"" + _fontH + "\" ";
+		if ((_styleFlags & UI_TEXTBOX_STYLE_FONTTYPE) == UI_TEXTBOX_STYLE_FONTTYPE)
+			_str += "fontflags=\"" + _fontFlags + "\" ";
+		if ((_styleFlags & UI_TEXTBOX_STYLE_COLORFG) == UI_TEXTBOX_STYLE_COLORFG)
+			_str += "colorFG=\"" + Core_ColorToHex(_colorFG) + "\" ";
+		if ((_styleFlags & UI_TEXTBOX_STYLE_COLORBG) == UI_TEXTBOX_STYLE_COLORBG)
+			_str += "colorBG=\"" + Core_ColorToHex(_colorBG) + "\" ";
+
+		_str += ">";
+		return _str;
+	}
+
+	function Core_ColorToHex(_color)
+	{
+		return String_Format("%X", _color);
+	}
+
+	function GetStyleFromCursor()
+	{
+		_cursor = TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_POS);
+		return TextDoc_GetStyleFromPos (textDoc, _cursor - 1);
+	}
+*/
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Acciones
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function DoMoveLeft(_shift)
+	{
+		if (TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_POS) == 0) return false;
+		TextDoc_DoAction (textDoc, TEXTDOC_ACTION_LEFT);
+		MoveSelectionToCursor(!_shift);
+		CallCursorPosChanged(TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_POS));
+	}
+
+	function DoMoveRight(_shift)
+	{
+		TextDoc_DoAction (textDoc, TEXTDOC_ACTION_RIGHT);
+		MoveSelectionToCursor(!_shift);
+		CallCursorPosChanged(TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_POS));
+	}
+
+	function DoMoveDown(_shift)
+	{
+		TextDoc_DoAction (textDoc, TEXTDOC_ACTION_DOWN);
+		MoveSelectionToCursor(!_shift);
+		CallCursorPosChanged(TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_POS));
+	}
+
+	function DoMoveUp(_shift)
+	{
+		TextDoc_DoAction (textDoc, TEXTDOC_ACTION_UP);
+		MoveSelectionToCursor(!_shift);
+		CallCursorPosChanged(TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_POS));
+	}
+
+	function DoMoveStart(_shift)
+	{
+		TextDoc_DoAction (textDoc, TEXTDOC_ACTION_BEGIN);
+		MoveSelectionToCursor(!_shift);
+		CallCursorPosChanged(TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_POS));
+	}
+
+	function DoMoveEnd(_shift)
+	{
+		TextDoc_DoAction (textDoc, TEXTDOC_ACTION_END);
+		MoveSelectionToCursor(!_shift);
+		CallCursorPosChanged(TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_POS));
+	}
+
+	function DoMoveStartOfLine(_shift)
+	{
+		TextDoc_DoAction(textDoc, TEXTDOC_ACTION_BEGIN_OF_LINE);
+		MoveSelectionToCursor(!_shift);
+		CallCursorPosChanged(TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_POS));
+	}
+
+	function DoMoveEndOfLine(_shift)
+	{
+		TextDoc_DoAction(textDoc, TEXTDOC_ACTION_END_OF_LINE);
+		MoveSelectionToCursor(!_shift);
+		CallCursorPosChanged(TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_POS));
+	}
+
+	function DoMovePageUp(_shift)
+	{
+		TextDoc_DoAction(textDoc, TEXTDOC_ACTION_PAGE_UP);
+		MoveSelectionToCursor(!_shift);
+		CallCursorPosChanged(TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_POS));
+	}
+
+	function DoMovePageDown(_shift)
+	{
+		TextDoc_DoAction(textDoc, TEXTDOC_ACTION_PAGE_DOWN);
+		MoveSelectionToCursor(!_shift);
+		CallCursorPosChanged(TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_POS));
+	}
+
+	function DoMoveWordLeft(_shift)
+	{
+		TextDoc_DoAction(textDoc, TEXTDOC_ACTION_WORD_LEFT);
+		MoveSelectionToCursor(!_shift);
+		CallCursorPosChanged(TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_POS));
+	}
+
+	function DoMoveWordRight(_shift)
+	{
+		TextDoc_DoAction(textDoc, TEXTDOC_ACTION_WORD_RIGHT);
+		MoveSelectionToCursor(!_shift);
+		CallCursorPosChanged(TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_POS));
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Punteros y seleccion
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function ScrollHorizontal(_value)
+	{
+		TextDoc_SetProperty(textDoc, TEXTDOC_SCROLL_NX, _value);
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+		if (cursorPointer && cursorPointer.IsActive()) MovePointerToCursor(cursorPointer);
+		_sy = TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_HF);
+		if (leftSelectionPointer && leftSelectionPointer.IsActive())
+		{
+			// Además tenemos que actualizar el sprite de visibilidad que no se hace auto como en el cursor
+			if (leftSelectionVisibilityController)
+			{
+				_p = TextDoc_ConvertPosToScreen(textDoc, TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_BEGIN));
+				leftSelectionVisibilityController.SetBounds(_p[0] + textPadding[0], _p[1] + textPadding[1], 2, _sy);
+			}
+			MovePointerToCursor(leftSelectionPointer);
+		}
+		if (rightSelectionPointer && rightSelectionPointer.IsActive())
+		{
+			if (rightSelectionVisibilityController)
+			{
+				_p = TextDoc_ConvertPosToScreen(textDoc, TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_END));
+				rightSelectionVisibilityController.SetBounds(_p[0] + textPadding[0], _p[1] + textPadding[1], 2, _sy);
+			}
+			MovePointerToCursor(rightSelectionPointer);
+		}
+#endif
+	}
+
+	function ScrollVertical(_value)
+	{
+		TextDoc_SetProperty(textDoc, TEXTDOC_SCROLL_NY, _value);
+	}
+
+	function SetScale(_value)
+	{
+		::SetScale(_value);
+		//TextDoc_SetProperty(textDoc, TEXTDOC_SCALE_FACTOR, GetEffectiveScale());
+		Core_UpdateScaleFactor();
+		//DebugMsg("SET TEXTDOC SCALE", GetEffectiveScale());
+
+		Core_UpdateTextDocSize();
+	}
+
+	function Core_ParentScaleChanged()
+	{
+		::Core_ParentScaleChanged();
+		//TextDoc_SetProperty(textDoc, TEXTDOC_SCALE_FACTOR, GetEffectiveScale());
+		Core_UpdateScaleFactor();
+
+		//DebugMsg("SET TEXTDOC (PARENT_SCALE_CHANGED) SCALE", GetEffectiveScale());
+		Core_UpdateTextDocSize();
+	}
+
+	function SetZoom(_value)
+	{
+		if (_value == zoom)
+			return;
+
+		zoom = _value;
+		Core_UpdateScaleFactor();
+	}
+
+	function GetZoom()
+	{
+		return zoom;
+	}
+
+
+	function Core_UpdateScaleFactor()
+	{
+		TextDoc_SetProperty(textDoc, TEXTDOC_SCALE_FACTOR, GetEffectiveScale() * zoom);
+	}
+
+
+
+	function GetCursorPointerPoint()
+	{
+		_p = PointToScreen(0, 0);
+		_p[0] += textPadding[0];
+		_p[1] += textPadding[1];
+		_x = TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_XF) + _p[0];
+		_y = TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_YF) + _p[1];
+		_ch = TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_HF);
+		return [_x + 1, _y + _ch / 2]; // +1 por el ancho del cursor
+	}
+
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: UI_FontInstance
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function GetFont()
+	{
+		return font.GetFont();
+	}
+
+	function GetFontObject()
+	{
+		return font;
+	}
+
+	function SetFont(_fileName, _size, _flags = 0)
+	{
+		if (font == null)
+		{
+			SetFontObject(suil_system.CreateFont(null));
+			autoCreatedFont = true;
+		}
+
+		font.SetFont(_fileName, _size, _flags);
+
+		_info =  TextDoc_GetStyle(textDoc, 0);
+		//DebugMsg("A) STYLE INFO", _info);
+		TextDoc_SetStyleWithFont(textDoc, 0, font.Core_GetEngineFont(), _info[4], ARGB(0, 0, 0, 0));
+	}
+
+	function SetFontObject(_font)
+	{
+		if (font)
+		{
+			//font.RemoveEvent(UI_EVENT_FONT_CHANGED, this);
+
+			if (autoCreatedFont)
+			{
+				delete font;
+				font = null;
+				autoCreatedFont = false;
+			}
+		}
+
+		font =  _font;
+		if (font.Core_GetEngineFont())
+		{
+			_info =  TextDoc_GetStyle(textDoc, 0);
+			//DebugMsg("B) STYLE INFO", _info);
+			TextDoc_SetStyleWithFont(textDoc, 0, font.Core_GetEngineFont(), _info[4], ARGB(0, 0, 0, 0));
+		}
+	}
+
+	function Core_SetAlphaAndNotify(_parentAlpha)
+	{
+		::Core_SetAlphaAndNotify(_parentAlpha);
+		i_Color = Sprite_GetProperty(sprite, SPRITE_COLOR);
+		TextDoc_SetProperty(textdoc, TEXTDOC_ALPHA, Color_GetA(i_Color));
+	}
+
+
+	function SetTextColor(_a, _r, _g, _b)
+	{
+		SetAlpha(_a);
+		_a = Color_GetA(Sprite_GetProperty(sprite, SPRITE_COLOR));
+		i_Color = ARGB(_a, _r, _g, _b);
+		Sprite_SetProperty(sprite, SPRITE_COLOR, i_Color);
+
+		//_info =  TextDoc_GetStyle(textDoc, 0);
+		TextDoc_SetStyleWithFont(textDoc, 0, font.Core_GetEngineFont(), ARGB(_a, _r, _g, _b), ARGB(0, 0, 0, 0));
+	}
+
+	function SetTextColor(_color)
+	{
+		SetAlpha(Color_GetA(_color));
+		_a = Color_GetA(Sprite_GetProperty(sprite, SPRITE_COLOR));
+		i_Color = Color_SetA(_color, _a);
+		Sprite_SetProperty(sprite, SPRITE_COLOR, i_Color);
+
+		//_info =  TextDoc_GetStyle(textDoc, 0);
+		TextDoc_SetStyleWithFont(textDoc, 0, font.Core_GetEngineFont(), _color, ARGB(0, 0, 0, 0));
+	}
+
+	function GetTextColor()
+	{
+		// _color = Sprite_GetProperty(sprite, SPRITE_COLOR);
+		// _color = Color_SetA(_color, GetAlpha());
+		// return _color;
+		_info =  TextDoc_GetStyle(textDoc, 0);
+		return _info[4];
+	}
+
+
+/*
+	function SetFont(_font)
+	{
+		::SetFont(_font);
+		Core_TextDocUpdateStyle(0, GetFont(), foreColor, backColor);
+	}
+
+	function SetForeColor(_value)
+	{
+		Core_TextDocUpdateStyle(0, GetFont(), foreColor, backColor);
+	}
+
+	function SetBackColor(_value)
+	{
+		Core_TextDocUpdateStyle(0, GetFont(), foreColor, backColor);
+	}
+*/
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Eventos
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function CallCursorPosChanged(_pos)
+	{
+		// Llamamos al evento
+	}
+
+	function OnTextChanged()
+	{
+		CallEvent(UI_EVENT_TEXT_CHANGED);
+	}
+
+	function OnCursorChanged(_textdoc, _x, _y, _sy)
+	{
+		//DebugMsg("CursorChanged", _x, _y, _sy);
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+		_value = TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_POS);
+		_p = TextDoc_ConvertPosToScreen(textDoc, _value);
+		if (cursorVisibilityController)
+			cursorVisibilityController.SetBounds(_p[0] + textPadding[0], _p[1] + textPadding[1], 2, _sy);
+		// Desde aquí NUNCA vamos a actualizar el puntero ya que habrían problemas de dualidad de sincronización
+		// if (cursorVisibilityController)
+		// 	cursorVisibilityController.SetBounds(_x, _y, 2, _sy);
+#endif
+
+		CallEvent(UI_EVENT_TEXTDOC_CURSOR_CHANGED, [_x, _y, _sy]);
+	}
+
+	function OnScrollH(_textDoc)
+	{
+		CallEvent(UI_EVENT_SCROLL_HORIZONTAL);
+	}
+
+	function OnScrollV(_textDoc)
+	{
+		CallEvent(UI_EVENT_SCROLL_VERTICAL);
+	}
+
+
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: MOBILE
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+	function Move(_spriteHandle)
+	{
+		// Al hacer scroll (bien sea del control o de la pantalla) si alguno de los punteros se hace invisible o visible, tenemos que actualizar los punteros en consecuencia
+		_p = PointToScreen(0, 0);
+		if (visibilityLastPosition[0] != _p[0] || visibilityLastPosition[1] != _p[1])
+		{
+			if (cursorPointer && cursorPointer.IsActive()) MovePointerToCursor(cursorPointer, false);
+			if (leftSelectionPointer && leftSelectionPointer.IsActive()) MovePointerToCursor(leftSelectionPointer, false);
+			if (rightSelectionPointer && rightSelectionPointer.IsActive()) MovePointerToCursor(rightSelectionPointer, false);
+			visibilityLastPosition = _p;
+		}
+
+		if (cursorPointer != null && cursorPointer.IsActive())
+		{
+			leftSelectionVisibilityController.Hide();
+			rightSelectionVisibilityController.Hide();
+			cursorVisibilityController.Show();
+			if (cursorVisibilityController.IsHidden()) cursorPointer.Hide();
+			else cursorPointer.Show();
+		}
+		if (leftSelectionPointer != null && leftSelectionPointer.IsActive())
+		{
+			cursorVisibilityController.Hide();
+			leftSelectionVisibilityController.Show();
+			rightSelectionVisibilityController.Hide();
+			//leftSelectionPointer.SetVisible(!leftSelectionVisibilityController.IsFullHidden());
+			if (leftSelectionVisibilityController.IsHidden()) leftSelectionPointer.Hide();
+			else leftSelectionPointer.Show();
+		}
+		if (rightSelectionPointer != null && rightSelectionPointer.IsActive())
+		{
+			leftSelectionVisibilityController.Hide();
+			cursorVisibilityController.Hide();
+			rightSelectionVisibilityController.Show();
+			//rightSelectionPointer.SetVisible(!rightSelectionVisibilityController.IsFullHidden());
+			if (rightSelectionVisibilityController.IsHidden()) rightSelectionPointer.Hide();
+			else rightSelectionPointer.Show();
+		}
+		leftSelectionVisibilityController.Show();
+		cursorVisibilityController.Show();
+		rightSelectionVisibilityController.Show();
+	}
+
+	function MovePointerToPos(_pointer, _pos, _activate = true)
+	{
+		_p = PointToScreen(0, 0);
+		_p[0] += textPadding[0];
+		_p[1] += textPadding[1];
+		_pcs = TextDoc_ConvertPosToScreen(textDoc, _pos);
+		_x = _p[0] + _pcs[0];
+		_y = _p[1] + _pcs[1];
+		_ch = TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_HF);
+		_pointer.MoveToPoint(_x + 1, _y + _ch / 2); // +1 por el ancho del cursor
+
+		if (_activate) _pointer.Activate();
+	}
+
+	function MoveCursorToClickPoint()
+	{
+		_p = PointToScreen(0, 0);
+		_p[0] += textPadding[0];
+		_p[1] += textPadding[1];
+		_charIndex = TextDoc_ConvertScreenToPos(textDoc, Cursor_GetX() - _p[0], Cursor_GetY() - _p[1]);
+		DebugMsg("CURSOR CHAR_INDEX",_charIndex, "FROM XY", Cursor_GetX() - _p[0], Cursor_GetY() - _p[1], "SCROLL", TextDoc_GetProperty(textDoc, TEXTDOC_SCROLL_NX));
+
+		// Si estamos fuera del recuadro de texto salimos, ya que el _charIndex nos devuelve un nº grande aleatorio
+		if (_charIndex < 0 || _charIndex > TextDoc_GetStat(textDoc, TEXTDOC_STAT_NUM_ITEMS)) return false;
+		Core_SetCursorPos(_charIndex);
+		MoveSelectionToCursor(true);
+		return true;
+	}
+
+	function StartScrollPointer(_pointer, _direction, _time)
+	{
+		if (scrollTimer) Timer_Delete(scrollTimer);
+		scrollTimer = null;
+
+		pointerScrolling = _pointer;
+		scrollDirection = _direction;
+		scrollTimer = Timer_New("", this, "OnScrollTimerTick", _time);
+		Timer_Start(scrollTimer);
+
+		// Al empezar forzamos un pase de scroll
+		OnScrollTimerTick(null);
+	}
+
+	function Hide()
+	{
+		::Hide();
+		HidePointers();
+	}
+
+	function ClearPointers()
+	{
+		// _callEvent = cursorPointer.IsActive();
+		// _callSelection = leftSelectionPointer.IsActive() || rightSelectionPointer.IsActive();
+
+		// delete cursorPointer;
+		// delete leftSelectionPointer;
+		// delete rightSelectionPointer;
+
+		// if (_callEvent && _callSelection)
+		// 	OnSelectionPointerHide();
+	}
+
+	function CreatePointerControl(_pointerType)
+	{
+		_name = "_CURSOR";
+		if (_pointerType == UI_TEXTBOX_LEFT_SELECTION_POINTER)
+			_name = "_LEFT";
+		else if (_pointerType == UI_TEXTBOX_RIGHT_SELECTION_POINTER)
+			_name = "_RIGHT";
+
+		_control = uiSystem.CreateFrame("UI_TextboxPointer", "textbox_Pointer" + _name);
+		_control.SetType(_pointerType);
+		return _control;
+	}
+
+	function HidePointers(_cursor = true, _selection = true)
+	{
+		if (destroyed) return;
+
+		if (_cursor && cursorPointer && cursorPointer.IsActive())
+		{
+			cursorPointer.Deactivate();
+			OnCursorPointerHide();
+		}
+
+		_movePointer = false;
+		if (_selection && leftSelectionPointer && leftSelectionPointer.IsActive())
+		{
+			leftSelectionPointer.Deactivate();
+			_movePointer = true;
+		}
+		if (_selection && rightSelectionPointer && rightSelectionPointer.IsActive())
+		{
+			rightSelectionPointer.Deactivate();
+			_movePointer = true;
+		}
+
+		if (_movePointer)
+		{
+			MoveSelectionToCursor(true);
+			OnSelectionPointerHide();
+
+			if (editable) TextDoc_SetProperty(textDoc, TEXTDOC_CURSOR_VISIBLE, true);
+		}
+	}
+
+	function GetCursorFromScreenPoint(_x, _y)
+	{
+		_p = PointToScreen(0, 0);
+		_p[0] += textPadding[0];
+		_p[1] += textPadding[1];
+		_pos = TextDoc_ConvertScreenToPos(textDoc, _x - _p[0], _y - _p[1]);
+		return _pos;
+	}
+
+	function GetCursorFromPoint(_x, _y)
+	{
+		_pos = TextDoc_ConvertScreenToPos(textDoc, _x, _y);
+		return _pos;
+	}
+
+	// Solo referente al textdoc
+	function ScreenPointToTextDoc(_x, _y)
+	{
+		_p = PointToScreen(0, 0);
+		_p[0] += textPadding[0];
+		_p[1] += textPadding[1];
+		return [_x - _p[0], _y - _p[1]];
+	}
+
+	function TranslatePoint(_x, _y)
+	{
+		_maxW = TextDoc_GetStat(textDoc, TEXTDOC_STAT_MAX_WIDTH);
+		//_maxW = GetWidth() - textPadding[2] - textPadding[0];;
+		_maxH = TextDoc_GetStat(textDoc, TEXTDOC_STAT_MAX_HEIGHT);
+		if (_x < 0) _x = textPadding[0];
+		if (_x >= _maxW) _x = _maxW + 1;
+		if (_y < 0) _y = 0;
+		if (_y >= _maxH) _y = _maxH - 1;
+		return [_x, _y];
+	}
+
+	function IsScrollRequired(_x, _y)
+	{
+		if (GetMultiLine()) return UI_NONE;
+
+		_scrollPos = TextDoc_GetProperty(textDoc, TEXTDOC_SCROLL_NX);
+		_maxW = TextDoc_GetStat(textDoc, TEXTDOC_STAT_MAX_WIDTH);
+		_w = GetWidth() - textPadding[2] - textPadding[0];
+		_startX = _maxW * _scrollPos;
+		_endX = _startX + _w;
+		_x += _startX - textPadding[0];
+
+		DebugMsg(_scrollPos, _x, _startX, textPadding);
+
+		if (_x < _startX)
+		{
+			if (_scrollPos == 0) return UI_NONE;
+			return UI_LEFT;
+		}
+		if (_x > _endX)
+		{
+			if (_scrollPos == 1) return UI_NONE;
+			return UI_RIGHT;
+		}
+		return UI_NONE;
+	}
+
+	function GetCharPosOfWord(_x, _y, _isScreenPoint = false)
+	{
+		_pos = 0;
+		if (_isScreenPoint)
+		{
+			_p = PointToScreen(0, 0);
+			_p[0] += textPadding[0];
+			_p[1] += textPadding[1];
+			_pos = TextDoc_ConvertScreenToPos(textDoc, _x - _p[0], _y - _p[1]);
+		}
+		else
+			_pos = TextDoc_ConvertScreenToPos(textDoc, _x, _y);
+
+		if (_pos == -1) return [0, TextDoc_GetStat(textDoc, TEXTDOC_STAT_NUM_ITEMS) - 1];
+
+		_downPos = _pos;
+		_upPos = _pos;
+		for (i = _pos; i >= 0; i--)
+		{
+			_downPos = i;
+			_item = TextDoc_GetItemFromPos(textdoc, i);
+			if (_item[0] != TEXTDOC_ITEM_TYPE_CHAR && _item[0] != TEXTDOC_ITEM_TYPE_CHAREX)
+			{
+				_downPos = i + 1;
+				break;
+			}
+		}
+
+		_count = TextDoc_GetStat(textDoc, TEXTDOC_STAT_NUM_ITEMS);
+		for (i = _pos + 1; i < _count; i++)
+		{
+			_upPos = i;
+			_item = TextDoc_GetItemFromPos(textdoc, i);
+			if (_item[0] != TEXTDOC_ITEM_TYPE_CHAR && _item[0] != TEXTDOC_ITEM_TYPE_CHAREX)
+			{
+				break;
+			}
+		}
+
+		if (_downPos == -1) _downPos = 0;
+		if (_downPos > TextDoc_GetStat(textDoc, TEXTDOC_STAT_NUM_ITEMS) - 1) _downPos = TextDoc_GetStat(textDoc, TEXTDOC_STAT_NUM_ITEMS) - 1;
+		if (_upPos == -1) _upPos = TextDoc_GetStat(textDoc, TEXTDOC_STAT_NUM_ITEMS) - 1;
+		if (_upPos > TextDoc_GetStat(textDoc, TEXTDOC_STAT_NUM_ITEMS) - 1) _upPos = TextDoc_GetStat(textDoc, TEXTDOC_STAT_NUM_ITEMS) - 1;
+		if (_upPos == _downPos) return [0, TextDoc_GetStat(textDoc, TEXTDOC_STAT_NUM_ITEMS) - 1];
+		if (_downPos > _upPos) return [_upPos, _downPos];
+		return [_downPos, _upPos];
+	}
+
+	function MovePointerToCursor(_pointer, _activate = true)
+	{
+		if (_pointer == cursorPointer)
+			MovePointerToPos(_pointer, TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_POS), _activate);
+		else if (_pointer == leftSelectionPointer)
+			MovePointerToPos(_pointer, TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_BEGIN), _activate);
+		else if (_pointer == rightSelectionPointer)
+			MovePointerToPos(_pointer, TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_END), _activate);
+	}
+
+	function Core_SetPointerChar(_pointer, _pos)
+	{
+		if (_pointer == cursorPointer)
+		{
+			Core_SetCursorPos(_pos);
+			MoveSelectionToCursor(true);
+		}
+		else if (_pointer == leftSelectionPointer) Core_StartSelectionPos(_pos);
+		else if (_pointer == rightSelectionPointer) Core_EndSelectionPos(_pos);
+	}
+
+	function Core_GetPointerChar(_pointer)
+	{
+		if (_pointer == cursorPointer) return GetCursorPos();
+		else if (_pointer == leftSelectionPointer) return TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_BEGIN);
+		else if (_pointer == rightSelectionPointer) return TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_END);
+		return -1;
+	}
+
+	function Core_GetPointerScreenPoint(_pointer)
+	{
+		if (_pointer == cursorPointer) return Core_ConvertPosToPoint(TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_POS));
+		else if (_pointer == leftSelectionPointer) return Core_ConvertPosToPoint(TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_BEGIN));
+		else if (_pointer == rightSelectionPointer) return Core_ConvertPosToPoint(TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_END));
+		return [0, 0];
+	}
+
+	function Core_ConvertPosToPoint(_pos)
+	{
+		_p = PointToScreen(0, 0);
+		_p[0] += textPadding[0];
+		_p[1] += textPadding[1];
+		_pcs = TextDoc_ConvertPosToScreen(textDoc, _pos);
+		_x = _p[0] + _pcs[0];
+		_y = _p[1] + _pcs[1];
+		_ch = TextDoc_GetProperty(textDoc, TEXTDOC_CURSOR_HF);
+		return [_x + 1, _y + _ch / 2]; // +1 por el ancho del cursor
+	}
+
+	function SnapPointerToSide(_pointer, _side)
+	{
+		_pos = 0;
+		if (_pointer == cursorPointer)
+		{
+		}
+		else if (_pointer == leftSelectionPointer)
+		{
+			_pos = TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_BEGIN);
+		}
+		else if (_pointer == rightSelectionPointer)
+		{
+			_pos = TextDoc_GetProperty(textDoc, TEXTDOC_SELECTION_END);
+		}
+
+		_scrollPctg = TextDoc_GetProperty(textDoc, TEXTDOC_SCROLL_NX);
+		_pointerPos = TextDoc_ConvertPosToScreen(textDoc, _pos);
+		_maxW = TextDoc_GetStat(textDoc, TEXTDOC_STAT_MAX_WIDTH);
+		_textDocWidth = GetWidth() - textPadding[2] - textPadding[0];
+		_scrollSize = _maxW - _textDocWidth;
+		_scrollPoint = _scrollSize * _scrollPctg;
+
+		if (_side == UI_LEFT)
+		{
+			_pointerPos[0] += _scrollPoint;
+			_scrollPos = _scrollPctg * _scrollSize;
+			_diffPos = _pointerPos[0] - _scrollPos;
+			_toScroll = _diffPos / _scrollSize;
+			ScrollHorizontal(_scrollPctg + _toScroll);
+		}
+		else if (_side == UI_RIGHT)
+		{
+			_pointerPos[0] += _scrollPoint;
+			_scrollPoint += _textDocWidth;
+			_diffPos = _pointerPos[0] - _scrollPoint;
+			_toScroll = _diffPos / _scrollSize;
+			ScrollHorizontal(_scrollPctg + _toScroll);
+		}
+		else return;
+	}
+
+	function OnSelectionPointerShow()
+	{
+		//Core_CallObservers(UI_EVENT_TEXTBOX_SELECTION_SHOW);
+	}
+
+	function OnSelectionPointerHide()
+	{
+		//Core_CallObservers(UI_EVENT_TEXTBOX_SELECTION_HIDE);
+	}
+
+	function OnCursorPointerShow()
+	{
+		//Core_CallObservers(UI_EVENT_TEXTBOX_POINTER_SHOW);
+	}
+
+	function OnCursorPointerHide()
+	{
+		//Core_CallObservers(UI_EVENT_TEXTBOX_POINTER_HIDE);
+	}
+
+	function GetCursorPointer()
+	{
+		return cursorPointer;
+	}
+
+	function GetLeftSelectionPointer()
+	{
+		return leftSelectionPointer;
+	}
+
+	function GetRightSelectionPointer()
+	{
+		return rightSelectionPointer;
+	}
+
+#endif
+
+}

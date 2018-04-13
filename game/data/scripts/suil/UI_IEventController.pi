@@ -1,0 +1,11 @@
+// Interface para que las clases implementen el controlador
+class UI_IEventController
+{
+	function HookEvent(_event, _context, _function)
+	{
+	}
+
+	function RemoveEvent(_event, _context)
+	{
+	}
+}

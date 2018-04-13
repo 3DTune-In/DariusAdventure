@@ -1,0 +1,47 @@
+class Actor implements Stage_Actor
+{
+	properties:
+		srcMode = 1;
+		srcDistance = 0;
+		srcAngle = 0;
+		srcZ = 0;
+		offX = 0;
+		offY = 0;
+		offZ = 0;
+		dstRef = "";
+		dstActor = null;
+	
+	virtual Init ()
+	{
+		visible = false;
+		collide = false;
+		stage.AddCameraSource(this);
+	}
+	
+	virtual Start ()
+	{
+		if (dstRef != "") 
+		{
+			dstActor = Scene_GetObject (scene, dstRef, OBJECT_CLASSID_REFERENCE);
+			if (dstActor == null)
+			{
+				DebugMsg ("ERROR!!!!! Reference:", dstRef, "doesn't exists!!!");
+			}
+		}
+		else 
+		{
+			dstActor = stage.GetPlayer(0);
+			if (dstActor == null)
+			{
+				DebugMsg ("ERROR!!!!! Player doesn't exists!!!");
+			}
+		}
+		
+		if (dstActor)
+		{
+			_rv = GetRayVector (posX, posY, 0, SceneObj_GetPosX(dstActor), SceneObj_GetPosY(dstActor), 0);
+			angleZ = atan2(_rv[1], _rv[0]) + DEGTORAD(180);
+			srcDistance = Actor_Distance (this, dstActor);
+		}
+	}
+}

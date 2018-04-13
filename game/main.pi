@@ -1,0 +1,175 @@
+import package "data/scripts/*.*"
+import package "data/scripts/actors/*.*"
+import package "data/scripts/actors/items/*.*"
+import package "data/scripts/actors/npcs/*.*"
+import package "data/scripts/visualeffects/*.*"
+import package "data/scripts/gui/*.*"
+
+// SUIL
+import package "data/scripts/SUIL/*.*"
+import package "data/scripts/SUIL/Library/*.*"
+import package "data/scripts/SUIL/Classes/*.*"
+import package "data/scripts/SUIL/Tools/*.*"
+import package "data/scripts/SUIL/Animations/*.*"
+import package "data/scripts/SUIL/Editor/*.*"
+
+class Service
+{
+	defines:
+		DEFAULT_MENU_FONT = "PaytoneOne";
+		DEFAULT_FONT = "ACMO1";
+		DEFAULT_MUSIC_VOLUME = 32;
+		DEFAULT_MUSIC_KEY = "MUSICVOL";
+		DEFAULT_FX_VOLUME = 128;
+		DEFAULT_FX_KEY= "FXVOL";
+		DEFAULT_VOICE_VOLUME = 255;
+		DEFAULT_VOICE_KEY = "VOICEVOL";
+		DEFAULT_LANGUAGE_KEY = "LANGUAGE";
+		MAX_GAME_STAGE = 5;
+	 
+	globals:
+		g_fade = null;
+		g_language = null;
+		g_nationality = "";
+		g_main = null;
+	
+	properties:
+		uilibrary = null;
+		uisystem = null;
+		font = null;
+		
+	function Init ()
+	{
+	    DebugMsg ("GAME_VERSION:", GAME_VERSION);
+		
+	#if __OS_WINDOWS__
+		Registry_SetKeyPrefix ("HKEY_CURRENT_USER/Software/NERLASKA/FA/");
+	#endif
+		
+		_v = Registry_GetValueInt("GAME_VERSION_ID", 1);
+		if (_v != GAME_VERSION_ID)
+		{
+			Registry_SetValueInt(DEFAULT_FX_KEY, DEFAULT_FX_VOLUME);
+			Registry_SetValueInt(DEFAULT_MUSIC_KEY, DEFAULT_MUSIC_VOLUME);
+			Registry_SetValueInt(DEFAULT_VOICE_KEY, DEFAULT_VOICE_VOLUME);
+			/*_profile = new Profile();
+			for (i=0; i<4; i++)
+			{
+				System_DeleteFile(_profil.GetPath (_id));
+			}
+			delete _profile;*/
+		}
+		
+		_v = Registry_GetValueInt(DEFAULT_FX_KEY, DEFAULT_FX_VOLUME);
+		Registry_SetValueInt (DEFAULT_FX_KEY, _v);
+		_v = Registry_GetValueInt(DEFAULT_MUSIC_KEY, DEFAULT_MUSIC_VOLUME);
+		Registry_SetValueInt (DEFAULT_MUSIC_KEY, _v);
+		_v = Registry_GetValueInt(DEFAULT_VOICE_KEY, DEFAULT_VOICE_VOLUME);
+		Registry_SetValueInt (DEFAULT_VOICE_KEY, _v);
+
+		System_SetDirectory (DIRECTORY_SOUND, "data/sounds/");
+		System_SetDirectory (DIRECTORY_MUSIC, "data/musics/");
+		System_SetDirectory (DIRECTORY_SHADER, "data/shaders/");
+		System_SetDirectory (DIRECTORY_FONT, "data/fonts/");
+
+		g_fade = Service_Run ("fade", "fade");
+		g_fade.SetColor(255,255,255);
+		
+		g_main = this;
+		
+		CreateLanguage();
+		
+		UI_Init ();
+		
+	#if CHEAT_WATERMARK
+		font = Font_Load ("PaytoneOne", 0, 22);
+		Service_SetPriority (this, 255);
+	#endif
+		
+	#if CHEAT_STAGE || CHEAT_INTRO || CHEAT_OUTRO
+		_game = Service_Run ("game", "game");
+	#else
+		_menu = Service_Run ("menu", "menu");
+	#endif
+	}
+
+	function SaveRegistry ()
+	{
+	}
+	
+	function CreateLanguage()
+	{
+		if (!g_language)
+		{		
+	   		g_nationality = System_GetPreferredLanguage ();
+	   		Debugmsg ("NATIONALITY:", g_nationality);
+			if (String_FindStr(g_nationality, "es")) g_nationality = "es";
+			else g_nationality = "gb";
+			g_language = new Language (Registry_GetValueStr(DEFAULT_LANGUAGE_KEY, g_nationality));
+		}
+	}
+	
+	function Final ()
+	{
+		SaveRegistry ();	
+
+		//delete uilibrary;
+		//delete uisystem;
+		delete g_language;
+			
+		_num = Service_Count ();
+		for (i=_num-1; i>=0; i--)
+		{
+			_s = Service_GetByIndex (i);
+			if (_s && _s != this)
+				Service_Delete (_s);
+		}
+	}
+	
+	function PlayVoice (_snd)
+	{
+	//DebugMsg ("VOICE_VOL=", Registry_GetValueInt (DEFAULT_VOICE_KEY, DEFAULT_VOICE_VOLUME));
+		Sound_SetProperty (_snd, SOUND_VOLUME, Registry_GetValueInt (DEFAULT_VOICE_KEY, DEFAULT_VOICE_VOLUME));
+		Sound_Stop (_snd);
+		Sound_Play (_snd);
+	}
+	
+	function PlayFX (_snd)
+	{
+	//	DebugMsg("FX_VOL=", Registry_GetValueInt (DEFAULT_FX_KEY, DEFAULT_FX_VOLUME));
+		Sound_SetProperty (_snd, SOUND_VOLUME, Registry_GetValueInt (DEFAULT_FX_KEY, DEFAULT_FX_VOLUME));
+		Sound_Play (_snd);
+	}
+	
+	function UI_Init ()
+	{
+		// DESKTOP INIT
+		uilibrary = new UI_Library();
+		g_uisystem = new UI_System("UI_Desktop");
+		//g_uisystem.EnableDoubleClick();
+		g_uisystem.EnableMouse();
+		g_uisystem.EnableKeyboard();
+		//g_uiSystem.EnableMouseWheelOverFrameIfEvent();
+		//g_uiSystem.EnableMouseWheelOverParentFrame();
+	
+		Render_AddEvent (RENDER_EVENT_SCREEN_RESOLUTION, this, "UI_OnScreenResolution");
+		UI_OnScreenResolution();
+	}
+	
+	function UI_OnScreenResolution ()
+	{
+		/*_rx = Render_GetPropertY(RP_RESX);
+		_ry = Render_GetPropertY(RP_RESY);
+		Render_SetProperty (RP_INRESX, _rx);
+		Render_SetProperty (RP_INRESY, _ry);
+		System_SetParam (SP_INRESX, _rx);
+		System_SetParam (SP_INRESY, _ry);*/
+	}
+	
+	function Draw ()
+	{
+	#if CHEAT_WATERMARK
+		Render_Print (font, RESX/2, 5, "BETA VERSION [" + GAME_VERSION + "] - Nerlaska Studio", ARGB(100,255,255,255), DT_CENTER);
+	#endif
+	}
+}

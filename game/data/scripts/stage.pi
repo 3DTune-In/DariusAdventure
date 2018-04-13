@@ -1,0 +1,749 @@
+class Service
+{
+	defines:
+		PRIORITY_BACKGROUND = 0;
+		PRIORITY_STAGE = 0;
+		PRIORITY_DECO = 1;
+		PRIORITY_ITEM = 2;
+		PRIORITY_NPC = 2;
+		PRIORITY_PLAYER = 2;
+		
+		ACTOR_PRIORITY_DECO = 0;
+		ACTOR_PRIORITY_ENEMY = 1;
+		ACTOR_PRIORITY_PLATFORM = 2;
+		ACTOR_PRIORITY_ITEM = 3;
+		ACTOR_PRIORITY_PLAYER = 4;
+		ACTOR_PRIORITY_NPC = 5;
+		ACTOR_PRIORITY_OVERALL = 6;
+		
+		COLLISION_FLAGS_PLAYER = 1;
+		COLLISION_FLAGS_SHOOT = 2;
+		COLLISION_FLAGS_ENEMY = 4;
+		COLLISION_FLAGS_PLATFORM = 8;
+		COLLISION_FLAGS_ITEM = 16;
+		COLLISION_FLAGS_SCENE = 32;
+		COLLISION_FLAGS_WALL = 64;
+		COLLISION_FLAGS_WEAPON = 128;
+		COLLISION_FLAGS_NPC = 256;
+		
+		CAMERA_SLIDE_DOWN_RANGE = 190;
+		CAMERA_SLIDE_DOWN_TIMER = 15;
+		CAMERA_RANGE = 700.0f;
+		CAMERA_LIMIT = CAMERA_RANGE/1.3f;
+
+	constants:
+		CAMERA_DEFAULT_SPEED = 0.25f;
+		CAMERA_CAPTURE_TRAVELLING_SPEED = 0.1f;
+		HEPS_FLOOR = 10.0f;
+		GRIDW = 100;
+		GRIDH = 100;
+
+	properties:
+		CAMERA_LEFT = -1000000;
+		CAMERA_RIGHT = 1000000;
+		CAMERA_TOP =  1000000;
+		CAMERA_BOTTOM = -1000000;
+		CAMERA_HEPS = 200;
+		CAMERA_DIST = 1000.0f;
+		game = null;
+		scene = null;
+		light = null;
+		camera = null;
+		playerList = [];
+		checkpointX = 0;
+		checkpointY = 0;
+		checkpointZ = 0;
+		checkpointCameraLeft = 0;
+		checkpointCameraRight = 0;
+		checkpointCameraTop = 0;
+		checkpointCameraBottom = 0;
+		debugMode = false;
+		numSecretsTotal = 0;
+		numSecretsFound = 0;
+		cameraSlideDownTimer = 0;
+		isGoal = false;
+		sndCheckpoint = null;
+		lightList = [];
+		lightTex = null;
+		totalEmmeralds = 0;
+		bReady = false;
+		captureCameraActor = null;
+		captureCameraEvent = "";
+		captureCameraTimer = 0.0f;
+		captureCameraTravel = false;
+		captureCameraEventEnd = 0.0f;
+		currentCamera = null;
+		cameraSourceList = [];
+		changeStage = false;
+		changeStageID = 0;
+		changeStagePR = "";
+				
+	function Init ()
+	{
+		Service_Run ("loader", "stage_loader", ["SCENE_NAME", String_Format ("%02d", game.stageID)], this);
+		
+		//sndCheckpoint = Sound_Load ("checkpoint.ogg");
+	}
+	
+	function Final ()
+	{
+		//Sound_Delete (sndCheckpoint);
+		Scene_Delete (scene);
+	}
+
+	function Pause ()
+	{
+	}
+	
+	function Resume ()
+	{
+	}
+
+	function OnStageLoaderEnd (_scene)
+	{
+		Service_Start (game.hud);
+		Service_SetVisible (game.hud, true);
+		
+		scene = _scene;
+
+		Render_SetProperty (RP_AMBIENT_COLOR, ARGB(255,200,200,200)); // La genera la luz de ambiente!
+
+		// CREAMOS UNA LUZ
+		if (Scene_GetNumObjects (scene, OBJECT_CLASSID_LIGHT) == 0)
+		{
+			light = Scene_NewLight (scene, "MainLight", LIGHT_TYPE_DIRECTIONAL, 0, 0, 5000, 0, 1, -1, 100000000, 10000000, ARGB(255,200,200,200), ARGB(255,255,255,255), ARGB(255,255,255,255), 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+			Scene_SetLighting (scene, false);
+			Light_SetMainLight (light, true);
+		}
+		else
+		{
+			Scene_SetLighting (scene, true);
+			light = Scene_GetObjectByIndex (scene, 0, OBJECT_CLASSID_LIGHT);
+		}
+		
+		Scene_SetProperty (scene, SCENE_DOF_ENABLED, false);
+		Scene_SetProperty (scene, SCENE_SSAO_ENABLED, false);
+
+		Scene_SetMoveRadius (scene, 100000);
+		Scene_SetDrawRadius (scene, 10000);
+
+		if (game.fogColor)
+		{
+			Scene_SetFog (scene, game.fogStart, game.fogEnd, game.fogColor);
+		}
+
+		Scene_SetShadowMode (scene, SSM_HIGH);//SSM_LOW);
+		Scene_SetShadowQualityDistance (scene, 10000, 10000);
+		Scene_SetShadowColor (scene, ARGB(128, 0, 0, 0));
+		Scene_SetShadowZHeps (scene, 0.05f);
+		Scene_SetShadowSizeFactor (scene, 2.0f);
+
+		camera = Scene_CreateCamera (scene, "camera");
+		camera.toSpeed = CAMERA_DEFAULT_SPEED;
+
+		if (game.stagePR == "") _refName = "player";
+		else _refName = game.stagePR;
+		
+		if (typeof(_refName) == TYPE_STRING)
+		{
+			_ref = Scene_GetObject (scene, _refName, OBJECT_CLASSID_REFERENCE);
+			if (!_ref)
+			{
+				DebugMsg ("ERROR!!!! PlacePoint not exists:", _refName);
+			}
+			if (_ref)
+			{
+				_x = SceneObj_GetPosX (_ref);
+				_y = SceneObj_GetPosY (_ref);
+				_z = SceneObj_GetPosZ (_ref);
+				_a = SceneObj_GetAngle (_ref);
+			}
+			else
+			{
+				_x = 0;
+				_y = 0;
+				_z = 0;
+				_mode = 0;
+				_a = [0, 0, 0];
+			}
+		}
+		else
+		{
+			_x = _refName[0];
+			_y = _refName[1];
+			_z = _refName[2];
+			_mode = 0;
+			_a = [0, 0, _refName[3]];
+		}
+
+		/*_ref = Scene_GetObject (scene, "background", OBJECT_CLASSID_REF);
+		DebugMsg ("********************************************************************************");
+		DebugMsg (SceneObj_GetBBoxX(_ref), SceneObj_GetBBoxY(_ref), SceneObj_GetBBoxZ(_ref));
+		DebugMsg ("********************************************************************************");*/
+
+		DebugMsg ("CHARACTER_ID:", game.characterID, _x, _y, _z, "MODE:", _mode);
+
+
+		_player = Scene_NewActor (scene, "player", "player", _x, _y, _z); 
+		if (_player)
+		{
+			_player.angleX = _a[0];
+			_player.angleY = _a[1];
+			_player.angleZ = _a[2]; 
+			playerList += [_player];
+		}
+		
+		Scene_SetObjMaster (scene, _player);
+
+		DebugMsg ("********************************************************************************");
+		DebugMsg ("CHECKPOINT:", _x, _y, _z);
+		DebugMsg ("********************************************************************************");
+		
+		checkpointX = _x;
+		checkpointY = _y;
+		checkpointZ = _z;
+		checkpointCameraLeft = CAMERA_LEFT;
+		checkpointCameraRight = CAMERA_RIGHT;
+		checkpointCameraTop = CAMERA_TOP;
+		checkpointCameraBottom = CAMERA_BOTTOM;
+		
+	#if CHEAT_INTRO
+		_intro = Service_Run ("intro", "intro");
+	#elif CHEAT_OUTRO
+		_outro = Service_Run ("outro", "outro");
+	#else
+		if (_player.ShouldbeIntroShown())
+		{
+			_intro = Service_Run ("intro", "intro");
+		}
+	#endif
+		
+		/////////////////////////////////////////////////////////////////////////////////////////////////////
+        
+        bReady = true;
+        
+        game.EnableInputEvents();
+		
+		game.OnStageLoadEnd();
+		
+		DoReset ();
+		_change ("playing");
+	}
+	
+	function IsReady ()
+	{
+		return bReady; 
+	}
+	
+	function AddActor (_actor)
+	{
+		//actorList += [_actor];
+	}
+	
+	function RemoveActor (_actor)
+	{
+		//actorList -= [_actor];
+	}
+	
+	function NewActor (_name, _script, _x, _y, _z)
+	{
+		_actor = Scene_NewActor (scene, _name, _script, _x, _y, _z);
+		return _actor;
+	}
+	
+	function DeleteActor (_actor)
+	{
+		//actorList -= [_actor];
+		Actor_Delete (_actor);
+	}
+	
+	function AllPlayersDead ()
+	{
+		for (i=0; i<sizeof(playerList); i++) 
+			if (playerList[i]._state() != "DeadEnd") return false;
+		return true;
+	}
+	
+	function GameOver ()
+	{
+		game.GameOver ();
+		StopPlayers ();
+		StopActors ();
+		Service_Pause (this);
+	}
+	
+	function Reset ()
+	{
+		//Sound_Stop (null);
+	
+		_num = 0;
+		for (i=0; i<sizeof(playerList); i++) _num += playerList[i].GetNumLives();
+		
+		DebugMsg ("NUM_LIVES:", _num);
+		 
+		if (_num == 0) // Sin vidas ambos players
+		{
+			GameOver ();
+		}
+		else
+		{
+			//Music_FadeAndPlay (game.music, 16);
+			g_fade.On ();
+			_change ("in_reset");
+		}
+	}
+
+	state "in_reset"
+	{
+		if (!g_fade.IsFading())
+		{
+			DoReset ();
+			g_fade.Off();
+			_change ("playing");
+		}
+	}
+	
+	function DoReset ()
+	{
+		RestorePlayersInCheckpoint ();
+
+		Scene_CallObjectsFunction (scene, "Reset", OBJECT_CLASSID_ACTOR, 0);	
+		Scene_CallObjectsFunction (scene, "Reset", OBJECT_CLASSID_ACTOR, -1);	
+		/*for (i=sizeof(actorList)-1; i>=0; i--)
+		{
+			if (actorList[i].generator) 
+			{
+				DeleteActor (actorList[i]);
+			}             
+		}  */
+		
+		game.hud.Start();
+		
+		Scene_Start (scene);
+		ResumeActors ();
+		
+		DebugMSg ("*******************************");
+		DebugMSg ("Camera:", camera.toSrcX, camera.toSrcY, camera.toSrcZ);
+		DebugMSg ("Camera:", camera.toDstX, camera.toDstY, camera.toDstZ);
+		UpdateCamera ();
+		camera.Reset();
+		DebugMSg ("*******************************");
+		DebugMSg ("Camera:", camera.toSrcX, camera.toSrcY, camera.toSrcZ);
+		DebugMSg ("Camera:", camera.toDstX, camera.toDstY, camera.toDstZ);
+		DebugMSg ("*******************************");
+	}
+	
+	function RestorePlayersInCheckpoint ()
+	{
+		/*for (i=0; i<sizeof(playerList); i++)
+		{
+			DebugMsg ("RESTOREPLAYER IN X:", checkpointX, "Y:", checkpointY, "Z:", checkpointZ);
+			playerList[i].baseX = checkpointX;
+			playerList[i].baseY = checkpointY;
+			playerList[i].baseZ = checkpointZ;
+		} */
+		CAMERA_LEFT = checkpointCameraLeft;
+		CAMERA_RIGHT = checkpointCameraRight;
+		CAMERA_TOP = checkpointCameraTop;
+		CAMERA_BOTTOM = checkpointCameraBottom;
+	}
+
+	function GetPlayer (_i = 0)
+	{
+		if (_i < sizeof(playerList))
+			return playerList[_i];
+		else
+			return null;
+	}
+	
+	function StopPlayers ()
+	{
+		for (i=0; i<sizeof(playerList); i++)
+		{
+			if (!playerList[i].stop)
+			{
+				Actor_Stop (playerList[i]);
+			}
+		}
+	}
+
+	function StopActors ()
+	{
+		_list = Scene_GetObjects (scene, OBJECT_CLASSID_ACTOR, -1);
+		for (i=0; i<sizeof(_list); i++)
+		{
+			if (!_list[i].stop)
+				Actor_Stop (_list[i]);
+		}
+		/*for (i=0; i<sizeof(actorList); i++)
+		{
+			if (!actorList[i].stop)
+			{
+				Actor_Stop (actorList[i]);
+			}
+		} */
+	}
+	
+	function ResumeActors ()
+	{
+		_list = Scene_GetObjects (scene, OBJECT_CLASSID_ACTOR, -1);
+		for (i=0; i<sizeof(_list); i++)
+		{
+			if (_list[i].stop)
+				Actor_Continue (_list[i]);
+		}
+		/*for (i=0; i<sizeof(actorList); i++)
+		{
+			if (actorList[i].stop)
+			{
+				Actor_Continue (actorList[i]);
+			}
+		}*/
+	}
+	
+	function Goal ()
+	{
+		isGoal = true;
+		for (i=0; i<sizeof(playerList); i++)
+			playerList[i].OnStageClear();
+		game.OnStageClear ();
+	}
+	
+	function SaveCheckpoint (_cp, _show = true)
+	{
+		DebugMsg ("SAVECHECKPOINT POSX:", _cp.posX, "POSY:", _cp.posY, "POSZ:", _cp.posZ);
+		checkpointX = _cp.posX;
+		checkpointY = _cp.posY;
+		checkpointZ = _cp.posZ;
+		checkpointCameraLeft = CAMERA_LEFT;
+		checkpointCameraRight = CAMERA_RIGHT;
+		checkpointCameraTop = CAMERA_TOP;
+		checkpointCameraBottom = CAMERA_BOTTOM;
+		if (_show)
+		{	
+			g_main.PlayFX(sndCheckpoint);
+			game.hud.checkpointTimer = 50.0f;
+		}
+	}
+	
+	function CheckCollisionWithActors (_x, _y, _w, _h, _colFlags)
+	{
+		_list = Scene_GetObjects (scene, OBJECT_CLASSID_ACTOR, SCENE_GETOBJECTS_MASK | CLASS_TYPE_COLLISIONABLE, _x, 0, _y, (_w+_h)/4, -1);
+		for (i=0; i<sizeof(_list); i++)
+		{
+			_actor = _list[i];
+			//debugmsg (_actor.name, _actor.collisionFlags, _colFlags, _actor.collisionFlags & _colFlags);
+			_actor = _actor.CheckRectCollision (_x, _y, _w, _h, _colFlags);
+			if (_actor)
+			{
+				return _actor;
+			}
+		}
+		return null;
+	}
+
+	function CheckLineWithActors (_x1, _y1, _x2, _y2, _colFlags)
+	{
+		_list = Scene_GetObjects (scene, OBJECT_CLASSID_ACTOR, SCENE_GETOBJECTS_MASK | CLASS_TYPE_COLLISIONABLE, _x1, 0, _y1, 50, -1);
+		//DebugMsg (_list);
+		for (i=0; i<sizeof(_list); i++)
+		{
+			_actor = _list[i];
+			_ret = _actor.CheckLineCollision (_x1, _y1, _x2, _y2, _colFlags); 
+			if (_ret[0])
+			{
+				return [_ret[0], _ret[1], _y1, _ret[2], _actor, _ret[3]]; 
+			}
+		}
+	
+		/*for (i=0; i<sizeof(actorList); i++)
+		{
+			_actor = actorList[i];
+			_ret = _actor.CheckLineCollision (_x1, _y1, _x2, _y2, _colFlags); 
+			if (_ret[0])
+			{
+				return [_ret[0], _ret[1], _y1, _ret[2], _actor, _ret[3]]; 
+			}
+		}*/
+		return [false];
+	}
+
+   	function CheckLineRectWithActors (_x1, _y1, _x2, _y2, _colFlags)
+	{
+		_list = Scene_GetObjects (scene, OBJECT_CLASSID_ACTOR, SCENE_GETOBJECTS_MASK | CLASS_TYPE_COLLISIONABLE, _x1, 0, _y1, 50, -1);
+		//debugmsg (_list);
+		for (i=0; i<sizeof(_list); i++)
+		{
+			_actor = _list[i];
+			_ret = _actor.CheckLineRectCollision (_x1, _y1, _x2, _y2, _colFlags); 
+			if (_ret[0])
+			{
+				return [_ret[0], _ret[1], _y1, _ret[2], _actor, _ret[3]]; 
+			}
+		}
+		
+		/*for (i=0; i<sizeof(actorList); i++)
+		{
+			_actor = actorList[i];
+			_ret = _actor.CheckLineRectCollision (_x1, _y1, _x2, _y2, _colFlags); 
+			if (_ret[0])
+			{
+				return [_ret[0], _ret[1], _y1, _ret[2], _actor, _ret[3]]; 
+			}
+		}*/
+		return [false];
+	}
+
+	function CheckLineWithStage (_x, _y, _z, _col_w, _heps)
+	{
+		_ret = Scene_GetRayCollision (scene, _x, _y, _z + _heps, _x, _y, _z - _heps);
+		if (_ret[0] == false)
+		{
+			_ret = Scene_GetRayCollision (scene, _x-_col_w, _y, _z + _heps, _z-_col_w, _y, _z - _heps);
+			if (_ret[0] == false)
+			{
+				_ret = Scene_GetRayCollision (scene, _x+_col_w, _y, _z + _heps, _x+_col_w, _y, _z - _heps);
+			}
+		}
+		return _ret;
+	}
+
+	function FindActor (_name)
+	{
+		return Scene_GetObject (scene, _name, OBJECT_CLASSID_ACTOR);
+	}
+
+	function UpdateCamera ()
+	{
+		if (Camera_GetStop(camera))
+			return;
+			
+		if (captureCameraActor && captureCameraTravel)
+		{
+			camera.toDstX = captureCameraActor.posX;
+			camera.toDstY = captureCameraActor.posY;
+			camera.toDstZ = captureCameraActor.posZ;
+		}
+		else
+		{
+			_player = GetPlayer(0);
+			_camSrc = null;
+			_camDst = null;
+			_minDist = FLT_MAX;
+			for (i=0; i<sizeof(cameraSourceList); i++)
+			{
+				_src = cameraSourceList[i];
+				_dist = Actor_Distance (_player, _src);
+				if (_dist < _minDist)
+				{
+					_camSrc = _src;
+					_minDist = _dist;
+					_camDst = _src.dstActor;
+				}
+			}
+			if (_camSrc)
+			{
+				if (currentCamera != _camSrc)
+				{
+					_camSrc.Start();
+					currentCamera = _camSrc;
+				}
+				if (_camSrc.srcMode == 1)
+				{
+					_az = _camSrc.angleZ;
+					camera.toSrcX = _player.posX + cos(_az)*_camSrc.srcDistance;
+					camera.toSrcY = _player.posY + sin(_az)*_camSrc.srcDistance;
+					camera.toDstX = _player.posX + _camSrc.offX + _player.camOffX;
+					camera.toDstY = _player.posY + _camSrc.offY + _player.camOffY;
+					camera.toDstZ = _player.posZ + _camSrc.offZ + _player.camOffZ;
+					camera.toSrcZ = _camSrc.posZ + camera.toDstZ;
+				}
+				else
+				{
+					camera.toSrcX = _camSrc.posX;
+					camera.toSrcY = _camSrc.posY;
+					camera.toSrcZ = _camSrc.posZ;
+					camera.toDstX = Actor_GetPosX(_camDst) + _camSrc.offX;
+					camera.toDstY = Actor_GetPosY(_camDst) + _camSrc.offY;
+					camera.toDstZ = Actor_GetPosZ(_camDst) + _camSrc.offZ;
+				}
+				//DebugMsg (camera.tosrcX, camera.toSrcY, camera.toSrcZ, camera.toDstX, camera.toDstY, camera.toDstZ);
+			}
+			else
+			{
+				camera.toSrcX = _player.posX + 1000;
+				camera.toSrcY = _player.posY + 1000;
+				camera.toSrcZ = _player.posZ + 1000;
+				camera.toDstX = _player.posX;
+				camera.toDstY = _player.posY;
+				camera.toDstZ = _player.posZ;
+			}
+
+		}
+	}
+	
+	function AddCameraSource (_cam)
+	{
+		cameraSourceList += [_cam];
+	}
+	
+	function FixCamera ()
+	{
+		DebugMsg ("************************* FIX CAMERA ********************");
+		UpdateCamera ();
+		camera.Fix();
+	}
+	
+	function CaptureCamera (_actor, _event, _eventEnd)
+	{
+		if (_actor)
+		{
+			_player = playerList[0];
+			_player.SetPadEnabled (false);
+			
+			captureCameraTravel = false;
+			captureCameraActor = _actor;
+			captureCameraEvent = _event;
+			captureCameraTimer = 20;
+			captureCameraEventEnd = _eventEnd;
+			camera.toSpeed = CAMERA_CAPTURE_TRAVELLING_SPEED;
+
+			if (Actor_Distance (_player, captureCameraActor) >= CAMERA_RANGE)
+			{
+				g_fade.On ();
+				_change ("captureCameraFadeToDesOn");
+			} 
+			else
+			{
+				_change ("captureCameraWaitForTravelling");
+			} 
+		}
+	}
+	
+	state "captureCameraFadeToDestOn"
+	{
+		if (!g_fade.IsFading())
+		{
+			captureCameraTravel = true;
+			UpdateCamera();
+			camera.Fix();
+			g_fade.Off();
+			_change ("captureCameraTravelling");
+		}
+	}
+
+	state "captureCameraFadeToSourceOn"
+	{
+		if (!g_fade.IsFading())
+		{
+			captureCameraActor = null;
+			captureCameraTravel = false;
+			UpdateCamera();
+			camera.Fix();
+			g_fade.Off();
+			_change ("captureCameraReturn");
+		}
+	}
+	
+	state "captureCameraWaitForTravelling"
+	{
+		if (captureCameraTimer <= 0.0f)
+		{
+			captureCameraTravel = true;
+			_change ("captureCameraTravelling");
+		}
+		else
+			captureCameraTimer -= GetFTime();
+	}
+	
+	state "captureCameraTravelling"
+	{
+		if (camera.Located())
+		{
+			captureCameraActor._call (captureCameraEvent);
+			_change ("captureCameraOff");
+		}
+	}
+	
+	state "captureCameraOff"
+	{
+		if (captureCameraActor._call(captureCameraEventEnd))
+		{
+			_player = playerList[0];
+			if (Actor_Distance (_player, captureCameraActor) >= CAMERA_RANGE)
+			{
+				g_fade.On ();
+				_change ("captureCameraFadeToSourceOn");
+			} 
+			else
+			{
+				captureCameraActor = null;
+				captureCameraTravel = false;
+				_change ("captureCameraReturn");
+			}
+		}
+	}
+	
+	state "captureCameraReturn"
+	{
+		if (camera.Located())
+		{
+			_player = playerList[0];
+			_player.SetPadEnabled (true);
+			camera.toSpeed = CAMERA_DEFAULT_SPEED;
+			_change ("playing");
+		}
+	}
+	
+	state "playing"
+	{
+	}
+	
+	function Move ()
+	{
+		if (scene)
+		{
+			Scene_Move (scene);
+			UpdateCamera ();
+			if (changeStage)
+			{
+				changeStage = false;
+				game.LoadStage (changeStageID, changeStagePR);
+			}
+		}
+	}
+
+	function Draw ()
+	{
+		if (scene && game.bShowScene)
+			Scene_Draw (scene);
+	}
+	
+	function ChangeStage (_id, _pr)
+	{
+		changeStage = true;
+		changeStageID = _id;
+		changeStagePR = _pr;
+		DebugMsg ("CHANGE_STAGE:", _id, _pr);
+	}
+	
+	function CheckActorSoundArea (_actor, _snd)
+	{
+		_v = clamp ((camera.dstX - _actor.posX) / 100, 0, 255);
+		Sound_SetProperty (_snd, SOUND_VOLUME, 255.0f - _v);
+	}
+	
+	function GetSize()
+	{
+		_bmin = Scene_GetBMin(scene);
+		_bmax = Scene_GetBMax(scene);
+		return [_bmax[0]-_bmin[0], _bmax[1]-_bmin[1], _bmax[2]-_bmin[2]];
+	}
+	
+	function GetCenter()
+	{
+		_bmin = Scene_GetBMin(scene);
+		_bmax = Scene_GetBMax(scene);
+		return [(_bmax[0]+_bmin[0])/2, (_bmax[1]-_bmin[1])/2, (_bmax[2]-_bmin[2])/2];
+	}
+}

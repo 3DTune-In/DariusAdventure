@@ -1,0 +1,115 @@
+class Actor implements NPC
+{
+	properties:    	
+		KIN_QUIET = 0;
+		KIN_SPEAK = 0;
+		
+	virtual Init ()
+	{
+		StartLoadResources ();
+		
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_mark.msh");
+		
+		KIN_QUIET = Actor_LoadKinematic (this, "npc_mark_quiet.kin");
+		KIN_SPEAK = Actor_LoadKinematic (this, "npc_mark_speak.kin");                                            
+		
+		EndLoadResources ();
+		
+		name = "npc_mark";
+		collide = true;
+		Scene_AddStatic (scene, this);
+		bMoveHead = true;
+		
+		voiceID = VOICE_GIRL;
+	}
+
+	virtual Start ()
+	{
+	}
+	
+	function Quiet ()
+	{
+		Actor_BlendKin (this, KIN_QUIET, KINMODE_LOOP);
+	}
+	
+	function Speak ()
+	{
+		Actor_BlendKin (this, KIN_SPEAK, KINMODE_LOOP);
+	}
+
+	function OnDropItem (_itemName)
+	{	
+		if (_itemName == "item_frisbee")
+		{
+			if (GetState() >= 2)
+			{
+				_mark = this;
+				_spencer = stage.FindActor ("npc_spencer");
+				_dlg = ShowAutoDialogue ("mark_and_spencer_4", 7, [game.GetPlayer(), _mark, _spencer]);
+				_dlg.AddNPCCall (game.GetPlayer(), "AddInventory", ["item_red_ball"]);
+				_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_red_ball"]);
+				_dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["deliver_frisbee"]);
+				_dlg.AddNPCCall (_spencer.frisbee, "SetVisible", [true]);
+				_dlg.AddNPCCall (_spencer.ball, "SetVisible", [false]);
+				SetState(3);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	function OnCursorClick()
+	{
+		_mark = this;
+		_spencer = stage.FindActor ("npc_spencer");
+		
+		switch (GetState())
+		{
+			case 0: // Presentación
+			{
+				//_dlg = ShowAutoDialogue ("mark_and_spencer_1", 12, [game.GetPlayer(), _mark, _spencer, _mark, _spencer, _mark, _spencer, _mark, _spencer, game.GetPlayer(), _mark, _spencer]);
+				
+				_dlg = game.NewDialogue();
+				_dlg.AddNPCSpeak (game.GetPlayer(), "mark_and_spencer_1_1");
+				_dlg.AddNPCSpeak (_mark, "mark_and_spencer_1_2");
+				_dlg.AddNPCSpeak (_spencer, "mark_and_spencer_1_3");
+
+				_dlg.AddNPCQUestion(game.GetPlayer(), "mark_and_spencer_7_1", ["mark_and_spencer_7_1A", "mark_and_spencer_7_1B"], 0, 0, NEXT_DIALOGUE);
+				
+				_dlg.AddNewCard("card_5");
+				
+				AddAutoDialogue (_dlg, "mark_and_spencer_1", 4, 12, [_spencer, _mark, _spencer, _mark, _spencer, _mark, game.GetPlayer(), _mark, _spencer]);
+				
+				_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["lookfor_green_ball"]);
+				_dlg.AddNPCCall (this, "SetState", [1]);
+				
+			    game.ShowDialogue (_dlg);
+			}
+			break;
+			case 1: // Esperando a que pruebes la pelota verde con el gato
+			{
+				//if (game.GetLandMark("item_cat_state") == 1)
+				{
+					_dlg = ShowAutoDialogue ("mark_and_spencer_2", 15, [_mark, _spencer, game.GetPlayer()]);
+					SetState(2);
+				}
+				/*else
+				{
+					ShowAutoDialogue ("mark_and_spencer_3", 3, [_mark, _spencer, game.GetPlayer()]);
+				}*/
+			}
+			break;
+			case 2: // Cambiar frisbie por pelota roja 
+			{
+				ShowAutoDialogue ("mark_and_spencer_5", 4, [_mark, game.GetPlayer(), game.GetPlayer(), _spencer]);
+			}
+			break;
+			case 3: // Fin
+			{
+				ShowAutoDialogue ("mark_and_spencer_6", 6, [game.GetPlayer(), _mark, _spencer]);
+			}
+			break;
+		}
+	}
+}

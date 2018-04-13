@@ -1,0 +1,104 @@
+class Actor implements NPC
+{
+	properties:    	
+		KIN_QUIET = 0;
+		KIN_SPEAK = 0;
+		
+	virtual Init ()
+	{
+		StartLoadResources ();
+		
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_landon.msh");
+		
+		KIN_QUIET = Actor_LoadKinematic (this, "npc_landon_quiet.kin");
+		KIN_SPEAK = Actor_LoadKinematic (this, "npc_landon_speak.kin");                                            
+		
+		EndLoadResources ();
+		
+		name = "npc_landon";
+		collide = true;
+		Scene_AddStatic (scene, this);
+		bMoveHead = true;
+		
+		voiceID = VOICE_BOY;
+	}
+
+	virtual Start ()
+	{
+	}
+	
+	function Quiet ()
+	{
+		Actor_BlendKin (this, KIN_QUIET, KINMODE_LOOP);
+	}
+	
+	function Speak ()
+	{
+		Actor_BlendKin (this, KIN_SPEAK, KINMODE_LOOP);
+	}
+
+	function OnDropItem (_itemName)
+	{
+		if (_itemName == "item_apple")
+		{
+			if (game.GetItemQuantity (_itemName) >= TOTAL_APPLES)
+			{
+				SetState(2);
+				OnCursorClick();
+				game.GetPlayer().AddInventory ("item_feather");
+				game.GetPlayer().TaskDone("deliver_apples");
+				game.GetPlayer().LevelUpHearingAid();
+				return true;
+			}
+		}	
+		return false;
+	}
+
+	function OnCursorClick()
+	{
+	    switch (GetState())
+	    {
+	    	case 0: // Presentación y encargo 10 x "item_apple"
+			{
+				_dlg = ShowAutoDialogue ("landon_1", 7, [game.GetPlayer(), this]);
+				_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_apples"]);
+				SetState(1); 
+			}
+			break;
+			case 1: // Esperando Manzanas
+			{
+				ShowAutoDialogue ("landon_3", 2, [this, game.GetPlayer()]);
+			}
+			break;
+			case 2: // Entrega de las manzanas
+			{
+				_dlg = ShowAutoDialogue ("landon_2", 5, [game.GetPlayer(), this]);
+				_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["get_feathers"]);
+				SetState(3); 
+			}
+			break;
+			case 3: // Esperando a que tengas suficientes plumas
+			{
+				if (game.GetItemQuantity("item_feather") >= TOTAL_FEATHERS)
+				{
+					_dlg = ShowAutoDialogue ("landon_4", 12, [this, game.GetPlayer()]);
+					_dlg.AddNPCCall (game.GetPlayer(), "AddInventory", ["item_lever_3"]);
+					_dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["get_feathers"]);
+					_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["put_levers"]);
+					SetState(4);
+				}
+				else
+				{
+					ShowAutoDialogue ("landon_5", 4, [game.GetPlayer(), this]);
+				}
+			}
+			break;
+			case 4: // Fin
+			{
+				ShowAutoDialogue ("landon_6", 4, [this, game.GetPlayer()]);
+			}
+			break;
+		}
+	}
+}

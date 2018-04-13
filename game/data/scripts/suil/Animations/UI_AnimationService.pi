@@ -1,0 +1,90 @@
+class Service
+{
+	properties:
+		animations = null;
+
+		removedAnimationsInUpdate = [];
+		processingUpdate = false;
+
+		currentTick = 0;
+		uiSystem = null;
+
+	function Init()
+	{
+		animations = new LinkedList();
+		currentTick = uiSystem.GetTick();
+	}
+
+	function Final()
+	{
+		_item = animations.firstItem;
+		while (_item)
+		{
+			_next = _item.nextItem;
+			delete _item;
+			_item = _next;
+		}
+
+		delete animations;
+	}
+
+	function Register(_region)
+	{
+		// El añadir animaciones se puede hacer sin problemas mientras se hace el update ya que se añaden al final
+		_id = new LinkedListItem();
+		_id.userData = _region;
+		_region.animationServiceId = _id;
+		animations.Add(_id);
+
+		//DebugMsg("Animations:", animations.Count());
+	}
+
+	function UnRegister(_region)
+	{
+		_id = _region.animationServiceId;
+		_region.animationServiceId = null;
+		if (processingUpdate)
+		{
+			// Durante el update no borramos las linkItem, simplemente borramos la animacion del item
+			removedAnimationsInUpdate += [_id];
+			_id.userData = null;
+		}
+		else
+		{
+			// Si no estamos haciendo el update podemos borrar sin problemas
+			animations.Remove(_id);
+			delete _id;
+		}
+	}
+
+	function GetTick()
+	{
+		return currentTick;
+	}
+
+	function Move()
+	{
+		currentTick = uiSystem.GetTick();
+
+		_currentId = animations.firstItem;
+		processingUpdate = true;
+		while (_currentId)
+		{
+			_region = _currentId.userData;
+			if (_region)
+				_region.Core_DoAnimationUpdate();
+			_currentId = _currentId.nextItem;
+		}
+		processingUpdate = false;
+
+		// Si hay pendientes eliminaciones de items las ejecutamos
+		for (i = 0; i < sizeof(removedAnimationsInUpdate); i++)
+		{
+			_id = removedAnimationsInUpdate[i];
+			animations.Remove(_id);
+			delete _id;
+		}
+		removedAnimationsInUpdate = [];
+	}
+
+}

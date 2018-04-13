@@ -1,0 +1,31 @@
+class UI_InternalRegion implements UI_Region
+{
+	properties:
+		internalVisible = false;
+
+	function _operator_new(_uisystem, _name)
+	{
+		::_operator_new(_uisystem, _name);
+
+		layerId = UI_LAYER_NORMAL;
+		suil_CanCollide = false;
+	}
+
+	function _operator_delete()
+	{
+		::_operator_delete();
+	}
+
+	function SetLayer(_layerId)
+	{
+		if (layerId == _layerId) return;
+
+		layerId = _layerId;
+		_p = GetParent();
+		if (_p) _p.BringToFront(this);
+	}
+
+	function SetVertexColor(_r, _g, _b)
+	{
+	}
+}

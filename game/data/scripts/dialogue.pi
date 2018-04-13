@@ -1,0 +1,191 @@
+class Dialogue
+{
+	constants:
+		ITEM_END = 0;
+		ITEM_NPC_TEXT;
+		ITEM_NPC_KIN;
+		ITEM_NPC_CALL;
+		ITEM_NPC_VISIBLE;
+		ITEM_NPC_SET;
+		ITEM_NPC_QUESTION;
+		ITEM_FADE_ON;
+		ITEM_FADE_OFF;
+		ITEM_NEW_CARD;
+		
+	properties:
+		itemList = [];
+		//sndList = [];
+		index = 0;
+		bCheckHA = true;
+
+	function _operator_new ()
+	{
+		//sndList += 10;
+	}
+	
+	function _operator_delete ()
+	{
+		//for (i=0; i<sizeof(sndList); i++)
+		//	Sound_Delete (sndList[i]);
+	}
+	
+	function AddNPCText (_npc, _text, _params = "", _voice = 0, _locuted = true)
+	{
+		if (typeof(_npc) == TYPE_STRING)
+			_prefix = "\\4"+g_language.GetText(_npc)+"\\0: ";
+		else if (typeof(_npc) == TYPE_POINTER && _npc)
+		{ 
+			_prefix = "";//"\\4"+g_language.GetText(_npc.name)+"\\0: ";
+			if (_voice == 0) _voice = _npc.voiceId;
+		}
+		else _prefix = ""; 
+		_textLoc = g_language.GetText(_text, _params);
+		if (_textLoc == "") // NO HAY NADA!!!
+			return;
+		if (_locuted) _textLoc = "%" + _textLoc + "%"; 
+		itemList += [[ITEM_NPC_TEXT, _npc, _prefix + _textLoc, false, _text, _voice]];
+	}
+
+    function AddNPCTextNL (_npc, _text, _params = "", _voice = 0)
+	{
+		AddNPCText(_npc, _text, _params, _voice, false);
+	}
+
+	function AddNPCSpeak (_npc, _text, _params = "", _locuted = true)
+	{
+		if (_npc) 
+		{
+			_prefix = "";//"\\4"+g_language.GetText(_npc.name)+"\\0: ";
+			_voice = _npc.voiceId;
+		}
+		else 
+		{
+			_prefix = "";
+			_voice = 0;
+		} 
+		_textLoc = g_language.GetText(_text, _params);
+		if (_textLoc == "") // NO HAY NADA!!!
+			return;
+		if (_locuted) _textLoc = "%" + _textLoc + "%"; 
+		itemList += [[ITEM_NPC_TEXT, _npc, _prefix + _textLoc, true, _text, _voice]];
+		
+		_game = Service_Get("game");
+		if (bCheckHA && _npc && _npc != _game.GetPlayer())
+		{
+			if (!_game.GetPlayer().CanHearingAid()) // Audífono NO OK!
+			{
+				bCheckHA = false;
+				if (_game.GetPlayer().HasHearingAid()) // RENOVAR BATERIAS
+				{
+					AddNPCQUestion(_game.GetPlayer(), "jim_7_1", ["jim_7_1A", "jim_7_1C"], 1, sizeof(itemList)-1, END_DIALOGUE); 
+				}
+				else // PONERSE AUDIFONO
+				{
+					AddNPCQUestion(_game.GetPlayer(), "jim_7_1", ["jim_7_1A", "jim_7_1B"], 1, sizeof(itemList)-1, END_DIALOGUE); 
+				}
+			}
+		}
+
+		
+	}
+	
+	function AddNPCQuestion (_npc, _questionID, _answerIDList, _okID, _wrongPC, _okPC)
+	{
+		itemList += [[ITEM_NPC_QUESTION, _npc, _questionID, _answerIDList, _okID, _wrongPC, _okPC]];
+	} 
+
+	function AddEndDialogue ()
+	{
+		itemList += [[ITEM_END]];
+	} 
+
+	function AddNewCard (_cardID)
+	{
+		itemList += [[ITEM_NEW_CARD, _cardID]];
+	} 
+	
+	function AddNPCKin (_npc, _kinId, _mode = 1)
+	{
+		itemList += [[ITEM_NPC_KIN, _npc, _kinId, _mode]];
+	}
+	
+	function AddNPCCall (_npc, _func, _params = [], _index = -1)
+	{
+		AddItem ([ITEM_NPC_CALL, _npc, _func, _params], _index);
+	}
+
+	function AddNPCSet (_npc, _var, _value, _index = -1)
+	{
+		AddItem ([ITEM_NPC_SET, _npc, _var, _value], _index);
+	}
+	
+	function AddNPCVisible (_npc, _v)
+	{
+		itemList += [[ITEM_NPC_VISIBLE, _npc, _v]];
+	}
+	
+	function FadeOn (_speed = 8.0f)
+	{
+		itemList += [[ITEM_FADE_ON, _speed]];
+	}
+
+	function FadeOff (_speed = 8.0f)
+	{
+		itemList += [[ITEM_FADE_OFF, _speed]];
+	}
+	
+	function AddItem (_item, _index)
+	{
+		if (_index < 0)
+			itemList += [_item];
+		else
+		{
+			itemList *= _index;
+			itemList[_index] = _item;
+		}
+	}
+	
+	function FirstItem ()
+	{
+		index = 0;
+	}
+	
+	function SetItem(_ix)
+	{
+		index = _ix;
+	}
+	
+	function NextItem ()
+	{
+		if (index < sizeof(itemList))
+			index++;
+	}
+	
+	function GetCurItem()
+	{
+		if (index < sizeof(itemList))
+			return itemList[index];
+		return [];
+	} 
+	
+	function GetHLString (_str, _v)
+	{
+	//LoadSound(0, "es_item_jim_coveralls.ogg");
+
+		if (_v)
+		{
+			return "\\2" + g_language.GetText(_str) + "\\0";
+		}
+		return "\\2??????????\\0";
+	}
+	
+	function LoadSound (_id, _file)
+	{
+		//sndList[_id] = Sound_Load (_file);
+	}
+	
+	function PlaySound (_id)
+	{
+		//Sound_Play (sndList[_id]);
+	}
+}

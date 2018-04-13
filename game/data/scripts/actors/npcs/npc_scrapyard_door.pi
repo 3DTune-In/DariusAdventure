@@ -1,0 +1,89 @@
+class Actor implements NPC
+{
+	properties:
+		ANI_CLOSED = null;
+		ANI_OPEN = null;
+		ANI_OPENED = null;
+		sndOpen = null;
+		bFeather = false;
+		
+	virtual Init ()
+	{	
+		StartLoadResources ();
+			
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_scrapyard_door.msh");
+		                                        
+		ANI_CLOSED = Actor_LoadKinematic (this, "npc_scrapyard_door_closed.kin");
+		ANI_OPEN = Actor_LoadKinematic (this, "npc_scrapyard_door_open.kin");
+		ANI_OPENED = Actor_LoadKinematic (this, "npc_scrapyard_door_opened.kin");
+		
+		sndOpen = LoadSound("metaldoor_open.ogg");
+
+		EndLoadResources ();
+		name = "npc_scrapyard_door";
+		useAngles = 0;
+		shadow = false;
+		gravity = false;
+		
+		Scene_AddStatic (scene, this);
+	}
+	
+	virtual Final ()
+	{
+	}
+
+	virtual Start ()
+	{
+		if (game.IsItemUsed(name)) // OPENED!
+		{
+			Actor_SetKin (this, ANI_OPENED, KINMODE_LOOP);
+			collide = false;
+			_change ("opened");
+		}
+	    else // CLOSED!
+	    {
+	    	_jim = game.FindActor("npc_jim");
+	    	if (!bFeather && _jim.GetState() == 2)
+	    	{
+	    		game.GetPlayer().CreateFeather(_jim.posX-200, _jim.posY, _jim.posZ, 1);
+	    		bFeather = true;
+	    	}
+	    
+			stage.FindActor ("stage_" + string(STAGE_BUS_STOP)).SetEnabled (false);
+			collide = true;
+			Scene_AddStatic (scene, this);
+			Actor_SetKin (this, ANI_CLOSED, KINMODE_LOOP);
+			_change ("closed");
+		}
+	}
+	
+	state "closed"
+	{
+	}
+	
+	function Open ()
+	{
+		game.SetItemUsed (name);
+		Actor_SetKin (this, ANI_OPEN, KINMODE_ENDFIX);
+		main.PlayFX(sndOpen);
+		_change ("opening");
+	}
+	
+	state "opening"
+	{
+		if (Actor_IsKinTimeEnd (this))
+		{
+			Scene_AddDynamic (scene, this, 0);
+			collide = false;
+			SetEnabled (false);
+			stage.FindActor ("stage_" + string(STAGE_BUS_STOP)).SetEnabled(true);
+			Actor_SetKin (this, ANI_OPENED, KINMODE_LOOP);
+			_change ("opened");
+		}
+	}
+	
+	state "opened"
+	{
+	}
+}

@@ -1,0 +1,127 @@
+class Actor implements NPC
+{
+	properties:    	
+		KIN_QUIET = 0;
+		KIN_SPEAK = 0;
+		
+	virtual Init ()
+	{
+		StartLoadResources ();
+		
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_mildred.msh");
+		
+		KIN_QUIET = Actor_LoadKinematic (this, "npc_mildred_quiet.kin");
+		KIN_SPEAK = Actor_LoadKinematic (this, "npc_mildred_speak.kin");                                            
+		
+		EndLoadResources ();
+		
+		collide = true;
+		Scene_AddStatic (scene, this);
+		bMoveHead = true;
+		
+		name = "npc_mildred";
+		voiceID = VOICE_GIRL;
+	}
+
+	virtual Start ()
+	{
+	}
+	
+	function Quiet ()
+	{
+		if (GetState() >= 1)
+		{
+			_kin = Actor_GetKinematic(this, KIN_QUIET);
+			Kinematic_SetTimeStart(_kin, 60);
+			Kinematic_SetLoopStart(_kin, 60);
+			Kinematic_SetTimeEnd(_kin, 61);
+			Actor_SetKin (this, KIN_QUIET, KINMODE_PINGPONG);
+			Actor_SetKinSpeed(this, 0.15f);
+		}
+		else
+		{
+			Actor_BlendKin (this, KIN_QUIET, KINMODE_LOOP);
+			Actor_SetKinSpeed(this, 1);
+		}
+	}
+	
+	function Speak ()
+	{
+		Actor_BlendKin (this, KIN_SPEAK, KINMODE_LOOP);
+		Actor_SetKinSpeed(this, 1);
+	}
+
+	function OnDropItem (_itemName)
+	{	
+		if (GetState() >= 2 && _itemName == "item_icecreams")
+		{
+			_mildred = this;
+			_veronica = stage.FindActor ("npc_veronica");
+			_dlg = ShowAutoDialogue ("mildred_and_veronica_4", 7, [_mildred, _veronica, game.GetPlayer(), _mildred, _veronica, _mildred, game.GetPlayer()]);
+			_dlg.AddNPCCall (_veronica.frisbee, "SetVisible", [false]);
+			_dlg.AddNPCCall (game.GetPlayer(), "AddInventory", ["item_frisbee"]);
+			_dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["deliver_icecreams"]);
+			_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_frisbee"]);
+			return true;
+		}
+		return false;
+	}
+
+	function OnCursorClick()
+	{
+		_mildred = this;
+		_veronica = stage.FindActor ("npc_veronica");
+		
+		switch (GetState())
+		{
+			case 0: // Presentación 
+			{
+				//ShowAutoDialogue ("mildred_and_veronica_1", 6, [_mildred, _veronica, game.GetPlayer()]);
+				
+				_dlg = game.NewDialogue();
+				_dlg.AddNPCSpeak (_mildred, "mildred_and_veronica_1_1");
+
+				_dlg.AddNPCQUestion(game.GetPlayer(), "mildred_and_veronica_7_1", ["mildred_and_veronica_7_1A", "mildred_and_veronica_7_1B"], 0, 0, NEXT_DIALOGUE);
+
+				_dlg.AddNewCard("card_8");
+				
+				_dlg.AddNPCCall (this, "SetState", [1]);
+				
+				_dlg.AddNPCCall(_mildred, "Quiet", []);
+				_dlg.AddNPCCall(_veronica, "Quiet", []);
+
+				_dlg.AddNPCSpeak (game.GetPlayer(), "mildred_and_veronica_1_3");
+				_dlg.AddNPCSpeak (_veronica, "mildred_and_veronica_1_5");
+				_dlg.AddNPCSpeak (game.GetPlayer(), "mildred_and_veronica_1_6");
+
+			    game.ShowDialogue (_dlg);
+			}
+			break;
+			case 1: // Buscar helados 
+			{
+				_dlg = ShowAutoDialogue ("mildred_and_veronica_2", 12, [_mildred, _veronica, game.GetPlayer()]);
+				_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_icecreams"]);
+				SetState (2);
+			}
+			break;
+			case 2: // Esperando helados 
+			{
+				if (Rand(0, 100) >= 50)
+				{
+					ShowAutoDialogue ("mildred_and_veronica_3", 3, [_veronica, _mildred, game.GetPlayer()]);
+				}
+				else
+				{
+					ShowAutoDialogue ("mildred_and_veronica_5", 5, [_mildred, game.GetPlayer(), _veronica, _mildred, game.GetPlayer()]);
+				}
+			}
+			break;
+			case 3: // Helados entregados
+			{
+				ShowAutoDialogue ("mildred_and_veronica_6", 4, [_mildred, _veronica]);
+			}
+			break;
+		}
+	}
+}

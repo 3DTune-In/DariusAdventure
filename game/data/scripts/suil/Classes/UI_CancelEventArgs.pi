@@ -1,0 +1,5 @@
+class UI_CancelEventArgs
+{
+	properties:
+		cancel = false;
+}

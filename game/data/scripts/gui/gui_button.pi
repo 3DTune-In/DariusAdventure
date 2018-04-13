@@ -1,0 +1,71 @@
+class GUI_Button implements UI_Button partial GUI_Frame_Partial
+{
+	properties:
+		font = null;
+		ctxClick = null;
+		ctxEvent = "";
+
+	virtual OnInit ()
+	{
+		DisableScalePosition();
+		HookEvent (UI_EVENT_MOUSE_DOWN, this, "OnButtonMouseDown");
+		HookEvent (UI_EVENT_MOUSE_UP, this, "OnButtonMouseUp");
+		HookEvent (UI_EVENT_CLICK, this, "OnButtonClick");
+		Show();
+	}
+	
+	function SetFontSize (_h)
+	{
+		if (!font)
+		{
+			font = UI_CreateFont("");
+			SetNormalFontObject(font);
+		}
+		font.SetFont (DEFAULT_MENU_FONT, _h);
+	}
+	
+	function SetTextAlign (_ta)
+	{
+		_fs = GetFontString();
+		_fs.SetTextAlign (_ta);
+	}
+	
+	function SetTextColor (_color)
+	{
+		_fs = GetFontString();
+		_fs.SetTextColor(_color);
+	}
+	
+	function SetTextureColor (_color)
+	{
+		_tex = GetNormalTexture();
+		if (_tex) _tex.SetTextureColor(_color);
+	}
+	
+	virtual SetBounds (_x, _y, _w, _h)
+	{
+		SetScalePivot(_w/2, _h/2);
+	}
+
+    function OnButtonMouseDown (_sender, _event, _params)
+    {
+    	_sender.SetScale(1.1f);
+    }
+
+    function OnButtonMouseUp (_sender, _event, _params)
+    {
+    	_sender.SetScale(1);
+    }
+
+    function OnButtonClick (_sender, _event, _params)
+    {
+    	if (ctxClick)
+    		ctxClick._call(ctxEvent, [this]);
+    }
+    
+    function SetOnClick (_ctx, _event)
+    {
+    	ctxClick = _ctx;
+    	ctxEvent = _event;
+    }
+}

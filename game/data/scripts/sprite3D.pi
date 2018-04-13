@@ -1,0 +1,881 @@
+class Actor
+{
+	class Frame
+	{
+		properties:
+			tex = null;
+			w = 0;
+			h = 0;
+	};
+	
+	class Rect
+	{
+		properties:
+			x = 0;
+			y = 0;
+			w = 0;
+			h = 0;
+			colFlags = -1;
+			relative = true;
+		
+		function _operator_new (_x, _y, _w, _h, _relative, _colFlags)
+		{
+			x = _x;
+			y = _y;
+			w = _w;
+			h = _h;
+			relative = _relative;
+			colFlags = _colFlags;
+		}
+	};
+	
+	class Animation
+	{
+		properties:
+			start = 0;
+			end = 0;
+			numframes = 0;
+			loop = 0;
+			loopMode = false;
+			speed = 0.0f;
+			flags = 0;
+			current = 0;
+			eventList = [];
+	};
+	
+	properties:
+		type = 0;
+		colRectList = [];
+		collisionFlags = -1;
+		frameList = [];
+		aniList = [];
+		curFrame = null;
+		curAni = null;
+		//curFlags = DTE_3D_XZY | DTE_3D_LIGHT | DTE_3D_FOG | DTE_NOSHADER;
+		//curFlags = DTE_3D_BILLBOARD | DTE_NOSHADER;
+		//curFlags = DTE_3D_XZY | DTE_3D_LIGHT | DTE_NOSHADER;
+		curFlags = DTE_3D_XZY | DTE_NOSHADER;
+		//curFlags = DTE_3D_XZY;
+		//curFlags = DTE_3D_XZY | DTE_3D_LIGHT | DTE_3D_FOG;
+		angle = 0.0f;
+		stage = null;
+		zHeps = 0;
+		baseX = 0;
+		baseY = 0;
+		baseZ = 0;
+		pivotX = 0;
+		pivotY = 0;
+		epsZ = 0;
+		color = -1;
+		scale = 1.0f;
+		generator = null;
+		shadowTex = null;
+		numLoops = 0;
+		aniStop = false;
+		fxFlashTimer = null;
+		fxBlinkTimer = null;
+		fxBlinkTick = 0.0f;
+		fxBlinkDuration = 0.0f;
+		drawPriority = 0;
+		blurList = [];
+		blurTime = 0;
+		blurTick = 0;
+		blurLevel = 0;
+		blurIx = 0;
+		tileW = 1;
+		tileH = 1;
+		colZRange = 100;
+		scene3D = null;
+			
+	function Init ()
+	{
+		/*Actor_SetNumLods (this, 1);
+		System_SetDirectory (DIRECTORY_MESH, "data/meshes/");
+		Actor_LoadMesh (this, 0, "plane3D.msh");
+		Actor_DuplicateMaterials (this);
+		useAngles = true;
+		angleX = DEGTORAD(-90);*/
+	
+		stage = Service_Get ("stage");
+		//visible = true;
+		//clipping = true;
+		//gravity = false;
+		//collide = false;
+		//collideFlags = 0; // Collisiones 3D
+		zHeps = 0.0f;
+		baseX = posX;
+		baseY = posY;
+		baseZ = posZ;
+		epsZ = posZ;
+		
+		//Actor_SetAlphaRef (this, 250);
+		//SetShadow (true);
+		//priority = 1;
+	}
+	
+	function Start ()
+	{
+		if (!Actor_GetParent(this))
+		{
+			posX = baseX;
+			posY = baseY;
+			posZ = baseZ;
+		}
+	}
+
+	function SetBlur (_blurLevel, _blurTime)
+	{
+		blurTime = _blurTime;
+		blurTick = _blurTime;
+		blurLevel = _blurLevel;
+		blurList = [];
+		blurIx = 0;
+	}
+
+	function SetShadow (_v)
+	{
+		if (_v)
+		{
+			if (!shadowTex)
+			{
+				System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/");
+				shadowTex = Actor_LoadTexture (this, "shadow.png");
+			}
+		}
+		else
+		{
+			if (shadowTex)
+			{
+				Actor_DeleteTexture (this, shadowTex);
+				shadowTex = null;
+			}
+		}
+	}
+	
+	function Final ()
+	{
+		if (scene3D) delete scene3D;
+		if (fxFlashTimer) Timer_Delete (fxFlashTimer);
+		if (fxBlinkTimer) Timer_Delete (fxBlinkTimer);
+		RemoveFrames ();
+		ClearCollisionRects ();
+	}
+	
+	function RemoveFrames ()
+	{
+		RemoveAnimations ();
+		for (i=0; i<sizeof(frameList); i++) delete frameList[i];
+		frameList = [];
+		curFrame = null;
+	}
+	
+	function RemoveAnimations ()
+	{
+		for (i=0; i<sizeof(aniList); i++) delete aniList[i];
+		aniList = [];
+		curAni = null;
+	}
+	
+	function AddFrame (_texName, _w, _h)
+	{
+		if (tileW == 1 && tileH == 1)
+		{
+			_oldU = Render_GetProperty (RP_TEXADDRU);
+			_oldV = Render_GetProperty (RP_TEXADDRV);
+			Render_SetProperty (RP_TEXADDRU, TA_CLAMP);
+			Render_SetProperty (RP_TEXADDRV, TA_CLAMP);
+		}
+		
+		_tex = Actor_LoadTexture (this, _texName);
+		
+		if (tileW == 1 && tileH == 1)
+		{
+			Render_SetProperty (RP_TEXADDRU, _oldU);
+			Render_SetProperty (RP_TEXADDRV, _oldV);
+		}
+		
+		if (_tex)
+		{
+			_frame = new Frame ();
+			_frame.tex = _tex;
+			_frame.w = _w;
+			_frame.h = _h;
+			frameList += [_frame];
+			if (curFrame == null) curFrame = _frame;
+			return sizeof(frameList)-1;
+		}
+		return -1;
+	}
+	
+	function AddAnimationRange (_start, _end, _loop = -1, _speed = 1.0f, _flags = 0)
+	{
+		_ani = new Animation ();
+		_ani.start = _start;
+		_ani.end = _end;
+		_ani.numframes = abs(_end-_start+1);
+		_ani.loopMode = (_loop == -1);
+		if (_loop == -1) _loop = _start;
+		else if (_loop == -2) _loop = _ani.end;
+		_ani.loop = _loop;
+		_ani.flags = _flags;
+		_ani.speed = _speed;
+		_ani.current = float(_start);
+		aniList += [_ani];
+		if (curAni == null) curAni = _ani;
+		return _ani;
+	}
+
+	function AddAnimation (_start, _num, _loop = -1, _speed = 1.0f, _flags = 0)
+	{
+		_ani = new Animation ();
+		_ani.start = _start;
+		_ani.end = _start+_num-1;
+		_ani.numframes = _num;
+		_ani.loopMode = (_loop == -1);
+		if (_loop == -1) _loop = _start;
+		else if (_loop == -2) _loop = _ani.end;
+		_ani.loop = _loop;
+		_ani.flags = _flags;
+		_ani.speed = _speed;
+		_ani.current = float(_start);
+		aniList += [_ani];
+		if (curAni == null) curAni = _ani;
+		return _ani;
+	}
+	
+	function AddAnimationWithFrames (_prefix, _start, _end, _w, _h, _loop = -1, _speed = 1.0f, _flags = 0)
+	{
+		_fs = sizeof(frameList);
+		
+		if (_start <= _end)
+		{
+			for (i=_start; i<=_end; i++)
+				AddFrame (String_Format (_prefix, i), _w, _h);
+		}
+		else
+		{
+			for (i=_start; i>=_end; i--)
+				AddFrame (String_Format (_prefix, i), _w, _h);
+		}
+		
+		return AddAnimation (_fs, abs(_end-_start)+1, _loop, _speed, _flags);
+	}
+
+	function AddFramesToAnimation (_ani, _prefix, _start, _end, _w, _h)
+	{
+		_fs = sizeof(frameList);
+		
+		if (_start <= _end)
+		{
+			for (i=_start; i<=_end; i++)
+				AddFrame (String_Format (_prefix, i), _w, _h);
+		}
+		else
+		{
+			for (i=_start; i>=_end; i--)
+				AddFrame (String_Format (_prefix, i), _w, _h);
+		}
+
+		_num = abs(_end-_start)+1;
+		_ani.numframes += _num;
+		if (_ani.loop == _ani.end)
+			_ani.loop += _num; 				
+		_ani.end += _num;
+	}
+
+	function AddFrameEvent (_ani, _frame, _ctx, _event)
+	{
+		_ani.eventList += [[_frame, _ctx, _event, false]];
+	} 
+
+	function GetAbsFrame ()
+	{
+		if (curAni)
+		{
+			return int (clamp (curAni.current, curAni.start, curAni.end));
+		}
+		return 0;
+	}
+	
+	function SetAbsFrame (_ix)
+	{
+		if (curAni)
+			curAni.current = _ix;
+	}
+
+	function GetFrame ()
+	{
+		if (curAni)
+			return int(curAni.current - curAni.start);
+		return 0;
+	}
+
+	function SetFrame (_ix)
+	{
+		if (curAni)
+		{
+			numLoops = 0;
+			curAni.current = curAni.start + _ix;
+			if (sizeof(frameList)) curFrame = frameList[curAni.current];
+			else curFrame = null;
+		}
+		else
+		{
+			if (sizeof(frameList)) curFrame = frameList[_ix];
+			else curFrame = null;
+		}
+	}
+	
+	function GetAnimation ()
+	{
+		return curAni;
+	}
+	
+	function SetAnimation (_ani)
+	{
+		if (curAni != _ani)
+		{
+			curAni = _ani;
+			if (_ani)
+			{
+				ResetAnimation ();
+			}
+		}
+	}
+	
+	function ResetAnimation ()
+	{
+		if (curAni)
+		{
+			numLoops = 0;
+			curAni.current = float(curAni.start);
+			curFlags |= curAni.flags;
+			if (sizeof(frameList)) curFrame = frameList[int(curAni.current)];
+			else curFrame = null;
+			for (i=0; i<sizeof(curAni.eventList); i++) curAni.eventList[i][3] = false;
+		}
+	}
+	
+	function GetWidth ()
+	{
+		if (scene3D)
+			return scene3D.GetWidth();
+		else
+			return curFrame.w * scale;
+	}
+	
+	function GetHeight ()
+	{
+		if (scene3D)
+			return scene3D.GetHeight();
+		else
+			return curFrame.h * scale;
+	}
+	
+	function ClearCollisionRects ()
+	{
+		for (i=0; i<sizeof(colRectList); i++) delete colRectList[i];
+		colRectList = [];
+	}
+
+	function AddCollisionRect (_x, _y, _w, _h, _relative = true, _colFlags = -1)
+	{
+		_r = new Rect(_x, _y, _w, _h, _relative, _colFlags);
+		colRectList += [_r];
+		return _r;
+	}
+
+	function GetRectPos (_r)
+	{
+		return GetRectPos (_r.x*scale, _r.y*scale, _r.w*scale, _r.h*scale, _r.relative);
+	}
+
+	function GetRectPos (_x, _y, _w, _h, _relative = true)
+	{
+		if (_relative)
+		{
+			_x = _x - _w/2;
+			_y = _y - _h/2;
+	
+			_z = posY;
+			_yc = posZ + zHeps;// + _h/2;
+			_x += posX;
+			_y += _yc;
+		}
+		else
+		{
+			_x = _x + posX;
+			_y = _y + posZ;
+		}
+			
+		_parent = Actor_GetParent (this);
+		if (_parent)
+		{
+			_x += _parent.posX;
+			_y += _parent.posZ;
+		}
+		
+		return [_x, _y, _w, _h];
+	}
+	
+	function CheckRectCollision (_x, _y, _z, _w, _h, _colFlags)
+	{
+		//if (_debug)
+//			DebugMsg ("Checking...");
+	
+		if (!collide || (collisionFlags & _colFlags) == 0)
+		{
+	//		if (_debug)
+	//			DebugMsg ("NOT FLAGS - COLLISIONFLAGS:", collisionFlags, "COLFLAGS:", _colFlags);
+			return null;
+		}
+		
+		if (_z >= posY+colZRange || _z <= posY-colZRange)
+			return null;
+		
+//		if (_debug)
+//			DebugMsg ("Checking RECTS...");
+		
+		_num = sizeof(colRectList);
+		for (i=0; i<_num; i++)
+		{
+			_r = colRectList[i];
+			if ((_r.colFlags & _colFlags) == 0) continue;
+			_p = GetRectPos (_r);
+			_ret = IntersectRectWithRect (_x, _y, _w, _h, _p[0], _p[1], _p[2], _p[3]);
+			if (_ret[0])
+			{
+	//			if (_debug)
+	//				DebugMsg ("COLIDE_PARENT:", name);
+				return this;
+			}
+		}
+		
+		_num = Actor_GetNumChilds (this);
+		for (i=0; i<_num; i++)
+		{
+			_child = Actor_GetChild (this, i);
+			_ret = _child.CheckRectCollision (_x, _y, _z, _w, _h, _colFlags);
+			if (_ret)
+			{
+//				if (_debug)
+//					DebugMsg ("COLIDE_CHILD:", name);
+				return _ret;
+			}
+		}
+		
+//		if (_debug)
+//			DebugMsg ("COLLIDE_NULL");
+			
+		return null;
+	}
+
+	function CheckLineCollision (_x1, _y1, _x2, _y2, _z, _colFlags)
+	{                                               
+		if (!collide || (collisionFlags & _colFlags) == 0)
+			return [false];
+		
+		if (_z >= posY+colZRange || _z <= posY-colZRange)
+			return [false];
+		
+		for (i=0; i<sizeof(colRectList); i++)
+		{
+			_r = colRectList[i];
+			if ((_r.colFlags & _colFlags) == 0) continue;
+			
+			_p = GetRectPos (_r);
+			_ret = IntersectLine2DWithLine2D (_x1, _y1, _x2, _y2, _p[0], _p[1]+_p[3]-1, _p[0]+_p[2]-1, _p[1]+_p[3]-1); // La de arriba
+			
+			if (_ret[0]) return _ret + [1];  
+		}
+		return [false];
+	}
+	
+	function CheckLineRectCollision (_x1, _y1, _x2, _y2, _z, _colFlags)
+	{
+		if (!collide || (collisionFlags & _colFlags) == 0)
+			return [false];
+		
+		if (_z >= posY+colZRange || _z <= posY-colZRange)
+			return [false];
+
+		for (i=0; i<sizeof(colRectList); i++)
+		{
+			_r = colRectList[i];
+			if ((_r.colFlags & _colFlags) == 0) continue;
+			
+			_p = GetRectPos (_r);
+			_ret = IntersectRectWithRect (_x1, _y1, (_x2-_x1)+1, (_y2-_y1)+1, _p[0], _p[1], _p[2], _p[3]);
+			if (_ret[0]) return _ret + [1];  
+		}
+		return [false];
+	}
+
+	function DrawCollisionRect (_x, _y, _w, _h)
+	{
+		_x1 = _x - _w/2;
+		_y1 = _y - _h/2;
+		_x2 = _x1 + _w;
+		_y2 = _y1 + _h;
+		
+		/*if (angle)
+		{
+			_p1 = PointRotate2D (_x1, _y1, angle);
+			_p2 = PointRotate2D (_x1, _y2, angle);
+			_p3 = PointRotate2D (_x2, _y1, angle);
+			_p4 = PointRotate2D (_x2, _y2, angle);
+		}
+		else*/
+		{
+			_p1 = [_x1, _y1];
+			_p2 = [_x1, _y2];
+			_p3 = [_x2, _y1];
+			_p4 = [_x2, _y2];
+		}
+			
+		_x = posX;
+		_y = posZ + zHeps;// + _h/2;
+		_z = posY;// - priority*2 - 2.0f;
+		
+		_p1[0] += _x;
+		_p1[1] += _y;
+		_p2[0] += _x;
+		_p2[1] += _y;
+		_p3[0] += _x;
+		_p3[1] += _y;
+		_p4[0] += _x;
+		_p4[1] += _y;
+		Render_Draw3DLine (_p1[0], _z, _p1[1], _p3[0], _z, _p3[1], ARGB(255,255,255,0));
+		Render_Draw3DLine (_p1[0], _z, _p1[1], _p2[0], _z, _p2[1], ARGB(255,255,255,0));
+		Render_Draw3DLine (_p3[0], _z, _p3[1], _p4[0], _z, _p4[1], ARGB(255,255,255,0));
+		Render_Draw3DLine (_p2[0], _z, _p2[1], _p4[0], _z, _p4[1], ARGB(255,255,255,0));
+	}
+	
+	function DrawCollisionRects ()
+	{
+		if (!collide)
+			return;
+			
+		_parent = Actor_GetParent (this);
+		_x = 0;
+		_y = 0;
+		if (_parent)
+		{
+			_x += _parent.posX;
+			_y += _parent.posZ;
+		}
+
+		for (i=0; i<sizeof(colRectList); i++)
+		{
+			_r = colRectList[i];
+			DrawCollisionRect (_r.x*scale+_x, _r.y*scale+_y, _r.w*scale, _r.h*scale);
+		}
+		
+		_num = Actor_GetNumChilds (this);
+		for (i=0; i<_num; i++)
+		{
+			_child = Actor_GetChild (this, i);
+			_child.DrawCollisionRects ();
+		}
+	}
+	
+	function LinkPosZToFloor ()
+	{
+		_ret = Scene_GetRayCollision (scene, posX, posY, posZ - stage.HEPS_FLOOR, posX, posY, posZ + stage.HEPS_FLOOR);	
+		if (_ret[0])
+		{
+			posZ = _ret[3];
+		}
+	}
+	
+	function SetZHeps (_z)
+	{
+		zHeps = _z;
+	}
+	
+	function AddZHeps (_z)
+	{
+		zHeps += _z;
+	}
+	
+	function GetNumLoops ()
+	{
+		return numLoops;
+	}
+	
+	function Move ()
+	{
+		if (curAni && !aniStop)
+		{
+			//if (curAni.current >= curAni.end+1)
+			if (curAni.current >= curAni.end) // Con AddAnimationRange y Scene3D
+			{
+				curAni.current = curAni.loop;
+				numLoops++;
+				if (curAni.loopMode)
+				{
+					for (i=0; i<sizeof(curAni.eventList); i++) 
+					{
+						//_ev = curAni.eventList[i];
+						curAni.eventList[i][3] = false;	
+					}
+				}
+			}
+		
+			if (sizeof(frameList))	
+				curFrame = frameList[int(curAni.current)];
+
+			//DebugMsg (int(curAni.current), curAni.end);
+			curAni.current = IncreaseValue (curAni.current, curAni.end+1, GetFTime() * curAni.speed);
+
+			for (i=0; i<sizeof(curAni.eventList); i++)
+			{
+				_ev = curAni.eventList[i];
+				if (_ev[0] == -2) _f = curAni.end;
+				else if (_ev[0] == -1) _f = curAni.start;
+				else _f = curAni.start+_ev[0];
+				
+				if (_ev[3] == false && int(curAni.current) >= _f)
+				{
+					_lastAni = curAni;
+					_ev[1]._call(_ev[2]);
+					_lastAni.eventList[i][3] = true; 
+				}
+			}
+
+			if (blurLevel)
+			{
+				if (blurTick <= 0.0f)
+				{
+					if (sizeof(blurList) >= blurLevel) blurList -= 1;
+					_p = GetPos ();
+					blurList = [[_p[0], _p[2], angle]] + blurList;
+					blurTick = blurTime;
+				}
+				else blurTick -= GetFTime();
+			}
+		}
+	}
+
+    function FXFlash (_duration, _color, _childs = true)
+    {
+    	color = _color;
+    	FXFlash (_duration);
+    	if (_childs)
+    	{
+    		_num = Actor_GetNumChilds (this);
+    		for (i=0; i<_num; i++)
+    		{
+    			_child = Actor_GetChild(this, i);
+    			_child.FXFlash(_duration, _color, _childs);
+			}
+		}
+    }
+    
+    function FXFlash (_duration)
+    {
+    	if (!fxFlashTimer)
+    	{
+ 			fxFlashTimer = Timer_New ("", this, "OnFXFlashTimer", _duration);
+    		Timer_Start (fxFlashTimer);
+    		curFlags |= DTE_COLORADD;
+    	}
+    }
+    
+	function OnFXFlashTimer (_timer)
+	{
+		curFlags &= ~DTE_COLORADD;
+		color = ARGB(255,255,255,255);
+		Timer_Delete (_timer);
+		fxFlashTimer = null;
+	}
+	
+    function FXBlink (_duration, _speed)
+    {
+    	if (!fxBlinkTimer && visible)
+    	{
+    		fxBlinkTimer = Timer_New ("", this, "OnFXBlinkTimer", _speed);
+    		fxBlinkTick = GetTime();
+    		fxBlinkDuration = _duration;
+    		Timer_Start (fxBlinkTimer);
+		}
+	}
+	
+	function OnFXBlinkingCompleted ()
+	{
+	}
+	
+	function OnFXBlinkTimer (_timer)
+	{
+		if ((GetTime() - fxBlinkTick) >= fxBlinkDuration)
+		{
+			Timer_Delete (_timer);
+			fxBlinkTimer = null;
+			visible = true;
+			OnFXBlinkingCompleted ();
+		}
+		else
+		{
+			visible = !visible;
+		}
+	}	
+
+	function IsVisibleInScreen ()
+	{
+		_p = GetPos();
+		_p2D = Convert3DTo2D (_p[0], _p[1], _p[2]);
+		_ret = IntersectRectWithRect (_p2D[0], _p2D[1], GetWidth(), GetHeight(), 0, 0, Render_GetProperty (RP_INRESX), Render_GetProperty(RP_INRESY));
+		return visible && _ret[0];
+	}
+	
+	function GetPos ()
+	{
+		_x = posX;
+		_y = posY;
+		_z = posZ;
+		
+		_parent = Actor_GetParent (this);
+		if (_parent)
+		{
+		 	_x += _parent.posX;
+		 	_y += _parent.posY;
+		 	_z += _parent.posZ;
+		}
+		return [_x, _y, _z];
+	}
+
+	function Draw ()
+	{
+		if (scene3D)
+		{
+			scene3D.Draw ();
+		}
+		else if (curFrame)
+		{
+			_p = GetPos ();
+			_x = _p[0];
+			_y = _p[1];
+			_z = _p[2];
+		
+			_w = GetWidth ();
+			_h = GetHeight();
+
+			if (sizeof(blurList))
+			{
+				_alpha = 55.0f;
+				_alphaInc = 200.0f/sizeof(blurList);
+				for (i=sizeof(blurList)-1; i>=0; i--)
+				{
+					_xb = blurList[i][0];
+					_zb = blurList[i][1];
+					_angle = blurList[i][2];
+					_c = color;
+					_c = Color_SetA (_c, _alpha);
+					Render_DrawPlane (curFrame.tex, _xb, _y, _zb+zHeps, _w, _h, angle, _c, 0, 0, tileW, tileH, drawPriority-1, curFlags, pivotX, pivotY);
+					_alpha += _alphaInc;
+				}
+			}
+			/*if (shadowTex)
+			{
+				_sizeW = clamp ((posZ-epsZ)/2, 0, _w);
+				_sizeH = clamp ((posZ-epsZ)/2, 0, _h);
+				//Render_DrawPlane (shadowTex, posX, posY-priority*2, baseZ, curFrame.w-_sizeW, curFrame.w-_sizeH, 0, -1, 0, 0, 1, 1, priority, curFlags | DTE_3D_XYZ);
+				Render_DrawPlane (shadowTex, _x, _y, baseZ, _w-_sizeW, _w-_sizeH, 0, -1, 0, 0, 1, 1, priority, curFlags | DTE_3D_XYZ);
+			} */
+			//Render_DrawPlane (curFrame.tex, _x, _y, _z+curFrame.h/2+zHeps, curFrame.w, curFrame.h, angle, color, 0, 0, 1, 1, priority+1, curFlags | DTE_3D_XZY | DTE_3D_LIGHT, pivotX, pivotY);
+			Render_DrawPlane (curFrame.tex, _x, _y, _z+zHeps, _w, _h, angle, color, 0, 0, tileW, tileH, drawPriority, curFlags, pivotX, pivotY);
+			
+			/*sclX = GetWidth()/100.0f;
+			sclZ = GetHeight()/100.0f;
+			sclY = sclX;
+			_parent = Actor_GetParent(this);
+			if (_parent)
+			{
+				sclX /= _parent.sclX;
+				sclY /= _parent.sclY;
+				sclZ /= _parent.sclZ;
+			}
+			Actor_SetMaterialTexture (this, 0, curFrame.tex);*/
+		}
+	}
+	
+	function SetColor (_c)
+	{
+		color = _c;
+	}
+	
+	function SetAlpha (_a)
+	{
+		color = Color_SetA (color, _a);
+	}
+	
+	function GetAlpha ()
+	{
+		return Color_GetA(color);
+	}
+	
+	function Pause ()
+	{
+		if (!Actor_IsStopped(this)) Actor_Stop (this);
+	}
+	
+	function Resume ()
+	{
+		if (Actor_IsStopped(this)) Actor_Continue (this);
+	}
+	
+	function IsCollider ()
+	{
+		return (visible && collide);
+	}
+	
+	function SetBBox (_x, _y, _z)
+	{
+		Actor_SetBBox (this, -_x/2, -_y/2, -_z/2, _x/2, _y/2, _z/2);
+	}
+	
+	function CalculateBBOX ()
+	{
+		_w = GetWidth();
+		_h = GetHeight();
+		SetBBox (_w, _h, (_w+_h)/2);
+	}
+	
+	function SetCollision (_v)
+	{
+		collide = _v;
+	}
+	
+	function AddChild (_child)
+	{
+		Actor_AddChild (this, _child, -1);
+	}
+	
+	function RemoveChild (_child)
+	{
+		Actor_RemoveChild (this, _child);
+	}
+
+	function SetHFlip (_v)
+	{
+		angleZ = DEGTORAD(180)*_v;
+		
+		if (_v)
+			curFlags |= DTE_HFLIP;
+		else
+			curFlags &= ~DTE_HFLIP;
+	}
+	
+	function GetHFlip ()
+	{
+		return (curFlags & DTE_HFLIP);		
+	}
+
+	function SetVFlip (_v)
+	{
+		if (_v)
+			curFlags |= DTE_VFLIP;
+		else
+			curFlags &= ~DTE_VFLIP;
+	}
+}

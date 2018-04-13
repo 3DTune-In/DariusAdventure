@@ -1,0 +1,28 @@
+class Deco<Actor> implements Stage_Actor
+{
+	properties:
+		MESH_NAME = "";
+		KIN_NAME = "";
+
+	virtual Init ()
+	{
+		subClassID = CLASS_TYPE_DECO;
+		priority = PRIORITY_DECO;
+		drawPriority = ACTOR_PRIORITY_DECO;
+		collide = false;
+		shadow = false;
+		gravity = false;
+		useAngles = 0;
+		collisionFlags = 0;
+		
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, MESH_NAME);
+		
+		if (KIN_NAME != "")
+			Actor_LoadKinematic (this, KIN_NAME);
+		
+		EndLoadResources ();
+	}
+}

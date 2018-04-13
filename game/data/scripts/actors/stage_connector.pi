@@ -1,0 +1,106 @@
+class Stage_Connector<Actor> implements Item
+{
+	properties:
+		stageID = 1;
+		playerRef = "";
+		text = "";
+		//ux = 0;
+		
+	virtual Init ()
+	{
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "stage_connector.msh");
+		
+		text = g_language.GetText("stage_" + stageID);
+		
+		EndLoadResources ();
+		
+		SetEnabled (true);
+	}
+	
+	virtual Start ()
+	{
+		label = "";
+		
+		switch (game.stageID)
+		{
+			case STAGE_CROSS_STREET_1:
+			{
+				if (name == "stage_" + string(STAGE_MOBILE_SHOP)) 
+				{
+					if (game.GetLandmark ("npc_joseph_state") < 2)
+					{
+						SetEnabled (false);
+					} 				
+				}
+			}
+			break;
+			case STAGE_BEACH:
+			{
+				if (name == "stage_" + string(STAGE_SEWAGE_EXIT))
+				{
+					if (game.GetLandmark ("npc_strongoroff_state") < 3)
+					{
+						SetEnabled (false);
+					} 				
+				}
+			}
+			break;
+		}
+	}
+	
+	function OnCursorClick()
+	{
+		if (enabled)
+		{
+			DebugMsg ("CONNECTOR:", stageID, playerRef);
+			g_fade.On(this, "OnFade");
+			game.DisableInputEvents();
+			Camera_SetStop (stage.camera, true);
+		}
+	}
+
+	function PlayerNeedsLookTo ()
+	{
+		return false;
+	}
+
+	function SetEnabled (_v)
+	{
+		::SetEnabled(_v);
+		SetVisible (_v);
+	}
+	
+	function OnFade ()
+	{
+		stage.ChangeStage (stageID, playerRef);
+		SetEnabled (false);
+	}
+	
+	virtual Move ()
+	{
+		rad = cos(angleY) * 5.0f;
+		posX += cos(angleZ) * GetFTime() * rad;
+		posY -= sin(angleZ) * GetFTime() * rad;
+		angleY += GetFTime() * 0.25f;
+		//SceneObj_SetMaterialDiffuseTransform (this, 0, 0, ux, 0, 0, 0, 0, 0, 1, 1, 1);
+		//ux += GetFTime() * 0.01f;
+	}
+	
+	virtual Draw()
+	{
+		_d = Actor_Distance(this, game.GetPlayer());
+		if (_d < 1000)
+		{
+			_d = 1.0f-(_d/1000.0f);
+			_pos = Convert3DTo2D(posX, posY, posZ);
+			//Render_SetProperty(RP_2D_Z, posZ); 
+			//Render_SetProperty(RP_2D_RHW, _pos[2]);//_pos[3]); 
+			Render_Print(game.hud.font, _pos[0], _pos[1], text, ARGB(_d*255,255,255,255), DT_CENTER); 
+			//Render_SetProperty(RP_2D_Z, 0); 
+			//Render_SetProperty(RP_2D_RHW, 1);
+		} 
+	}
+}

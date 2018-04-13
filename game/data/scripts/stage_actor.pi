@@ -1,0 +1,321 @@
+class Actor
+{
+	private properties:
+		_oldtex = "";
+		_oldmsh = "";
+		_oldkin = "";
+		_oldsnd = "";
+	
+	public properties:
+		enabled = false;
+		blinkMode = false;
+		blinkTimer = 0.0f;
+		blinkState = false;
+		blinkTimes = 0;
+		//
+		main = null;
+		game = null;
+		stage = null;
+		damage = 0;
+		life = 0;
+		voiceID = 0;
+		//
+		shadowTex = null;
+		shadowSize = 100.0f;
+		//       
+		doAniCtx = null;
+		doAniEvent = "";
+		doAniState = "";
+		doAniMode = 0;
+		//
+		label = "";
+	
+	virtual Init ()
+	{
+		label = name;
+		
+		main = Service_Get ("main");
+		game = Service_Get ("game");
+		stage = Service_Get ("stage");
+		
+		System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/");
+		shadowTex = Actor_LoadTexture (this, "shadow.tga");
+	}
+	
+	virtual Final ()
+	{
+	}
+	
+	virtual Start ()
+	{
+		label = g_language.GetText(name);
+	}
+
+	function SetCollisionable (_v)
+	{
+		if (_v) subClassID |= CLASS_TYPE_COLLISIONABLE;
+		else subClassID &= ~CLASS_TYPE_COLLISIONABLE;
+	}
+
+	function Reset ()
+	{
+	}
+	
+	function Dead ()
+	{
+	}
+	
+	function Hit ()
+	{
+	}
+
+	function OnActorCollide (_from)
+	{
+	}
+	
+	function OnStageCollide (_from)
+	{
+	}
+	
+	function OnCursorEnter ()
+	{
+		//DebugMsg ("CURSOR ENTERS in:", name);
+	}
+	
+	function OnCursorLeave ()
+	{
+		//DebugMsg ("CURSOR LEAVES from:", name);
+	}
+	
+	function OnCursorClick ()
+	{
+		//DebugMsg ("CURSOR CLICKS in:", name);
+	}
+
+	function OnDropItem (_itemName)
+	{
+	}
+	
+	function PlayerCanNotify ()
+	{
+		return true;
+	}
+	
+	function PlayerNeedsLookTo()
+	{
+		return true;
+	}
+    
+	function StartLoadResources ()
+	{
+		_oldtex = System_GetDirectory (DIRECTORY_TEXTURE);
+		_oldmsh = System_GetDirectory (DIRECTORY_MESH);
+		_oldkin = System_GetDirectory (DIRECTORY_KINEMATIC);
+		_oldsnd = System_GetDirectory (DIRECTORY_SOUND);
+		System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/");
+		System_SetDirectory (DIRECTORY_MESH, "data/meshes/");
+		System_SetDirectory (DIRECTORY_KINEMATIC, "data/kinematics/");
+		System_SetDirectory (DIRECTORY_SOUND, "data/sounds/");
+	}
+	
+	function EndLoadResources ()
+	{
+		System_SetDirectory (DIRECTORY_TEXTURE, _oldtex);
+		System_SetDirectory (DIRECTORY_MESH, _oldmsh);
+		System_SetDirectory (DIRECTORY_KINEMATIC, _oldkin);
+		System_SetDirectory (DIRECTORY_SOUND, _oldsnd);
+	}
+	
+	function DoAnimation (_id, _mode, _ctx, _event)
+	{
+		DebugMsg ("DOANIMATION:", _id, _ctx, _event);
+		Actor_SetKin (this, _id, KINMODE_LOOP);
+		doAniCtx = _ctx;
+		doAniEvent = _event;
+		doAniMode = _mode;
+		if (_state() != "do_animation") doAniState = _state();
+		_change ("do_animation");
+	}
+	
+	state "do_animation"
+	{
+		if ((doAniMode == 1 && Actor_IsKinTimeEnd (this)) || (doAniMode == 0))
+		{
+			DebugMsg ("ANIMATION_END!", "State:", doAniState, "Event:", doAniEvent);
+			_ani = doAniState;
+			doAniMode = 3;
+			doAniCtx._call (doAniEvent);
+			if (_ani != "") _change (_ani);
+		}
+	}
+	
+	virtual Draw ()
+	{
+		//Render_Draw3DLine (posX, posY, posZ+100, posX+cos(angleZ)*100, posY-sin(angleZ)*100, posZ+100, ARGB(255,255,0,0));
+	
+		if (shadow)
+		{
+			_heps = 0.25f;
+
+			_ret = Scene_GetFloorZ (scene, posX, posY, posZ);
+			if (_ret[0]) 
+			{
+				_f = (100 - abs(posZ - _ret[1]))/100;
+				_w = shadowSize * _f;
+				_h = shadowSize * _f;
+			}
+			else
+			{
+				return;
+			}
+
+			_x1 = posX-_w/2;
+			_y1 = posY-_h/2;
+			_ret = Scene_GetFloorZ (scene, _x1, _y1, posZ);
+			if (_ret[0]) _z1 = _ret[1]; else _z1 = posZ;
+			_z1 += _heps;
+			 
+			_x2 = posX+_w/2;
+			_y2 = posY-_h/2;
+			_ret = Scene_GetFloorZ (scene, _x2, _y2, posZ);
+			if (_ret[0]) _z2 = _ret[1]; else _z2 = posZ; 
+			_z2 += _heps;
+			
+			_x3 = posX+_w/2;
+			_y3 = posY+_h/2;
+			_ret = Scene_GetFloorZ (scene, _x3, _y3, posZ);
+			if (_ret[0]) _z3 = _ret[1]; else _z3 = posZ; 
+			_z3 += _heps; 
+
+			_x4 = posX-_w/2;
+			_y4 = posY+_h/2;
+			_ret = Scene_GetFloorZ (scene, _x4, _y4, posZ);
+			if (_ret[0]) _z4 = _ret[1]; else _z4 = posZ; 
+			_z4 += _heps; 
+
+			Render_Draw3DPlane (shadowTex, _x1,_y1,_z1, _x2,_y2,_z2, _x3,_y3,_z3, _x4,_y4,_z4, ARGB(255,255,255,255), 0, 0, 1, 1, 0, DTE_NOSHADER | DTE_3D_XYZ);
+		
+			//_ret = Scene_GetFloorZ (scene, posX, posY, posZ);
+			//if (_ret[0])
+			//	Render_DrawPlane (shadowTex, posX, posY, _ret[1]+0.1f, 100, 100, 0, ARGB(255,255,255,255), 0, 0, 1, 1, 0, DTE_NOSHADER | DTE_3D_XYZ);
+		}  
+	}
+
+	function SetEnabled (_v)
+	{
+		enabled = _v;
+		if (_v)
+		{ 
+			SetVisible (true);
+			game.SetItemEnabled (name);
+		}
+		SetCollisionable (_v);
+		Actor_SetFXColorAdd (this, 0);
+	}
+
+	function SetVisible (_v)
+	{
+		visible = _v;
+	}
+	
+	function GetVisible ()
+	{
+		return Actor_GetVisible (this, false);
+	}
+	
+	virtual Move ()
+	{
+		Blink_Move();
+	}
+	
+	function Blink_Move ()
+	{
+		if (enabled && Actor_Distance (stage.GetPlayer(), this) <= INTERACT_DISTANCE)
+		{
+			if (blinkMode)
+			{   	
+				if (blinkTimer <= 0.0f)
+				{
+					blinkState = !blinkState;
+					blinkTimer = 2.0f;
+					blinkTimes++;
+					if (blinkState && blinkTimes < 5)
+						Actor_SetFXColorAdd (this, -1);
+					else
+						Actor_SetFXColorAdd (this, 0);
+					if (blinkTimes >= 5)
+					{
+						blinkMode = !blinkMode;
+						blinkTimer = 50.0f;
+					}
+				}
+				else
+					blinkTimer -= GetFTime();
+			}
+			else
+			{
+				if (blinkTimer <= 0.0f)
+				{
+					blinkTimer = 2.0f;
+					blinkMode = !blinkMode;
+					blinkTimes = 0;
+				}  
+				else
+					blinkTimer -= GetFTime();
+			}
+		}
+		else if (blinkState)
+		{
+			blinkState = 0;
+			Actor_SetFXColorAdd (this, 0);
+		}
+	}
+	
+	function Debug_Dummies ()
+	{
+		DebugMsg ("========================================");
+		DebugMsg ("Actor:", name);
+		DebugMsg ("========================================");
+		_num = Actor_GetNumDummies (this);
+		for (i=0; i<_num; i++)
+		{
+			_name = Actor_GetDummyName (this, i);
+			DebugMsg (i, " :: ", _name);
+		}
+		DebugMsg ("========================================");
+	}
+	
+	function LoadSound2D(_name, _loop = false)
+	{
+		_snd = Actor_LoadSound(this, _name, _loop);
+		System_SetDirectory (DIRECTORY_SOUND, "data/sounds/");
+		if (_snd)
+		{
+			Sound_SetProperty (_snd, SOUND_API, ["ANECHOIC", false]);
+		}        
+		return  _snd; 
+	}
+	
+	function LoadSound (_name, _loop = false)
+	{
+		//_snd = Actor_LoadSound(this, _name, _loop);
+		System_SetDirectory (DIRECTORY_SOUND, "data/sounds/");
+		_snd = Actor_LoadSound3D (this, _name, _loop);
+		if (_snd)
+		{
+			Sound_SetProperty (_snd, SOUND_API, ["ANECHOIC", false]);
+		}        
+		return  _snd; 
+	}
+
+	function LoadSound3D (_name, _loop = false)
+	{
+		System_SetDirectory (DIRECTORY_SOUND, "data/sounds/");
+		_snd = Actor_LoadSound3D (this, _name, _loop);
+		if (_snd)
+		{
+			Sound_SetProperty (_snd, SOUND_API, ["ANECHOIC", true]);
+		}
+		return  _snd; 
+	}
+}

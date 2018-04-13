@@ -1,0 +1,81 @@
+class Service
+{
+	properties:
+		ddData = [];
+		animId = 0;
+
+		// Test para el rect de fuente
+		tr = [120, 20];
+		_font = null;
+		trtext = "ESTO ES UNA PASADA";
+		trta = DT_CENTER | DT_VCENTER; //DT_TOP | DT_LEFT;
+		ts = [0, 0];
+
+		slider = null;
+
+		_textdocMulti = null;
+	function Init()
+	{
+		_font = UI_CreateFont("GameFontNormal");
+		_font.SetFont("EUROSTIB", 40);
+
+		_text = "ASDFKASFJAS DFKASJDFKASD";
+
+		mainForm = UI_CreateFrame("UI_Frame", "mainForm");
+		//mainForm = uisystem.CreateFrame("UI_Frame", "mainForm"); // Es lo mismo
+		mainForm.SetBounds(10, 10, 800, 800);
+		mainForm.Show();
+		mainForm.HookEvent(UI_EVENT_CLICK, this, "OnClick");
+
+		_fs = mainform.CreateFontString("FS");
+		_fs.SetSize(300, 300);
+		_fs.EnableHTML();
+		_fs.SetFontObject(_font);
+		//_fs.SetText("|FFFF0000|Hola |FF00FF00|Manola <link url=\"http://www.nerlaska.com\">Nerlaska </link>");
+		_fs.SetText("Esto te lleva a la web de <link url=\"http://www.nerlaska.com\">Nerlaska es la number one de las</link>");
+		_fs.SetTopMost(true);
+		//_fs.SetTextHeight(150);
+		//_fs.SetAlpha(100);
+		_fs.Show();
+
+
+		tex = mainForm.CreateTexture("tex2");
+		tex.SetBounds(0, 0, 140, 140);
+		tex.SetTexture(255, 255, 255, 0);
+		tex.SetPin(UI_PIN_ALL);
+		//tex.SetVertexColor(255, 255, 255);
+		//tex.SetTexture("1.png");
+		tex.Show();
+
+		// f2 = UI_CreateFrame("UI_Frame", "form2");
+		// f2.SetBounds(150, 150, 200, 200);
+		// //f2.SetBounds(10, 10, 200, 200);
+		// f2.Show();
+		// tex = f2.CreateTexture("tex1");
+		// tex.PinToBounds();
+		// //tex.SetTexture("caja_tiempo.png");
+		// tex.SetTexture("back.png");
+		// f2.SetMask("mascara-slots.tga");
+		// f2.EnableMask(true, true);
+		// //tex.FlipHorizontal(true);
+		// tex.Show();
+		// f2.SetTopMost(true);
+
+		// slider = UI_CreateFrame("UI_Slider", "slider");
+		// slider.SetBounds(130, 150, 260, 30);
+		// _back = slider.CreateTexture();
+		// _back.SetTexture("ui/SkillTree/barra_naranja.png");
+		// _back.PinToBounds();
+		// _back.IncSize(-20, -15);
+		// _back.IncPosition(10, 7);
+		// _back.Show();
+		// _tex = slider.CreateTexture();
+		// _tex.SetTexture("btnPressed.png");
+		// _tex.SetSize(20, 30);
+		// slider.SetThumbTexture(_tex);
+		// slider.HookEvent(UI_EVENT_VALUE_CHANGED, this, "OnSliderValueChanged");
+		// //slider.SetStrata(UI_STRATA_HIGH);
+		// slider.Show();
+
+	}
+}

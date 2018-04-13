@@ -1,0 +1,1764 @@
+class UI_System implements UI_Globals
+{
+	globals:
+		suil_system = null;
+
+	properties:
+		spriteManager = null;
+		globalObjectHandler = null;
+		desktop = null;
+
+		// Gestion de foco y captura
+		frameCaptured = null;
+		frameFocused = null;
+		frameBelowMouse = null;
+		changingFocus = false;
+
+		// Input
+		keyboardHandler = null;
+		mouseHandler = null;
+		touchHandler = null;
+		gestureHandler = null;
+		disableInputCount = 0;
+		hitpoint = [0, 0];
+		hitpointCheckAlways = false;
+		clickThroughFrames = false;
+		//sendNoFocusMessagesToDesktop = false; // Para enviar los mensajes al desktop cuando no se tenga el foco
+		forceValidInputTarget = false;
+		ignoreDraggingFrames = true;
+		virtualKeyboardOpened = false;
+		originalDesktopHeight = 0;
+		autoResizeDesktopWithVirtualKeyboard = true;
+		internetTextureCacheFolder = null;
+		mouseWheelOverFrameIfEvent = true;
+		mouseWheelOverParentFrame = false;
+		autoTabManagement = false;
+		autoTabDesktopSequence = true;
+
+		doubleClickEnabled = false;
+		doubleClickTime = 700;
+		doubleClickInfo = []; // Privada
+
+		// Eventos
+		doHook = false;
+		eventManager = null;
+		//hookargs = null;
+		hookArgsPool = [];
+		maxUserEvents = 10;
+
+		//Dragging
+		dragging = false;
+		draggingRegion = null;
+
+		// fonts
+		fonts = [];
+
+		// Animaciones
+		animationService = null;
+
+		//Depuración
+		obsoleteMarks = null;
+		editorService = null;
+		objectCounter = 0;
+
+		i_updatingInput = false;
+
+	function _operator_new(_desktopName = "UI_Desktop", _params = [])
+	{
+#if !_UISYS_DISABLE_CHANGE_ADVICES_
+		SendChangeAdvise(["CAMBIO DE System_MouseMove y OnMouseMove:", "Los parametros de la funcion han cambiado a _btnId, _offx, _offy (antes era _offx, _offy).",
+			"En el evento UI_EVENT_MOUSE_MOVE y UI_SYS_MOUSE_MOVE también se modifica a _btnId, _offx, _offy (antes era _offx, _offy).", "Realizad las modificaciones oportunas."]);
+#endif
+
+		suil_system = this;
+
+		// Hacemos que los draws se pinten en entero en vez de flotante para evitar flick en animaciones
+		Render_SetProperty (RP_CAST2DCOORDSTOINT, true);
+
+		InitGlobalFunctions();
+		globalObjectHandler = Dictionary_New();
+
+		// Eventos
+		eventManager = EventManager_New(UI_SYS_MAX);
+		_hookargs = new UI_HookArgs();
+		hookArgsPool += [_hookargs];
+
+		// Sprite Manager
+		spriteManager = SpriteManager_New();
+		SpriteManager_SetVisible(spriteManager, true);
+		//SpriteManager_SetPriority(spriteManager, 10);
+
+		// Depuración
+		obsoleteMarks = Dictionary_New();
+
+		// Animaciones
+		animationService = Service_Run("UI_AnimationService", "UI_AnimationService", ["uiSystem", this]);
+
+		// Iniciamos el desktop
+		//desktop = CreateFrame(_desktopName, "UI_Desktop");
+		// No lo podemos iniciar con CreateFrame ya que si se usa el OnInit en el desktop aún no se tiene el system aún no tiene el puntero ligado.
+		desktop = Class_New(_desktopName, this, "UI_Desktop");
+		for(i = 0; i < sizeof(_params); i += 2)
+   		desktop._set(_params[i], _params[i + 1]);
+		RegisterObject(desktop);
+		desktop.OnInit();
+		desktop.Show();
+
+#if _UISYS_ENABLE_EDITOR_
+		editorService = CreateFrame("UI_EditorFrame", "UI_EditorFrame", desktop);
+#endif
+
+		System_AddEvent (SYSTEM_EVENT_VIRTUALKEYBOARD_OPENED, this, "OnVirtualKeyboardOpened");
+		System_AddEvent (SYSTEM_EVENT_VIRTUALKEYBOARD_CLOSED, this, "OnVirtualKeyboardClosed");
+	}
+
+	function _operator_delete()
+	{
+		System_RemoveEvent (SYSTEM_EVENT_VIRTUALKEYBOARD_OPENED, this);
+		System_RemoveEvent (SYSTEM_EVENT_VIRTUALKEYBOARD_CLOSED, this);
+
+		//if (editorService) Service_Delete(editorService);
+		if (editorService) delete editorService;
+
+		// Al destruir el desktop se destruye todo
+		delete desktop;
+
+		if (gestureHandler) delete gestureHandler;
+		if (keyboardHandler) delete keyboardHandler;
+		if (mouseHandler) delete mouseHandler;
+		if (touchHandler) delete touchHandler;
+
+		while(sizeof(fonts))
+		{
+			_item = fonts[0];
+			// Al borrarla se auto elimina de la lista
+			delete _item;
+		}
+
+		// Servicios
+		Service_Delete(animationService);
+		_textureService = Service_Get("UI_InternetTextureService");
+		if (_textureService) Service_Delete(_textureService);
+
+		EventManager_Delete(eventManager);
+		for (i = 0; i < sizeof(hookArgsPool); i++)
+		{
+			delete hookArgsPool[i];
+		}
+		hookArgsPool = [];
+
+		Dictionary_Delete(obsoleteMarks);
+
+		SpriteManager_Delete(spriteManager);
+
+		Dictionary_Delete(globalObjectHandler);
+
+		UninitGlobalFunctions();
+	}
+
+	function SetPriority(_value)
+	{
+		SpriteManager_SetPriority(spriteManager, _value);
+		CallEvent(UI_SYS_PRIORITY);
+	}
+
+	function GetPriority()
+	{
+		return SpriteManager_GetProperty(spriteManager, SPRITEMANAGER_PRIORITY);
+	}
+
+	function CheckHitPointAlways(_value)
+	{
+		hitpointCheckAlways = _value;
+	}
+
+	// Establece la carpeta de cache (debe terminar con /). Establecer null para desactivar el cache
+	function SetInternetTextureCacheFolder(_folder)
+	{
+		internetTextureCacheFolder = _folder;
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Gestion de foco y captura del input
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function GetFrameFocused()
+	{
+		return frameFocused;
+	}
+
+	function Core_DoValidation()
+	{
+		_tmpCF = frameFocused;
+		if (_tmpCF && _tmpCF.doValidation)
+		{
+			if (_tmpCF.System_Validating())
+			{
+				if (!_tmpCF.GetDestroyed())
+					_tmpCF.System_Validated();
+			}
+			else
+			{
+				DebugMsg("Validation FAILED. Control:", _tmpCF.GetName());
+				return false;
+			}
+		}
+		return true;
+	}
+
+	function Focus(_frame)
+	{
+		//DebugMsg("FOCUS", NameOrNull(_frame));
+		if (!Core_DoValidation()) return false;
+
+		if (forceValidInputTarget && _frame == null)
+		{
+			_frame = desktop;
+		}
+
+		return Core_Focus(_frame);
+	}
+
+	function Core_Focus(_frame)
+	{
+		//DebugMsg("SET FOCUS", _frame == NULL?"NULL":_frame.GetName(), "FRAMFOCUSED", NameOrNull(frameFocused), "CHANGING FOCUS", changingFocus);
+
+		if (frameFocused == _frame) return true;
+		if (changingFocus) return false;
+		changingFocus = true;
+
+		if (_frame != null && !_frame.CanSelect())
+		{
+			//DebugMsg("NOP!");
+			changingFocus = false;
+			return false; // return true
+		}
+
+		//DebugMsg("SET FOCUS", _frame == NULL?"NULL":_frame.GetName());
+
+
+		_lastframeFocused = frameFocused;
+		//frameFocused = null; << Estaba descomentado
+
+		// Antes de establecer el foco, lo quitamos de donde estaba.
+		if (_lastframeFocused != null)
+			_lastframeFocused.System_FocusLeave(_lastframeFocused, _frame);
+
+		frameFocused = _frame;
+		//DebugMsg("SET FOCUS ", frameFocused?frameFocused.GetName():"NULL", "- LOST FOCUS", _lastframeFocused?_lastframeFocused.GetName():"NULL");
+
+		// Establecemos el foco
+		if (frameFocused != null)
+			frameFocused.System_FocusEnter(_lastframeFocused, _frame);
+
+		changingFocus = false;
+		return true;
+	}
+
+	// Captura un control. ESTO DEBERÍA HACERSE SOLO DESDE UN TOUCHDOWN.
+	function CaptureCursor(_frame)
+	{
+		//DebugMsg("CaptureCursor", NameOrNull(_frame));
+		if (dragging || frameCaptured == _frame) return;
+		_oldFrame = frameCaptured;
+
+		frameCaptured = _frame;
+
+		if (frameCaptured) frameCaptured.System_CaptureChanged(frameCaptured, _oldFrame);
+		if (_oldFrame) _oldFrame.System_CaptureChanged(frameCaptured, _oldFrame);
+	}
+
+
+	function EnableClickThroughFrames()
+	{
+		clickThroughFrames = true;
+	}
+
+	function DisableClickThroughFrames()
+	{
+		clickThroughFrames = false;
+	}
+
+	function EnableAnimations()
+	{
+		Service_Start(animationService);
+	}
+
+	function DisableAnimations()
+	{
+		Service_Stop(animationService);
+	}
+
+	function CanClickThroughFrames()
+	{
+		return clickThroughFrames;
+	}
+
+	function EnableForceValidInputTarget()
+	{
+		forceValidInputTarget = true;
+		if (frameFocused == null)
+		{
+			if (!desktop.CanSelect()) desktop.SetSelectable(true);
+			Focus(desktop);
+		}
+	}
+
+	function DisableForceValidInputTarget()
+	{
+		forceValidInputTarget = false;
+	}
+
+	function EnableMouseWheelOverFrameIfEvent()
+	{
+		mouseWheelOverFrameIfEvent = true;
+	}
+
+	function DisableMouseWheelOverFrameIfEvent()
+	{
+		mouseWheelOverFrameIfEvent = false;
+	}
+
+	function EnableMouseWheelOverParentFrame()
+	{
+		mouseWheelOverParentFrame = true;
+	}
+
+	function DisableMouseWheelOverParentFrame()
+	{
+		mouseWheelOverParentFrame = false;
+	}
+
+	function EnableDoubleClick()
+	{
+		doubleClickEnabled = true;
+	}
+
+	function DisableDoubleClick()
+	{
+		doubleClickEnabled = false;
+	}
+
+	function SetDoubleClickTime(_time)
+	{
+		doubleClickTime = _time;
+	}
+
+	function EnableAutoTabManagement()
+	{
+		autoTabManagement = true;
+	}
+
+	function DisableAutoTabManagement()
+	{
+		autoTabManagement = false;
+	}
+
+	function EnableAutoTabDesktopSequence()
+	{
+		autoTabDesktopSequence = true;
+	}
+
+	function DisableAutoTabDesktopSequence()
+	{
+		autoTabDesktopSequence = false;
+	}
+
+
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Drag & Drop
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function IsDragging()
+	{
+		return dragging;
+	}
+
+	function StartDragging(_frame)
+	{
+		if (dragging)
+		{
+			CancelDragging();
+		}
+
+		// Liberamos el control si está capturado
+		// if (frameCaptured != null)
+		// {
+		// 	//if (!controlWithMouse->CanReceieveMouseIOWhileDragging())
+		// 	frameCaptured.System_MouseLeave();
+		// }
+
+		//CaptureCursor(null); // Quitamos la captura
+		CaptureCursor(_frame); // Mantenemos el cursor sobre el frame que se mueve para que reciba las notificaciones
+		dragging = true;
+		draggingRegion = _frame;
+		draggingRegion.dragging = true;
+		draggingRegion.System_DragStart();
+		// //lastCursorSetWhileDragging = currentCursor;
+		// dragData.Clear();
+		// dragData.Start(_window, _data, _dragDropEffect, _mouseButton);
+		// dragData.target = controlWithMouse;
+
+		// if (!CheckMouseInAllFrames)
+		// {
+		// 	_mx = Cursor_GetX();
+		// 	_my = Cursor_GetY();
+		// 	Core_CheckMouseMovement(_mx, _my);
+		// }
+
+		// SendDragFeedback(-1);
+		UpdateInputByEvent();
+	}
+
+	function FinishDragging(_cancel = false)
+	{
+		//DebugMSg("FinishDragging", dragging);
+		if (!dragging) return;
+
+		if (!_cancel && frameBelowMouse != null)
+		{
+			_point = frameBelowMouse.PointToClient(Cursor_GetX(), Cursor_GetY());
+			_mx = _point[0];
+			_my = _point[1];
+			frameBelowMouse.System_DragReceived(draggingRegion, _mx, _my);
+			//DebugMsg("Drag On Frame", frameBelowMouse.GetName());
+		}
+
+		draggingRegion.System_DragEnd(frameBelowMouse, _cancel);
+		draggingRegion.dragging = false;
+
+		dragging = false;
+		draggingRegion = null;
+		CaptureCursor(null);
+		UpdateInputByEvent();
+	}
+
+	function CancelDragging()
+	{
+		FinishDragging(true);
+	}
+
+	function SetIgnoreDraggingFrames(_value)
+	{
+		ignoreDraggingFrames = _value;
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Input
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	// Funcion que deberíamos utilizar cuando se realice un evento (se cierra/mueve/abre un frame) para actualizar el cursor.
+	// Lo ideal es comprobar el cursor en cada frame, pero cuesta demasiados fps.
+	function LockLayoutUpdate()
+	{
+		i_updatingInput = true;
+	}
+
+	function UnlockLayoutUpdate()
+	{
+		i_updatingInput = false;
+		UpdateInputByEvent();
+	}
+
+	function UpdateInputByEvent()
+	{
+		if (i_updatingInput) return;
+		i_updatingInput = true;
+		Core_CheckMouseMovement(Cursor_GetX(), Cursor_GetY());
+		i_updatingInput = false;
+	}
+
+	function EnableInput()
+	{
+		disableInputCount--;
+		if (disableInputCount < 0) disableInputCount = 0;
+
+		if (disableInputCount == 0)
+		{
+			if (keyboardHandler) EnableKeyboard();
+			if (touchHandler) EnableTouch();
+			if (mouseHandler) EnableMouse();
+		}
+		//DebugMSg("EnableInput", disableInputCount);
+	}
+
+	function DisableInput()
+	{
+		if (disableInputCount == 0)
+		{
+			if (keyboardHandler) DisableKeyboard();
+			if (touchHandler) DisableTouch();
+			if (mouseHandler) DisableMouse();
+		}
+
+		disableInputCount++;
+		//DebugMSg("DisableInput", disableInputCount);
+	}
+
+	function IsInputEnabled()
+	{
+		return disableInputCount == 0;
+	}
+
+	function IsMouseLeft(_id)
+	{
+		if (mouseHandler)
+			return _id == MOUSE_LEFT;
+		if (touchHandler)
+			return _id == touchHandler.firstTouchId;
+		return false;
+	}
+
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+	// SUBSECTION: Teclado
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+
+	function EnableKeyboard()
+	{
+		if (!keyboardHandler)
+		{
+			keyboardHandler = new UI_InputKeyboard();
+			keyboardHandler.HookEvent(UI_INPUTEV_KEYDOWN, this, "InputEventKeyDown");
+			keyboardHandler.HookEvent(UI_INPUTEV_KEYUP, this, "InputEventKeyUp");
+			keyboardHandler.HookEvent(UI_INPUTEV_KEYCHAR, this, "InputEventChar");
+		}
+
+		if (keyboardHandler.IsEnabled()) return;
+		keyboardHandler.Enable();
+	}
+
+	function DisableKeyboard()
+	{
+		if (!keyboardHandler || !keyboardHandler.IsEnabled()) return;
+		keyboardHandler.Disable();
+	}
+
+	function InputEventKeyDown(_sender, _event, _params)
+	{
+		_key = _params[0];
+
+		_dest = frameFocused;
+		//if (!_dest) _dest = desktop;
+
+		if (doHook)
+		{
+			_hookArgs = Core_GetHookArgsPool();
+			_hookArgs.Clear(_dest, [_key]);
+			CallEvent(UI_SYS_KEYDOWN, [_hookArgs]);
+			Core_AddToHookArgsPool(_hookArgs);
+			_cancel = _hookArgs.cancel;
+			if (_cancel)
+				return;
+		}
+
+		if (autoTabManagement)
+		{
+			if (_key == KEY_TAB)
+			{
+				if (_dest)
+				{
+					_hookArgs = Core_GetHookArgsPool();
+					_hookArgs.Clear(_dest, []);
+					CallEvent(UI_SYS_TAB_PRESSED, [_hookArgs]);
+					Core_AddToHookArgsPool(_hookArgs);
+					_cancel = _hookArgs.cancel;
+					if (_cancel)
+						return;
+
+					if (autoTabDesktopSequence)
+						desktop.SelectNextFrame(_dest, !IsShiftPressed(), true, true, true);
+
+					// _parent = _dest.GetParent();
+					// if (_parent)
+					// 	_parent.SelectNextFrame(_dest, !IsShiftPressed(), true, true, true);
+					// else
+					// 	_dest.SelectNextFrame(null, !IsShiftPressed(), true, true, true);
+				}
+
+				_dest = null;
+			}
+		}
+
+		if (_dest)
+			_dest.System_KeyDown(_key);
+	}
+
+	function InputEventKeyUp(_sender, _event, _params)
+	{
+		_key = _params[0];
+		_dest = frameFocused;
+		//if (!_dest) _dest = desktop;
+
+		if (doHook)
+		{
+			_hookArgs = Core_GetHookArgsPool();
+			_hookArgs.Clear(_dest, [_key]);
+			CallEvent(UI_SYS_KEYUP, [_hookArgs]);
+			Core_AddToHookArgsPool(_hookArgs);
+			_cancel = _hookArgs.cancel;
+			if (_cancel)
+				return;
+		}
+
+		if (_dest)
+			_dest.System_KeyUp(_key);
+	}
+
+	function InputEventChar(_sender, _event, _params)
+	{
+		_char = _params[0];
+		// DebugMsg("InputEventChar Start", _char);
+		_dest = frameFocused;
+		if (!_dest) _dest = desktop;
+
+		if (doHook)
+		{
+			// DebugMsg("InputEventChar HOOK Start", _char);
+			_hookArgs = Core_GetHookArgsPool();
+			_hookArgs.Clear(_dest, [_char]);
+			CallEvent(UI_SYS_CHAR, [_hookArgs]);
+			Core_AddToHookArgsPool(_hookArgs);
+			_cancel = _hookArgs.cancel;
+			// DebugMsg("InputEventChar HOOK End", _char, "CANCEL", _cancel);
+			if (_cancel)
+				return;
+		}
+
+		// DebugMsg("InputEventChar FRAME", _char, "_dest", _dest);
+		if (_dest)
+			_dest.System_Char(_char);
+		// DebugMsg("InputEventChar End", _char);
+	}
+
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+	// SUBSECTION: Touch
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+
+	function EnableTouch()
+	{
+		if (!touchHandler)
+		{
+			touchHandler = new UI_InputTouch();
+			touchHandler.HookEvent(UI_INPUTEV_TOUCHDOWN, this, "InputEventTouchDown");
+			touchHandler.HookEvent(UI_INPUTEV_TOUCHUP, this, "InputEventTouchUp");
+			touchHandler.HookEvent(UI_INPUTEV_TOUCHMOVE, this, "InputEventTouchMove");
+		}
+
+		if (touchHandler.IsEnabled()) return;
+		touchHandler.Enable();
+
+		if (mouseHandler && mouseHandler.IsEnabled())
+		{
+			delete mouseHandler;
+			mouseHandler = null;
+		}
+	}
+
+	function DisableTouch()
+	{
+		if (!touchHandler || !touchHandler.IsEnabled()) return;
+		touchHandler.Disable();
+	}
+
+	function InputEventTouchDown(_sender, _event, _params)
+	{
+		//_btnId = _params[0];
+		_id = _params[0];
+		_x = _params[1];
+		_y = _params[2];
+		_z = _params[3];
+		_count = _params[4];
+
+		InputEventMouseDown(_sender, _event, [_id, _x, _y]);
+/*
+		// Actualizamos la posicion del puntero
+		//SendTouchMovement(_btnId, _x, _y);
+
+		_frame = GetFrameOnPoint(_x, _y);
+		if (_frame == null) return;
+
+		//DebugMsg("FRAME OVER POINT", _frame.GetName());
+
+		// _hookArgs = new UI_HookArgs(_frame, [_btnId, _x, _y]);
+		// Core_CallHook(UI_HOOK_TOUCH_DOWN, _hookArgs);
+		// _cancel = _hookArgs.cancel;
+		// delete _hookArgs;
+		// if (_cancel) return;
+
+		_frame.System_TouchDown(_id, _x, _y, _count);
+
+		// _time = GetTick();
+		// //_eventId, _seqId, _x, _y, _z, _time)
+		// Core_AddGestureInput(INPUT_EVENT_PRESSED, _id + 100, _x, _y, _z, _time);
+*/
+	}
+
+	function InputEventTouchUp(_sender, _event, _params)
+	{
+		_id = _params[0];
+		_x = _params[1];
+		_y = _params[2];
+		_z = _params[3];
+		_count = _params[4];
+		InputEventMouseUp(_sender, _event, [_id, _x, _y]);
+
+/*
+		// _time = GetTick();
+		// Core_AddGestureInput(INPUT_EVENT_RELEASED, _id + 100, _x, _y, _z, _time);
+
+		// Actualizamos la posicion del puntero
+		//SendTouchMovement(_btnId, _x, _y);
+
+		if (frameCaptured && GetFrameOnPoint(_x, _y) == frameCaptured && frameCaptured.btnPressed)
+		{
+			if (frameCaptured)
+			{
+				frameCaptured.System_TouchClick(_id, _x, _y);
+			}
+		}
+
+		// _hookArgs = new UI_HookArgs(frameCaptured, [_btnId, _x, _y]);
+		// Core_CallHook(UI_HOOK_TOUCH_UP, _hookArgs);
+		// _cancel = _hookArgs.cancel;
+		// delete _hookArgs;
+		// if (_cancel) return;
+
+		if (frameCaptured)
+			frameCaptured.System_TouchUp(_btnId, _x, _y, _count);
+*/
+	}
+
+	function InputEventTouchMove(_sender, _event, _params)
+	{
+		_id = _params[0];
+		_x = _params[1];
+		_y = _params[2];
+		_z = _params[3];
+		_offx = _params[4];
+		_offy = _params[5];
+		_offz = _params[6];
+
+		InputEventMouseMove(_sender, _event, [_x, _y, _offx, _offy, _id]);
+
+		// _hookArgs = new UI_HookArgs(frameCaptured, [_btnId, _x, _y, _offx, _offy]);
+		// Core_CallHook(UI_HOOK_TOUCH_MOVE, _hookArgs);
+		// _cancel = _hookArgs.cancel;
+		// delete _hookArgs;
+		// if (_cancel) return;
+
+		// if (frameCaptured)
+		// 	frameCaptured.System_TouchMove(_btnId, _x, _y, _offx, _offy);
+
+		// _time = GetTick();
+		// Core_AddGestureInput(INPUT_EVENT_MOVED, _id + 100, _x, _y, _z, _time);
+	}
+
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+	// SUBSECTION: Mouse
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+
+	function EnableMouse()
+	{
+		if (!mouseHandler)
+		{
+			mouseHandler = new UI_InputMouse();
+			mouseHandler.HookEvent(UI_INPUTEV_MOUSEMOVE, this, "InputEventMouseMove");
+			mouseHandler.HookEvent(UI_INPUTEV_MOUSEDOWN, this, "InputEventMouseDown");
+			mouseHandler.HookEvent(UI_INPUTEV_MOUSEUP, this, "InputEventMouseUp");
+			mouseHandler.HookEvent(UI_INPUTEV_MOUSEWHEEL, this, "InputEventMouseWheel");
+		}
+
+		if (mouseHandler.IsEnabled()) return;
+		mouseHandler.Enable();
+
+		if (touchHandler && touchHandler.IsEnabled())
+		{
+			delete touchHandler;
+			touchHandler = null;
+		}
+	}
+
+	function DisableMouse()
+	{
+		if (!mouseHandler || !mouseHandler.IsEnabled()) return;
+		mouseHandler.Disable();
+	}
+
+	function InputEventMouseDown(_sender, _event, _params)
+	{
+		//DebugMsg("MOUSEDOWN,", _params);
+		_btnId = _params[0];
+		_x = _params[1];
+		_y = _params[2];
+		Core_CheckMouseMovement(_x, _y);
+
+		_frame = GetFrameOnPoint(_x, _y, true);
+
+		if (doHook)
+		{
+			_hookArgs = Core_GetHookArgsPool();
+			_hookArgs.Clear(_frame, [_btnId, _x, _y]);
+			CallEvent(UI_SYS_MOUSE_DOWN, [_hookArgs]);
+			Core_AddToHookArgsPool(_hookArgs);
+			_cancel = _hookArgs.cancel;
+			if (_cancel)
+				return;
+		}
+
+		if (_frame == null) return;
+
+		//DebugMsg("FRAME OVER POINT", NameOrNull(_frame));
+		_frame.System_MouseDown(_btnId, _x, _y);
+
+		//Core_CheckMouseMovement(_x, _y);
+	}
+
+	function InputEventMouseUp(_sender, _event, _params)
+	{
+		//DebugMsg("MOUSEUP,", _params);
+		_btnId = _params[0];
+		_x = _params[1];
+		_y = _params[2];
+		Core_CheckMouseMovement(_x, _y);
+
+		if (doHook)
+		{
+			_hookArgs = Core_GetHookArgsPool();
+			_hookArgs.Clear(frameCaptured, [_btnId, _x, _y]);
+			CallEvent(UI_SYS_MOUSE_UP, [_hookArgs]);
+			Core_AddToHookArgsPool(_hookArgs);
+			_cancel = _hookArgs.cancel;
+			if (_cancel)
+				return;
+		}
+
+		//DebugMsg("FRAME CAPTURED", frameCaptured);
+
+		if (frameCaptured)
+		{
+			if (GetFrameOnPoint(_x, _y, true) == frameCaptured && frameCaptured.btnPressed)
+			{
+				//frameCaptured.System_MouseClick(_btnId, _x, _y);
+				_sendDoubleClick = false;
+
+				if (doubleClickEnabled &&
+					sizeof(doubleClickInfo) > 0 && doubleClickInfo[0] == _btnId &&
+						(GetTime() - doubleClickInfo[1]) < doubleClickTime &&
+						frameCaptured == doubleClickInfo[2])
+					_sendDoubleClick = true;
+
+				if (_sendDoubleClick && doubleClickEnabled)
+				{
+					frameCaptured.System_MouseDoubleClick(_btnId, _x, _y);
+					doubleClickInfo = [];
+				}
+				else
+				{
+					frameCaptured.System_MouseClick(_btnId, _x, _y);
+					doubleClickInfo = [_btnId, GetTime(), frameCaptured];
+				}
+			}
+
+			// Puede que se borre el frame en el click
+			if (frameCaptured) frameCaptured.System_MouseUp(_btnId, _x, _y);
+		}
+
+		Core_CheckMouseMovement(_x, _y);
+	}
+
+	function InputEventMouseMove(_sender, _event, _params)
+	{
+		_x = _params[0];
+		_y = _params[1];
+		_offx = _params[2];
+		_offy = _params[3];
+		_id = _params[4]; // Para el touch, 0 en mouse
+		Core_CheckMouseMovement(_x, _y);
+
+		if (doHook)
+		{
+			_hookArgs = Core_GetHookArgsPool();
+			_hookArgs.Clear(frameCaptured, [_id, _offx, _offy]);
+			CallEvent(UI_SYS_MOUSE_MOVE, [_hookArgs]);
+			Core_AddToHookArgsPool(_hookArgs);
+			_cancel = _hookArgs.cancel;
+			if (_cancel)
+				return;
+		}
+
+		if (frameCaptured)
+			frameCaptured.System_MouseMove(_id, _offx, _offy);
+		else if (frameBelowMouse && frameBelowMouse.receiveMouseMoveAlways)
+		{
+			frameBelowMouse.System_MouseMove(_id, _offx, _offy);
+		}
+
+		if (sizeof(doubleClickInfo) > 0 && frameCaptured == doubleClickInfo[2]) //doubleClickInfo[0] == _btnId &&	(GetTime() - doubleClickInfo[1]) < doubleClickTime &&
+			doubleClickInfo = [];
+	}
+
+	function InputEventMouseWheel(_sender, _event, _params)
+	{
+		_toFrame = null;
+		_z = _params[0];
+
+		if (frameCaptured) _toFrame = frameCaptured;
+		else
+		{
+			_frame = GetFrameOnPoint(Cursor_GetX(), Cursor_GetY(), true);
+			if (_frame != null)
+			{
+				if (mouseWheelOverFrameIfEvent && _frame != desktop)
+				{
+					if (mouseWheelOverParentFrame)
+					{
+						//DebugMsg("4", NameOrNull(_frame));
+						_toFrame = _frame;
+						while (_toFrame != desktop)
+						{
+							//DebugMsg(NameOrNull(_toFrame), "REGISTER", _toFrame.HasEventRegistered(UI_EVENT_MOUSE_WHEEL));
+							if (_toFrame.HasEventRegistered(UI_EVENT_MOUSE_WHEEL))
+							{
+								break;
+							}
+							else
+								_toFrame = _toFrame.GetParent();
+						}
+						//DebugMsg("5", NameOrNull(_toFrame));
+					}
+					else
+					{
+						if (_frame.HasEventRegistered(UI_EVENT_MOUSE_WHEEL))
+						{
+							_toFrame = _frame;
+						}
+						else _toFrame = desktop;
+					}
+				}
+				else
+					_toFrame = _frame;
+			}
+		}
+
+		if (doHook)
+		{
+			_hookArgs = Core_GetHookArgsPool();
+			_hookArgs.Clear(_toFrame, [_z]);
+			CallEvent(UI_SYS_MOUSE_WHEEL, [_hookArgs]);
+			Core_AddToHookArgsPool(_hookArgs);
+			_cancel = _hookArgs.cancel;
+			if (_cancel)
+				return;
+		}
+
+		if (_toFrame) _toFrame.System_MouseWheel(_z);
+	}
+
+	function Core_CheckMouseMovement(_mx, _my)
+	{
+//		_mx = Cursor_GetX();
+//		_my = Cursor_GetY();
+		// Aunque no se mueva el ratón tendremos que comprobar el control de debajo por si algun evento como destruirlo o una animacio
+		// cambian el control de debajo de el.
+
+		//DebugMsg("DMARK Core_CheckMouseMovement", _mx, _my, "dragging", dragging);
+		if (frameCaptured == null || dragging)
+		{
+			_frame = GetFrameOnPoint(_mx, _my);
+			//DebugMsg("Control Over Point", NameOrNull(_frame)); // .GetName(), _frame.allowDrop
+			if (_frame != frameBelowMouse)
+			{
+				if (frameBelowMouse != null)
+				{
+					_hookArgs = Core_GetHookArgsPool();
+					_hookArgs.Clear(frameBelowMouse, []);
+					CallEvent(UI_SYS_LEAVE, [_hookArgs]);
+					Core_AddToHookArgsPool(_hookArgs);
+					_cancel = _hookArgs.cancel;
+					if (_cancel)
+						return;
+
+					// if (dragging)
+					// {
+					// 	if (frameBelowMouse.allowDrop)
+					// 		frameBelowMouse.System_DragLeave(dragData);
+					// }
+					// else
+						frameBelowMouse.System_MouseLeave();
+				}
+
+				frameBelowMouse = _frame;
+				//if (dragging) dragData.target = frameBelowMouse;
+
+				if (frameBelowMouse != null)
+				{
+					_hookArgs = Core_GetHookArgsPool();
+					_hookArgs.Clear(frameBelowMouse, []);
+					CallEvent(UI_SYS_ENTER, [_hookArgs]);
+					Core_AddToHookArgsPool(_hookArgs);
+					_cancel = _hookArgs.cancel;
+					if (_cancel)
+						return;
+
+					// if (dragging)
+					// {
+					// 	if (frameBelowMouse.allowDrop)
+					// 	{
+					// 		frameBelowMouse.System_DragEnter(dragData);
+					// 	}
+					// 	else
+					// 		SetDragDropEffect(SUI_DRAG_EFFECT_NONE);
+					// }
+					// else
+						frameBelowMouse.System_MouseEnter();
+
+					// if (!dragging)
+					// 	frameBelowMouse.System_SetCursor();
+				}
+			}
+		}
+
+		// if (frameBelowMouse != null)
+		// {
+		// 	_point = frameBelowMouse.PointToClient(_mx, _my);
+		// 	_cmx = _point[0];
+		// 	_cmy = _point[1];
+
+		// 	if (dragging)
+		// 	{
+		// 		if (frameBelowMouse.allowDrop)
+		// 			frameBelowMouse.System_DragOver(dragData, _cmx, _cmy);
+		// 		else
+		// 			SetDragDropEffect(SUI_DRAG_EFFECT_NONE);
+		// 	}
+		// 	else
+		// 	{
+		// 		//DebugMsg("Control With Mouse", NameOrNull(frameBelowMouse));
+		// 		if (lastMousePosition[0] != _mx || lastMousePosition[1] != _my)
+		// 			frameBelowMouse.System_MouseMove(_cmx, _cmy);
+		// 	}
+
+		// 	//DebugMsg(lastMousePosition, _mx, _my, sizeof(doubleClickInfo));
+		// 	// if ((_mx != -1 && _my != -1) &&
+		// 	// 	 (lastMousePosition[0] != _mx || lastMousePosition[1] != _my) &&
+		// 	// 	 sizeof(doubleClickInfo) > 0 && frameBelowMouse == doubleClickInfo[2]) //doubleClickInfo[0] == _btnId &&	(GetTime() - doubleClickInfo[1]) < doubleClickTime &&
+		// 	// 	doubleClickInfo = [];
+		// }
+
+		//lastMousePosition = [_mx, _my];
+	}
+
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+	// SUBSECTION: Gestures
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+
+	// function EnableGestures()
+	// {
+	// 	if (!gestureHandler)
+	// 	{
+	// 		gestureHandler = new GestureManager(this);
+	// 		touchHandler.HookEvent(UI_INPUTEV_TOUCHDOWN, this, "InputEventTouchDown");
+	// 		touchHandler.HookEvent(UI_INPUTEV_TOUCHUP, this, "InputEventTouchUp");
+	// 		touchHandler.HookEvent(UI_INPUTEV_TOUCHMOVE, this, "InputEventTouchMove");
+	// 	}
+
+	// 	if (gestureHandler.IsEnabled()) return;
+	// 	gestureHandler.Enable();
+	// }
+
+	// function DisableGestures()
+	// {
+	// 	if (!gestureHandler || !gestureHandler.IsEnabled()) return;
+	// 	gestureHandler.Disable();
+	// }
+
+	// function Core_AddGestureInput(_eventId, _seqId, _x, _y, _z, _time)
+	// {
+	// 	if (!gestureHandler) return;
+	// 	gestureHandler.AddInput(_eventId, _seqId, _x, _y, _z, _time);
+
+	// 	CheckForGestures();
+	// }
+
+	// function Core_GestureRecognized(_gesture)
+	// {
+	// 	// _args = new SUI_HookArgs;
+	// 	// _args.Init(frameBelowMouse, [_gesture]);
+	// 	// HookGestureRecognized.Call([_args]);
+	// 	// _cancel = _args.cancel;
+	// 	// delete _args;
+	// 	// if (_cancel) return;
+
+	// 	if (frameCaptured == null || !IsInputEnabled() || frameCaptured.destroyed) return;
+
+	// 	if (frameCaptured)
+	// 		frameCaptured.System_GestureRecognized(_gesture);
+	// }
+
+
+	// function CheckForGestures()
+	// {
+	// 	gestureHandler.Move();
+	// 	if (gestureHandler.HasGestures())
+	// 	{
+	// 		_gestures = gestureHandler.ReadGestures();
+	// 		for (i = 0; i < sizeof(_gestures); i++)
+	// 		{
+	// 			_gesture = _gestures[i];
+	// 			// if (_gesture.type == GESTURE_TYPE_FLICK)
+	// 			//DebugMsg("DMARK GESTURE:", _gesture.ToString());
+	// 			Core_GestureRecognized(_gesture);
+	// 		}
+	// 	}
+	// }
+
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+	// SUBSECTION: Ayuda
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+
+	function IsControlPressed()
+	{
+		return Input_IsKeyPressed(KEY_LCONTROL) || Input_IsKeyPressed(KEY_RCONTROL);
+	}
+
+	function IsShiftPressed()
+	{
+		return Input_IsKeyPressed(KEY_LSHIFT) || Input_IsKeyPressed(KEY_RSHIFT);
+	}
+
+	function IsAltPressed()
+	{
+		return Input_IsKeyPressed(KEY_LALT) || Input_IsKeyPressed(KEY_RALT);
+	}
+
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+	// SUBSECTION: Virtual Keyboard
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+
+	function SetAutoResizeDesktopWithVirtualKeyboard(_value)
+	{
+		if (virtualKeyboardOpened) CloseVirtualKeyBoard();
+		autoResizeDesktopWithVirtualKeyboard = _value;
+	}
+
+	function OpenVirtualKeyboard(_caller = null)
+	{
+		if (virtualKeyboardOpened) CloseVirtualKeyBoard();
+		originalDesktopHeight = desktop.GetHeight();
+
+		_hookArgs = Core_GetHookArgsPool();
+		_hookArgs.Clear(_caller, [_caller]);
+		CallEvent(UI_SYS_OPEN_VIRTUAL_KEYBOARD, [_hookArgs]);
+		Core_AddToHookArgsPool(_hookArgs);
+		_cancel = _hookArgs.cancel;
+		if (_cancel)
+			return;
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+		System_OpenVirtualkeyBoard();
+#else
+		OnVirtualKeyboardOpened();
+#endif
+	}
+
+	function CloseVirtualKeyBoard(_caller = null)
+	{
+		if (!virtualKeyboardOpened) return;
+
+		if (autoResizeDesktopWithVirtualKeyboard)
+		{
+			desktop.SetHeight(originalDesktopHeight);
+			//mainForm.SetHeight(RESY);
+			//DebugMsg("VK CLOSE SETTING RES", RESY);
+		}
+
+		_hookArgs = Core_GetHookArgsPool();
+		_hookArgs.Clear(_caller, [_caller]);
+		CallEvent(UI_SYS_CLOSE_VIRTUAL_KEYBOARD, [_hookArgs]);
+		Core_AddToHookArgsPool(_hookArgs);
+		_cancel = _hookArgs.cancel;
+		if (_cancel)
+			return;
+
+#if __OS_ANDROID__ || __OS_IOS__ || _UISYS_SIMULATE_IOS_
+		System_CloseVirtualKeyboard();
+#else
+		OnVirtualKeyboardClosed();
+#endif
+	}
+
+	function OnVirtualKeyboardOpened()
+	{
+		if (virtualKeyboardOpened) return;
+		virtualKeyboardOpened = true;
+
+		if (autoResizeDesktopWithVirtualKeyboard)
+		{
+			originalDesktopHeight = desktop.GetHeight();
+			_size = System_GetParam(SP_VIRTUALKEYBOARD_HEIGHT);
+			desktop.SetHeight(originalDesktopHeight - _size);
+			//DebugMsg("Virtual Keyboard Open", _size, "RES", RESY);
+		}
+	}
+
+	function OnVirtualKeyboardClosed()
+	{
+		virtualKeyboardOpened = false;
+	}
+
+	function IsVirtualKeyboardOpened()
+	{
+		return virtualKeyboardOpened;
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Clipboard
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function ClipboardHasText()
+	{
+		_text = System_CopyFromClipboard();
+		return strlen(_text) != 0;
+	}
+
+	function ClipboardGetText()
+	{
+		return System_CopyFromClipboard();
+	}
+
+	function ClipboardSetText(_text)
+	{
+		System_PasteToClipboard(_text);
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Funciones Globales
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function InitGlobalFunctions()
+	{
+		System_AddScriptGlobalFunction("UI_GetSystem", this, "GetSystem");
+		System_AddScriptGlobalFunction("UI_CreateFrame", this, "CreateFrame");
+		System_AddScriptGlobalFunction("UI_CreateFont", this, "CreateFont");
+		System_AddScriptGlobalFunction("UI_GetObject", this, "GetObject");
+		System_AddScriptGlobalFunction("UI_GetTick", this, "GetTick");
+		System_AddScriptGlobalFunction("UI_GetDesktop", this, "GetDesktop");
+		System_AddScriptGlobalFunction("UI_GetFrameOnCursor", this, "GetFrameOnCursor");
+		System_AddScriptGlobalFunction("UI_LoadTemplate", this, "LoadTemplate");
+	}
+
+	function UninitGlobalFunctions()
+	{
+	}
+
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+	// SUBSECTION: Sistema
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+
+	function GetSystem()
+	{
+		return this;
+	}
+
+	function GetTick()
+	{
+		//return int(GetHiResTime() * 1000.0f);
+		return GetTime(); // Ahora mismo, la precision del GetTime es de 1ms ya que se usa TimeGetTime con el periodo a 1 en el engine
+	}
+
+	function GetDesktop()
+	{
+		return desktop;
+	}
+
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+	// SUBSECTION: Objetos
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+
+	function GetObject(_name)
+	{
+		return Dictionary_GetItem(globalObjectHandler, _name);
+	}
+
+	// No usar desde fuera de la UI
+	function RegisterObject(_object)
+	{
+		objectCounter++;
+
+#if _UISYS_DISABLE_GLOBAL_NAME_
+		return;
+#endif
+
+		_name = _object.GetName();
+
+#if _UISYS_NAME_NOT_EMPTY_
+		DebugAssert(!suil_library.String_IsEmptyOrNull(_name));
+		// if (suil_library.String_IsEmptyOrNull(_name))
+		// {
+		// 	exitMsg("UI_ERROR: El frame debe tener un nombre.");
+		// }
+#endif
+
+		if (suil_library.String_IsEmptyOrNull(_name)) return;
+
+// 		_hasItem = Dictionary_GetItem(globalObjectHandler, _name);
+// #if _UISYS_GLOBAL_NAME_UNIQUE_
+// 		if (_hasItem)
+// 		{
+// 			exitMsg("UI_ERROR: El nombre del objeto " + _name + " ya existe.");
+// 		}
+// #endif
+
+// 		if (_hasItem)
+// 			Dictionary_SetItem(globalObjectHandler, _name, _object);
+// 		else
+// 			Dictionary_InsertItem(globalObjectHandler, _name, _object);
+#if _UISYS_GLOBAL_NAME_UNIQUE_
+		DebugAssert(Dictionary_GetItem(globalObjectHandler, _name) == null);
+		// if (Dictionary_GetItem(globalObjectHandler, _name))
+		// {
+		// 	exitMsg("UI_ERROR: El nombre del objeto " + _name + " ya existe.");
+		// }
+#endif
+
+		Dictionary_InsertItem(globalObjectHandler, _name, _object);
+	}
+
+	// No usar desde fuera de la UI
+	function UnRegisterObject(_object)
+	{
+		objectCounter--;
+
+#if _UISYS_DISABLE_GLOBAL_NAME_
+		return;
+#endif
+
+		_name = _object.GetName();
+		//DebugMsg("Unregister ", _object, " Name", _name == null || _name == "" || _name == "0" ? "-null-": _name);//, "name is null", suil_library.String_IsEmptyOrNull(_name));
+		if (suil_library.String_IsEmptyOrNull(_name)) return;
+
+#if _UISYS_GLOBAL_NAME_UNIQUE_
+		Dictionary_DeleteItem(globalObjectHandler, _name);
+#else
+		//if (_object._instanceof("UI_Region")) _object.Debug_PrintParentRegions();
+		_inobj = Dictionary_GetItem(globalObjectHandler, _name);
+		if (_inobj == _object) Dictionary_DeleteItem(globalObjectHandler, _name);
+#endif
+	}
+
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+	// SUBSECTION: Frames
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+
+	// Crea un control y asigna un nombre. Si se quiere cargar un _template se le puede indicar en el último parámetro. Este se cargará ANTES de hacer el OnInit()
+	function CreateFrame(_fileName, _frameName = null, _parent = null, _params = [], _template = null)
+	{
+		//DebugMsg("Create control", _frameName);
+//_timerFormat = "FRAME: " + _frameName + " OnInit : %d";
+//_timer = new Timer(true);
+		_frame = Class_New(_fileName, this, _frameName);
+//_timer.LogRestart("FRAME:" + _frameName + " Class New %d");
+
+		for(i = 0; i < sizeof(_params); i += 2)
+   		_frame._set(_params[i], _params[i + 1]);
+
+//_timer.LogRestart("FRAME:" + _frameName + " _set %d");
+		// Registramos el nombre antes del OnInit, así podremos acceder al nombre desde los hijos
+		// TODO: Probar que pasa cuando el nombre del frame ya existe
+		if (strlen(_frameName) != 0) RegisterObject(_frame);
+
+		if (_parent == null)
+			_parent = desktop;
+
+		// if (strlen(_template))
+		// 	_frame.LoadFromTemplate(_template);
+
+		_frame.SetParent(_parent);
+//_timer.LogRestart("FRAME:" + _frameName + " SetParent %d");
+		_frame.OnInit();
+//_timer.DeleteLog(_timerFormat);
+
+		if (!i_updatingInput) UpdateInputByEvent();
+		return _frame;
+	}
+
+	// Destruye un control
+	function Core_DestroyFrame(_frame)
+	{
+		if (_frame == frameCaptured) frameCaptured = null;
+		if (_frame == frameFocused) Core_Focus(null); //frameFocused = null;
+		if (_frame == frameBelowMouse) frameBelowMouse = null;
+
+		// Limpiamos el doubleclick
+		if (sizeof(doubleClickInfo) > 0 && _frame == doubleClickInfo[2]) //doubleClickInfo[0] == _btnId &&	(GetTime() - doubleClickInfo[1]) < doubleClickTime &&
+			doubleClickInfo = [];
+
+		//UnRegisterObject(_frame);
+		_frame.OnDestroy();
+		//delete _frame;
+
+		// Volvemos a comprobar que fram hay debajo del raton
+		//Core_CheckMouseMovement(Cursor_GetX(), Cursor_GetY());
+		UpdateInputByEvent();
+	}
+
+	function GetFrameOnPoint(_x, _y, _doHitTest = false)
+	{
+		if (!desktop) return null;
+
+		//if (hitpointCheckAlways == UI_SYS_HITPOINT_ALWAYS) _doHitTest = true;
+
+		_frameList = [];
+		hitpoint = [_x, _y];
+
+		_params = ["GetEnabled", true];
+		_params += ["GetDestroyed", false];
+
+		if (ignoreDraggingFrames)
+			_params += ["IsDragging", false];
+
+		if (desktop.HasDialogs())
+			_params += ["Core_CheckDialog", true];
+		if (hitpointCheckAlways || _doHitTest)
+			_params += ["HitPoint", true];
+
+		_frameList = SpriteManager_CheckCollision(spriteManager, _x, _y, 1, 1, 0, 0, 0, -1, SPRITE_CHECK_ALL, -1, _params);
+
+		// DebugMsg(">>>>");
+		// for (i = 0; i < sizeof(_frameList); i++)
+		// {
+		// 	_item = _frameList[i];
+		// 	_frame = Sprite_GetProperty(_frameList[i], SPRITE_CONTEXT);
+		// 	DebugMsg(_frame.GetName());
+		// }
+		// DebugMsg("<<<<");
+
+		if (sizeof(_frameList) == 0)
+		{
+			if (forceValidInputTarget) return desktop;
+			return null;
+		}
+
+		if (clickThroughFrames)
+		{
+			for (i = sizeof(_frameList) - 1; i >= 0; i--)
+			{
+				_frame = Sprite_GetProperty(_frameList[i], SPRITE_CONTEXT);
+				if (!_frame || (_frame && !_frame._instanceof("UI_Frame"))) continue;
+				if (_frame.clickThrough) continue;
+				return _frame;
+			}
+
+			if (forceValidInputTarget) return desktop;
+			else return null;
+		}
+
+		_frame = Sprite_GetProperty(_frameList[sizeof(_frameList) - 1], SPRITE_CONTEXT);
+		if (_frame && !_frame._instanceof("UI_Frame")) _frame = null;
+		if (_frame == null && forceValidInputTarget) return desktop;
+
+		//DebugMsg(_frame.GetName());
+		return _frame;
+
+		// if (desktop.HasDialogs())
+		// 	_frameList = SpriteManager_CheckCollision(spriteManager, _x, _y, 1, 1, 0, 0, 0, -1, SPRITE_CHECK_ALL, -1,
+		// 							["GetEnabled", true, "IsDragging", false, "Core_CheckDialog", true]); // , "HitPoint", true
+		// else
+		// 	_frameList = SpriteManager_CheckCollision(spriteManager, _x, _y, 1, 1, 0, 0, 0, -1, SPRITE_CHECK_ALL, -1,
+		// 							["GetEnabled", true, "IsDragging", false]); // , "HitPoint", true
+
+		// if (sizeof(_frameList) == 0) return null;
+
+		// _frame = null;
+		// if (_doHitTest)
+		// {
+		// 	for (i = sizeof(_frameList) - 1; i >= 0; i--)
+		// 	{
+		// 		_frame = Sprite_GetProperty(_frameList[i], SPRITE_CONTEXT);
+		// 		if (!_frame || (_frame && !_frame._instanceof("UI_Frame"))) continue;
+		// 		if (_frame.HitPoint()) break;
+		// 	}
+		// }
+		// else
+		// {
+		// 	_frame = Sprite_GetProperty(_frameList[sizeof(_frameList) - 1], SPRITE_CONTEXT);
+		// 	if (_frame && !_frame._instanceof("UI_Frame")) _frame = null;
+		// }
+		// return _frame;
+	}
+
+	function GetFrameOnCursor()
+	{
+		return GetFrameOnPoint(Cursor_GetX(), Cursor_GetY());
+	}
+
+	function LoadTemplate(_templateName, _params = [])
+	{
+		// Cargamos el fichero
+		_file = File_Open (_templateName, FILE_MODE_READ);
+		if (!_file)
+			return null;
+
+		_fs = File_Size(_file);
+		_buffer = Buffer_New (_fs);
+		File_Read(_file, _buffer, 0, _fs);
+		File_Close(_file);
+		_xmlStr = Buffer_GetString(_buffer, 0);
+		Buffer_Delete (_buffer);
+
+		_xmlDoc = XML_Open(_xmlStr);
+		if (!_xmlDoc)
+			return null;
+
+		_xmlRoot = XML_GetRootElement(_xmlDoc);
+		//_userElement = XML_FirstElement(_xmlRoot);
+
+		_frameElement = Core_GetNextFrameElement(_xmlRoot);
+		DebugMsg("_frameElement", _frameElement);
+		if (_frameElement == null)
+			return null;
+
+		_frameName = Core_ExtractFrameName(_frameElement);
+		DebugMsg("_frameName", _frameName);
+		if (_frameName == null || strlen(_frameName) == 0)
+			return null;
+
+// TODO Podemos chequear que la clase de _frameName exista antes de intentar cargarla
+		_frame = CreateFrame(_frameName, null, null, _params);
+		_result = _frame.Core_LoadFromTemplate(_frameElement);
+
+		XML_Close(_xmlDoc);
+		if (!_result)
+		{
+			delete _frame;
+			return null;
+		}
+
+		return _frame;
+	}
+
+	function Core_GetNextFrameElement(_xmlElement)
+	{
+		while (_xmlElement)
+		{
+			_key = XML_GetElementValue(_xmlElement);
+			if (_key == "frame")
+				return _xmlElement;
+
+			_xmlElement = XML_NextElement(_xmlElement);
+		}
+
+		return null;
+	}
+
+	function Core_ExtractFrameName(_xmlElement)
+	{
+		_attr = XML_FirstAttribute (_xmlElement);
+		while (_attr)
+		{
+			_aName = XML_GetAttributeName (_attr);
+			DebugMsg("_aName", _aName);
+			if (_aName == "file")
+			{
+				_aValue = XML_GetAttributeValue (_attr);
+				DebugMsg("_aValue", _aValue);
+				return _aValue;
+			}
+
+			_attr = XML_NextAttribute(_attr);
+		}
+
+		return null;
+	}
+
+
+
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+	// SUBSECTION: Fuentes
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+
+	function CreateFont(_name)
+	{
+		_font = new UI_Font(this, _name);
+		fonts += [_font];
+		RegisterObject(_font);
+		return _font;
+	}
+
+	// Nos deberíamos asegurar que en ningún sitio se esté usando la fuente que se borra
+	// function RemoveFont(_uifont)
+	// {
+	// 	delete _uiFont;
+	// }
+
+	function Core_RemoveFont(_uifont)
+	{
+		fonts -= [_uifont];
+	}
+
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+	// SUBSECTION: Eventos
+	// --------------------------------------------------------------------------------------------------------------------------------------------------
+
+	function Core_GetHookArgsPool()
+	{
+		if (sizeof(hookArgsPool))
+		{
+			_ha = hookArgsPool[0];
+			hookArgsPool /= 0;
+			return _ha;
+		}
+
+		return new UI_HookArgs();
+	}
+
+	function Core_AddToHookArgsPool(_ha)
+	{
+		hookArgsPool += [_ha];
+	}
+
+	function EnableHooks()
+	{
+		doHook = true;
+	}
+
+	function DisableHooks()
+	{
+		doHook = false;
+	}
+
+	function AreHooksEnabled()
+	{
+		return doHook;
+	}
+
+	function SetMaxUserEvents(_value)
+	{
+		maxUserEvents = _value;
+	}
+
+	function CallEvent(_event, _params = [])
+	{
+		EventManager_DoEvent(eventManager, _event, [this, _event, _params]);
+	}
+
+	function HookEvent(_event, _context, _function)
+	{
+		EventManager_AddEvent(eventManager, _event, _context, _function);
+	}
+
+	function RemoveEvent(_event, _context)
+	{
+		EventManager_RemoveEvent(eventManager, _event, _context);
+	}
+
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Depuración
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function ShowRects(_value)
+	{
+#if __DEBUG__
+		SpriteManager_SetProperty(spriteManager, SPRITEMANAGER_DEBUG, _value);
+#endif
+	}
+
+	function GetShowRects()
+	{
+#if __DEBUG__
+		return SpriteManager_GetProperty(spriteManager, SPRITEMANAGER_DEBUG);
+#else
+		return false;
+#endif
+	}
+
+	function SetEditorFont(_fontName)
+	{
+		if (editorService)
+		{
+			_font = GetObject("UI_EditorFont");
+			if (!_font)	_font = CreateFont("UI_EditorFont");
+
+			_font.SetFont(_fontName, 21 * 2);
+			_font.SetFontSize(21);
+		}
+	}
+
+
+	function MarkAsObsolete(_class, _line, _text)
+	{
+		_title = _class + string(_line);
+		if (Dictionary_GetItem(obsoleteMarks, _title)) return;
+
+		Dictionary_InsertItem(obsoleteMarks, _title, 1);
+		DebugLog(">>>>> WARNING: Obsolete mark in", _class, " (" + __LINE__ + "). Info:", _text);
+	}
+
+	// function IsObsoleteMarked(_file, _line)
+	// {
+	// 	_title = _file + string(_line);
+	// 	//DebugMsg(_title, Dictionary_GetItem(obsoleteMarks, _title) == 1);
+	// 	if (Dictionary_GetItem(obsoleteMarks, _title)) return true;
+
+	// 	Dictionary_InsertItem(obsoleteMarks, _title, 1);
+	// 	return false;
+	// }
+
+	function PrintStatistics()
+	{
+		DebugLog("UI_System Statistics ------------------------------");
+		DebugLog("ObjectCounter:", String(objectCounter));
+		DebugLog("/UI_System Statistics ------------------------------");
+	}
+
+	function SendChangeAdvise(_stringList)
+	{
+		DebugLog("");
+		DebugLog("");
+		DebugLog("");
+		DebugLog("");
+		DebugLog("*********************************************************************************************************");
+		DebugLog("NOTIFICACIÓN DE CAMBIO EN SUIL **************************************************************************");
+		DebugLog("*********************************************************************************************************");
+		DebugLog("");
+		DebugLog("");
+
+
+		for (i = 0; i < sizeof(_stringList); i++)
+		{
+			_item = _stringList[i];
+			DebugLog(_item);
+		}
+
+		DebugLog("");
+		DebugLog("");
+		DebugLog("");
+		DebugLog("");
+		DebugLog("**********************************************************************************************************");
+		DebugLog("**********************************************************************************************************");
+		DebugLog("**********************************************************************************************************");
+		DebugLog("");
+		DebugLog("");
+		DebugLog("");
+		DebugLog("");
+		DebugLog("");
+		DebugLog("");
+		DebugLog("");
+		DebugLog("");
+	}
+
+}

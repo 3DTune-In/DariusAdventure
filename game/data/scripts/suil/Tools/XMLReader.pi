@@ -1,0 +1,131 @@
+class XMLReader
+{
+	properties:
+		xml = null;
+		xmlDoc = null;
+		xmlRoot = null;
+		xmlContainer = null;
+
+	function _operator_new ()
+	{
+	}
+
+	function _operator_delete ()
+	{
+		Close ();
+	}
+
+	function Close()
+	{
+		if (xml) Container_Delete (xml);
+		if (xmlDoc) XML_Close (xmlDoc);
+		xml = null;
+		xmlDoc = null;
+		xmlRoot = null;
+	}
+
+	function Load (_fileName)
+	{
+		Close();
+		file = File_Open (_fileName, FILE_MODE_READ);
+		if (file)
+		{
+			buffer = Buffer_New (File_Size(file));
+			File_Read (file, buffer, 0, File_Size(file));
+			File_Close (file);
+			xmlStr = Buffer_GetString (buffer, 0);
+
+			//DebugMsg(xmlStr);
+			//xml = Container_FromXMLString (xmlStr);
+			//DebugMsg(Container_ToString(xml));
+			xmlDoc = XML_Open (xmlStr);
+			xmlRoot = XML_GetRootElement (xmlDoc);
+
+			/*
+			_e = XML_GetRootElement (xml);
+			while (_e)
+			{
+				_key = XML_GetElementValue (_e);
+//				_attr = XML_FirstAttribute (_e);
+//				_value = XML_GetAttributeValue (_attr);
+				DebugMsg (_key);//, _value);
+				_e = XML_NextElement (_e);
+			}
+			*/
+			Buffer_Delete (buffer);
+			//DebugMsg ("Xml LoadedLoad " + _fileName);
+		}
+		else
+		{
+			DebugMsg ("Load " + _fileName + " :: Fail!");
+			return false;
+		}
+
+		return true;
+	}
+
+	function LoadFromText(_text)
+	{
+		Close();
+		// xml = Container_FromXMLString (_text);
+		xmlDoc = XML_Open (_text);
+		if (xmlDoc)
+			xmlRoot = XML_GetRootElement (xmlDoc);
+		return xmlRoot != null;
+	}
+
+	function ARGBStr (str)
+	{
+		color = [];
+		aux = "";
+		for (i=0; i<strlen(str); i++)
+		{
+			c = ascii(str[i]);
+			if (c == ",")
+			{
+				color += [int(aux)];
+				aux = "";
+			}
+			else
+			{
+				aux += c;
+			}
+		}
+		color += [int(aux)];
+
+		return ARGB(255, color[0], color[1], color[2]);
+	}
+
+	function Is (_key)
+	{
+		//return xml._implements (_key);
+		_str = XML_GetKey (xmlRoot, _key, "");
+		return (strlen(_str));
+	}
+
+	function Get (_key, _subKey)
+	{
+		//_list = xml._get(_key);
+		//return _list[_subKey];
+		return XML_GetKey (xmlRoot, _key, _subKey);
+	}
+
+	function Get (_node, _key, _subKey)
+	{
+		//_list = xml._get(_key);
+		//return _list[_subKey];
+		return XML_GetKey (_node, _key, _subKey);
+	}
+
+	function GetInt (_key, _subKey)
+	{
+		_str = Get (_key, _subKey);
+		return int(_str);
+	}
+
+	function GetFloat (_key, _subKey)
+	{
+		_str = Get (_key, _subKey);
+		return float(_str);
+	}
+}

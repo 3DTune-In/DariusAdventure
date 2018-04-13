@@ -1,0 +1,16 @@
+class Actor implements Item_Unique_Interface
+{
+	properties:
+		
+	virtual Init ()
+	{	
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "item_lettuce.msh");
+		
+		EndLoadResources ();
+		
+		name = "item_lettuce";
+	}
+}

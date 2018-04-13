@@ -1,0 +1,18 @@
+class CheckList
+{
+	function _operator_new ()
+	{
+	}
+	
+	function _operator_delete ()
+	{
+	}
+	
+	function ToDo (_id)
+	{
+	}
+	
+	function Done (_id)
+	{
+	} 
+}

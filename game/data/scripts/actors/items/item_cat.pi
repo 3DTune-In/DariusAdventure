@@ -1,0 +1,66 @@
+class Actor implements Item_Unique_Interface
+{
+	properties:
+		KIN_QUIET = 0;
+		snd = null;
+		
+	virtual Init ()
+	{	
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "item_cat.msh");
+
+		KIN_QUIET = Actor_LoadKinematic (this, "item_cat_quiet.kin");
+		
+		snd = LoadSound3D ("cat.ogg", true);
+		Sound_SetProperty (snd, SOUND_3D_RADIUS, 1000);                                            
+		
+		EndLoadResources ();
+		name = "item_cat";
+		useAngles = 0;
+	}
+	
+	virtual Start ()
+	{
+		if (GetVisible())
+		{
+			main.PlayFX(snd);
+		}
+	}
+	
+	function Quiet ()
+	{
+		Actor_BlendKin (this, KIN_QUIET, KINMODE_LOOP);
+	}
+	
+	function OnDropItem (_itemName)
+	{
+		/*if (_itemName == "item_green_ball")
+		{
+			_dlg = ShowAutoDialogue ("cat_2", 1, [game.GetPlayer()]);	
+			SetState(1);	
+		}
+		else*/ if (_itemName == "item_red_ball")
+		{
+			ShowAutoDialogue ("cat_3", 1, [game.GetPlayer()]);		
+			game.GetPlayer().AddInventory (this);
+			game.GetPlayer().TaskDone("deliver_red_ball");
+			SetState(2);
+			return true;
+		}
+		return false;
+	}
+	
+	function OnCursorClick()
+	{                 
+		if (game.stageID == STAGE_SCRAPYARD)
+		{
+			ShowAutoDialogue ("cat_4", 1, [this]);
+		}
+		else
+		{
+			ShowAutoDialogue ("cat_1", 1, [game.GetPlayer()]);
+		}		
+	}
+}

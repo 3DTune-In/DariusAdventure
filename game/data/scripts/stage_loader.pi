@@ -1,0 +1,153 @@
+class Service
+{
+	properties:
+		SCENE_NAME = "";
+		scene = pointer;
+		m_state = 0;
+		timeCount = 0;
+		MAX_READ = 16;
+		tex = null;
+		texCircle = null;
+		alpha = 255;
+		angle = 0.0f;
+		//tick = 0;
+		
+	function Init ()
+	{
+		System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/hud/");
+		tex = Texture_Load ("loading_screen_01.jpg");
+		texCircle = Texture_Load ("loading_circle.png");
+	
+		scene = Scene_New (SCENE_NAME, 50, 50, 50, 0,0,0, 0,0);
+	
+		System_SetDirectory (DIRECTORY_MESH, "data/meshes/");
+		System_SetDirectory (DIRECTORY_KINEMATIC, "data/kinematics/");
+		System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/");
+	
+		Scene_SetProperty(scene, SCENE_UPDATE_MODE, (1<<8) | 2);
+	
+		Music_SetFXVolume (0);  // Para evitar ruidos del 3DTI en la carga!
+	
+		if (!Scene_LoadOBJ_Start (scene, "scene.obj"))
+		{
+			DebugMsg ("Can't find scene!");
+		}
+	}
+
+	function Start ()
+	{		
+		m_state = -1;
+		
+		g_fade.Off();
+	}
+	
+	function Final ()
+	{
+		Texture_Delete (tex);
+		Texture_Delete (texCircle);
+	}
+
+	function Move ()
+	{
+		//tick = GetTime();
+		System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/");
+	
+		switch (m_state)
+		{
+			case -1:
+			{
+				m_state = 0;
+			}
+			break;
+			case 0:
+			{
+				ok = true;
+				for (i=0; i<MAX_READ && ok; i++) ok = Scene_LoadOBJ_Next (scene);
+				if (!ok)
+				{
+					Scene_LoadOBJ_End (scene);
+					Scene_Initialize_Start (scene);
+					m_state++;
+				}
+			}
+			break;
+			case 1:
+			{
+				ok = true;
+				for (i=0; i<MAX_READ && ok; i++) ok = Scene_Initialize_Next (scene);
+				if (!ok)
+				{
+					Music_SetFXVolume (255);
+					Scene_Initialize_End (scene);
+					parent.OnStageLoaderEnd (scene);
+					//stage = Service_Load ("Stage", SCENE_NAME + ".pi", ["scene", scene]);					
+					//g_fade.On();
+					m_state++;
+				}
+			}
+			break;
+			case 2:
+			{
+				alpha = IncreaseValue (alpha, 0, GetFTime()*8.0f);
+				if (alpha == 0)
+				{
+					//g_fade.Off();
+					m_state++;
+				}
+			}
+			break;
+			case 3:
+			{
+				Service_Delete (this);
+				//Service_Start (stage);
+				//parent.LoaderEnd();
+				m_state++;
+			}
+			break;
+		}
+	}
+
+	function Draw ()
+	{
+		Render_DrawTex (tex, 0, 0, RESX, RESY, 0, ARGB(alpha,255,255,255));
+		
+		f = 0.0f;
+		ini = 0;
+		max = 0;
+		switch (m_state)
+		{
+			case 0:
+			{
+				ini = Scene_LoadOBJ_GetCurIndex (scene);
+				max = Scene_LoadOBJ_GetTotalIndex (scene);
+				if (max) f = float(ini) / max / 2.0f;
+				else f = 0.5f;
+			}
+			break;
+			case 1:
+			{
+				ini = Scene_Initialize_GetCurIndex (scene);
+				max = Scene_Initialize_GetTotalIndex (scene);
+				if (max) f = 0.5f + float(ini) / max / 2.0f;
+				else f = 1.0f;
+			}
+			break;
+		}
+		
+		Render_DrawTex (texCircle, RESX-225, RESY-150, 128, 128, angle, ARGB(alpha,255,255,255));
+		angle += GetFTime();
+		//angle += (GetTime() - tick) * 2.0f;
+
+		if (m_state <= 2)
+		{	
+			_x = 0;
+			_h = 8;
+			_y = RESY-_h;
+			_w = RESX;
+			Render_DrawBox (_x, _y, _w, _h, ARGB(alpha,74,0,13));
+			Render_DrawBox (_x, _y, f*_w, _h, ARGB(alpha,74*2,0,13*2));
+		}
+		
+		//tick = GetTime();
+	}
+}

@@ -1,0 +1,19 @@
+class EventTest implements UI_Frame
+{
+	properties:
+		/* data */
+
+	function OnInit()
+	{
+		::OnInit();
+
+		GetParent().HookEvent(UI_EVENT_CLICK, this, "OnClickRaisLowerButtons");
+	}
+
+	function OnClickRaisLowerButtons(_sender, _event, _params)
+	{
+		DebugMsg("DERIVADA");
+	}
+
+
+}

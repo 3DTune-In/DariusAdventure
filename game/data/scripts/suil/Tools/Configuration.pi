@@ -1,0 +1,76 @@
+class Configuration
+{
+	properties:
+// Aqui pondremos los valores por defecto
+		regKey:string = "";
+//		sound:int = 5;
+//		language:string = "eur_es";
+
+	function _operator_delete() : void
+	{
+		//Debug_ObsoleteMark("_operator_delete", "Usar la clase Configuration2.");
+	}
+
+	function Init(_regKey:string, _resetToDefaults = false) : void
+	{
+		//Debug_ObsoleteMark("Init", "Usar la clase Configuration2.");
+		_uiSystem = suil_system.GetSystem();
+		_uiSystem.MarkAsObsolete(Class_Id(this), __LINE__, "Init :: Usar la clase Configuration2.");
+
+		regKey = _regKey;
+		if (_resetToDefaults) return;
+
+		_str = Registry_GetValueStr(regKey, "");
+		if (strlen(_str) == 0) return;
+
+		_xmlDoc = XML_Open (_str);
+		if (!_xmlDoc) return;
+
+		// Obtengo el elemento raiz del XML
+		_root = XML_GetRootElement (_xmlDoc);
+		// Obtengo su nombre
+		//_key = XML_GetElementValue (_root);
+		//DebugMsg(_key);
+		_attr = XML_FirstAttribute (_root);
+		while (_attr)
+		{
+			_aName = XML_GetAttributeName (_attr);
+			_aValue = XML_GetAttributeValue (_attr);
+			Read(_aName, _aValue);
+			// switch (_aName)
+			// {
+			// 	//case "sound": sound = int(_aValue); break;
+			// 	case "language": language = _aValue; break;
+			// 	default:
+			// 		DebugMsg ("Unknown Key in Map:", _aName, _aValue);
+			// }
+			_attr = XML_NextAttribute (_attr);
+		}
+
+		XML_Close(_xmlDoc);
+	}
+
+	function Save() : void
+	{
+		//Debug_ObsoleteMark("Save", "Usar la clase Configuration2.");
+
+		Registry_SetValueStr(regKey, ToString());
+	}
+
+	function Read(_aName, _aValue)
+	{
+		//Debug_ObsoleteMark("Read", "Usar la clase Configuration2.");
+	}
+
+	function ToString() : string
+	{
+		//Debug_ObsoleteMark("ToString", "Usar la clase Configuration2.");
+
+		_s = "<?xml version='1.0' encoding='iso-8859-1'?>\n";
+		_s += "<Configuration ";
+		//_s += String_Format("language=\"%s\"", language);
+		_s += ">\n";
+		_s += "</Configuration>\n";
+		return _s;
+	}
+}

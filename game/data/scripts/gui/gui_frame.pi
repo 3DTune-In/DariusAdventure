@@ -1,0 +1,28 @@
+class GUI_Frame implements UI_Frame partial GUI_Frame_Partial
+{
+	virtual OnInit ()
+	{
+		//_frame = UI_CreateFrame("UI_Frame");
+		//_frame.SetBounds (0, 0, RESX, RESY);
+		Show();
+		SetEnabled (true);
+		SetSelectable(true);
+	}
+	
+	function Center()
+	{
+		_parent = GetParent();
+		if (_parent)
+		{
+			_w = _parent.GetWidth();
+			_h = _parent.GetHeight();
+		}
+		else
+		{
+			_w = RESX;
+			_h = RESY;
+		}
+		
+		SetPosition ((_w - GetWidth())/2, (_h - GetHeight())/2);
+	}
+}

@@ -1,0 +1,64 @@
+class UI_AnimationPoint
+{
+	properties:
+		x = 0.0f;
+		y = 0.0f;
+		w = 0.0f;
+		h = 0.0f;
+		alpha = 0.0f;
+		scale = 0.0f;
+		angle = 0.0f;
+
+		flags = 0;
+
+	function Clear()
+	{
+		x = 0.0f;
+		y = 0.0f;
+		w = 0.0f;
+		h = 0.0f;
+		alpha = 0.0f;
+		scale = 0.0f;
+		angle = 0.0f;
+
+		flags = 0;
+	}
+
+	function Init(_region)
+	{
+		x = _region.GetLeft();
+		y = _region.GetTop();
+		w = _region.GetWidth();
+		h = _region.GetHeight();
+		alpha = _region.GetAlpha();
+		scale = _region.GetScale();
+
+		if (_region.IsObjectType("UI_Texture"))
+			angle = _region.GetRadians();
+		else
+			angle = 0.0f;
+	}
+
+	function Apply(_region, _startPoint)
+	{
+		//DebugMsg("APPLY",x);
+		//if (x != 0.0f || y != 0.0f ||	w != 0.0f || h != 0.0f)
+		if ((flags & UI_ANI_FLAG_POSITION) != 0)
+			_region.SetBounds(_startPoint.x + x, _startPoint.y + y, _startPoint.w + w, _startPoint.h + h);
+		// _region.SetLeft(_startPoint.x + x);
+		// _region.SetTop(_startPoint.y + y);
+		// _region.SetWidth(_startPoint.w + w);
+		// _region.SetHeight(_startPoint.h + h);
+		//if (alpha != 0.0f)
+		if ((flags & UI_ANI_FLAG_ALPHA) != 0)
+			_region.SetAlpha(_startPoint.alpha + alpha);
+
+		//if (scale != 0.0f)
+		if ((flags & UI_ANI_FLAG_SCALE) != 0)
+			_region.SetScale(_startPoint.scale + scale);
+
+		//if (angle != 0 && _region.IsObjectType("UI_Texture"))
+		if ((flags & UI_ANI_FLAG_ROTATION) != 0 && _region.IsObjectType("UI_Texture"))
+			_region.SetRadians(_startPoint.angle + angle);
+	}
+}

@@ -1,0 +1,796 @@
+class Player<Actor> implements Stage_Actor
+{
+	constants:	
+		LANDMARK_INVENTORY = "player_inventory";
+		LANDMARK_CHECKLIST = "player_checklist";
+		
+	properties:
+		WALK_SPEED = 8.0f;
+		ANI_INTRO_FALLEN = 0;
+		ANI_INTRO_WAKEUP = 0;
+		ANI_INTRO_FRESHLY_FALLEN = 0;
+		ANI_QUIET = 0;
+		ANI_WALK = 0;
+		ANI_RUN = 0;
+		ANI_SPEAK = 0;
+		notifyActor = null;
+		camOffX = 0;
+		camOffY = 0;
+		camOffZ = 0;
+		inventoryList = [];
+		checkList = [];
+		sndStepList = [];
+		sndBounce = null;
+		sndCamera = null;
+		sndAddItem = null;
+		sndFeather = null;
+		hearingAidActorL = null;
+		hearingAidActorR = null;
+		wings = null;
+		veffDust = null;
+		veffTouch = null;
+		batteryTime = 0.0f;
+		batteryLow = false;
+		lastAni = 0;
+		lastSpeed = 0;
+		dstX = 0;
+		dstY = 0;
+		dstZ = 0;
+		dirSpeed = 0;
+		numCards = 0;
+	
+	virtual Init ()
+	{
+		subClassID = CLASS_TYPE_PLAYER | CLASS_TYPE_COLLISIONABLE;
+		priority = PRIORITY_PLAYER;
+		drawPriority = ACTOR_PRIORITY_PLAYER;
+		collide = true;
+		shadow = true;
+		gravity = true;
+		useAngles = 2;
+		collisionFlags = COLLISION_FLAGS_PLAYER;
+
+		///////////////		
+                       
+		StartLoadResources ();
+		
+		Actor_SetNumLODS (this, 2);
+		Actor_LoadMesh (this, 0, "player.msh");
+		Actor_LoadMesh (this, 1, "player_dressed.msh");
+		
+		Actor_SetFixedLod (this, game.IsItemUsed ("item_jim_coveralls") ? 1 : 0);
+
+		veffTouch = Actor_LoadVisualEffect (this, "visualeffect_touch3D");
+		
+		if (ShouldbeIntroShown()) // No hemos visto la intro
+		{
+			veffDust = Actor_LoadVisualEffect (this, "visualeffect_dust");
+			ANI_INTRO_FALLEN = Actor_LoadKinematic (this, "player_fallen.kin");
+			ANI_INTRO_FRESHLY_FALLEN = Actor_LoadKinematic (this, "player_intro_freshly_fallen.kin");
+			ANI_INTRO_WAKEUP = Actor_LoadKinematic (this, "player_intro_wakeup.kin");
+		}
+		ANI_QUIET = Actor_LoadKinematic (this, "player_quiet.kin");
+		ANI_WALK = Actor_LoadKinematic (this, "player_walk.kin");
+		ANI_SPEAK = Actor_LoadKinematic (this, "player_speak.kin");
+		ANI_RUN = Actor_LoadKinematic (this, "player_run.kin");
+
+		sndStepList += [LoadSound("step_grass_1.ogg")];
+		sndStepList += [LoadSound("step_grass_2.ogg")];
+		sndStepList += [LoadSound("step_grass_3.ogg")];
+		sndStepList += [LoadSound("step_grass_4.ogg")];
+		sndStepList += [LoadSound("step_grass_5.ogg")];
+		sndStepList += [LoadSound("step_grass_6.ogg")];
+		sndStepList += [LoadSound("step_grass_7.ogg")];
+		
+		sndBounce = LoadSound("player_fallen.ogg");
+		sndAddItem = LoadSound2D("collect_item.ogg");
+		sndCamera = LoadSound2D("camera_click.ogg");
+		sndFeather = LoadSound2D("feather.ogg"); 
+																		   
+		hearingAidActorL = Scene_NewActor (scene, "player_hearingAidL", "stage_actor", 0, 0, 0);
+		hearingAidActorR = Scene_NewActor (scene, "player_hearingAidR", "stage_actor", 0, 0, 0);
+		Actor_SetNumLods (hearingAidActorL, 1);
+		Actor_SetNumLods (hearingAidActorR, 1);
+		Actor_LoadMesh (hearingAidActorL, 0, "item_hearing_aid.msh");
+		Actor_LoadMesh (hearingAidActorR, 0, "item_hearing_aid.msh");
+		Actor_AddChild (this, hearingAidActorL, Actor_FindDummy (this, "hearing_aid_left", -1));
+		Actor_AddChild (this, hearingAidActorR, Actor_FindDummy (this, "hearing_aid_right", -1));
+		
+		wings = Scene_NewActor (scene, "player_wings", "stage_actor", 0, 0, 0);
+		Actor_SetNumLods (wings, 1);
+		Actor_LoadMesh (wings, 0, "player_wings.msh");
+		Actor_AddChild (this, wings, Actor_FindDummy (this, "wings", -1));
+		wings.visible = false;
+		
+		inventoryList = game.GetLandMark (LANDMARK_INVENTORY);
+		if (typeof(inventoryList) != TYPE_LIST_VALUES) inventoryList = [];
+		//DebugMsg (">>>>>", inventoryList);
+		checkList = game.GetLandMark (LANDMARK_CHECKLIST);
+		if (typeof(checkList) != TYPE_LIST_VALUES) checkList = [];
+		for (i=0; i<sizeof(checkList); i++) 
+		{
+			if (checkList[i][1] == 1)
+				game.hud.AddTask(checkList[i][0]);
+		}
+
+		EndLoadResources ();		
+		
+		voiceID = VOICE_PLAYER;
+		
+		_v = (game.IsItemUsed("item_hearing_aid") || game.IsItemInInventory("item_hearing_aid"));
+		if (_v) inventoryList -= ["item_hearing_aid"]; 
+		ShowHearingAid(_v);
+		EnableHearingAid(CanHearingAid());
+		
+		numCards = 0;
+		for (i=1; i<=9; i++)
+		{
+			_cardName = "card_" + string(i);
+			if (IsCard(_cardName)) numCards++;
+		}
+	}
+	
+	function Final ()
+	{
+		game.SaveProfile();
+		::Final();
+	}
+	
+	function GetState ()
+	{
+		return game.GetLandmark ("player_state");
+	}
+	
+	function SetState(_st)
+	{
+		game.AddLandmark ("player_state", _st);
+	}
+	
+	virtual Start ()
+	{
+		if (Service_GetStop(game))
+			return;
+		//posZ = Actor_GetFloorZ(this);
+		
+		//CHEAT!!
+		//ShowHearingAid(true);
+		//EnableHearingAid(true);
+		//WALK_SPEED = 10.0f;
+		//stage.FindActor("item_hearing_aid").SetEnabled(true);
+		//Actor_SetVisible (hearingAidActor, true);
+		//stage.FindActor("item_key").SetEnabled(true);
+		//stage.FindActor("item_lever_1").SetEnabled(true);
+		//game.AddLandMark ("item_jim_coveralls", 1);
+		//AddInventory(stage.FindActor("item_jim_coveralls"));
+		//CreateFeather (posX+200, posY, posZ);
+		//Actor_SetFixedLod (this, 1);
+		//AddInventory("item_lever_1");
+		//AddInventory("item_lever_2");
+		//AddInventory("item_lever_3");
+		//AddInventory("item_love_letter_1");
+		//AddInventory("item_mobile");
+		//AddInventory("item_pliers");
+		//AddInventory("item_apple");
+		//AddInventory("item_mobile");
+		//for (i=0; i<10; i++) AddInventory("item_feather");
+#if CHEAT_STAGE
+	ShowHearingAid(true);
+	EnableHearingAid(true);
+	if (game.stageID == 1)
+		game.AddLandmark("player_state", 1);
+	else
+		game.AddLandmark("player_state", 2);
+#endif		
+		
+		if (ShouldbeIntroShown()) // Estamos en el stageID=1 y no hemos visto la intro
+		{
+			game.AddLandmark ("player_battery", 1);//25);
+			ShowHearingAid(true); // Lo vestimos!
+			UseInventory("item_hearing_aid"); // Y lo tenemos!!
+			EnableHearingAid(CanHearingAid());
+			game.hud.ShowDivineLight (true);
+			_dlg1 = game.NewDialogue();
+			_dlg1.AddNPCKin (this, ANI_INTRO_FALLEN); 
+			_dlg1.AddNPCKin (this, ANI_INTRO_FRESHLY_FALLEN, false); 
+			_dlg1.AddNPCTextNL (this, "player_intro_1");
+			_dlg1.AddNPCTextNL (this, "player_intro_2");
+			_dlg1.AddNPCTextNL (this, "player_intro_3");
+			_dlg1.AddNPCKin (this, ANI_INTRO_WAKEUP); // "Ángel se incorpora.
+			_dlg1.AddNPCKin (this, ANI_QUIET, false); 
+			_dlg1.AddNPCTextNL (this, "player_intro_4");
+			_dlg1.AddNPCTextNL (this, "player_intro_5");
+			_dlg1.AddNPCTextNL (this, "player_intro_6");
+			_dlg1.AddNPCTextNL (this, "player_intro_7");
+			_dlg1.AddNPCTextNL (this, "player_intro_8");
+			_dlg1.AddNPCCall (this, "OnEndIntro");
+			//_dlg1.AddNPCCall (this, "AddTask", ["talk_with_jim", false]);
+			//_dlg1.AddNPCCall (this, "AddTask", ["pickup_hearing_aid", false]);
+			game.ShowDialogue (_dlg1);
+		}
+		else 
+		{
+			if (game.GetLandmark("player_state") == 2)
+			{
+				SetJimWorkMode();
+			}
+			else if (game.GetLandmark("player_state") == 3)
+			{
+				SetAngelMode();
+			}
+			
+			Quiet();
+		}
+	}
+	
+	function Quiet ()
+	{
+		game.hud.ShowDivineLight (false);
+		Actor_BlendKin (this, ANI_QUIET, KINMODE_LOOP);
+		_change ("quiet");
+	}
+	
+	state "quiet"
+	{
+	}
+	
+	function ShouldbeIntroShown ()
+	{
+		return (game.stageID == 1 && game.GetLandMark("player_state") == 0);
+	}
+	
+	function IsCard(_cardID)
+	{
+		return (game.GetLandMark(_cardID) != 0);
+	}
+	
+	function AddNewCard(_cardID)
+	{
+		if (game.GetLandMark(_cardID) == 0)
+		{
+			game.AddLandmark (_cardID, 1);
+			game.hud.ShowCard(_cardID);
+			numCards++;
+			return true;
+		}
+		return false;
+	}
+	
+	function RenewBattery ()
+	{
+		Sound_Play(sndAddItem);
+		game.AddLandmark ("player_battery", 100);
+		EnableHearingAid(true);
+		batteryLow = false;
+	}
+	
+	function ConsumeBattery (_q)
+	{
+		_battery = game.GetLandmark ("player_battery");
+		if (_battery > 0)
+		{
+			_battery = IncreaseValue (_battery - _q, 0, 1);
+			game.AddLandmark ("player_battery", _battery);
+			if (!batteryLow && _battery <= 25)
+			{
+				batteryLow = true;
+				AddTask("pickup_battery", false, false);
+				game.hud.OpenPlayerTID ("player_habatterylow");
+			}
+			if (_battery <= 0)
+			{
+				EnableHearingAid(false);
+				game.hud.OpenPlayerTID ("player_habatteryoff");
+				//game.AddLandmark("item_hearing_aid", 0); // Quitamos del inventario
+				//ShowHearingAid(false);
+				//EnableHearingAid(false);
+				//_ha = game.FindActor ("item_hearing_aid");
+				//_ha.Start();
+			}
+		}
+	}
+	
+	function LevelUpHearingAid()
+	{
+		if (game.profile.haQuality < 5)
+		{
+			game.profile.haQuality++;
+			game.SetHAQuality(game.profile.haQuality);
+			game.hud.OpenPlayerTID ("player_haquality_" + string(game.profile.haQuality));
+			RenewBattery();
+		}
+	}
+	
+	function HasHearingAid ()
+	{
+		return hearingAidActorL.visible;
+	}
+
+	function CanHearingAid ()
+	{
+		_battery = game.GetLandmark ("player_battery");
+		return hearingAidActorL.visible && (_battery > 0);
+	}
+	
+	function ShowHearingAid (_v)
+	{	
+		Actor_SetVisible (hearingAidActorL, _v);
+		Actor_SetVisible (hearingAidActorR, _v && game.profile.hadual);
+	}
+	
+	function EnableHearingAid(_v)
+	{
+		game.SetHLMode (game.profile.deafness+1);
+		if (_v) 
+		{
+			game.SetHAMode(game.profile.deafness+1);
+			game.SetHAQuality(game.profile.haQuality);
+		}
+		else 
+		{
+			game.SetHAMode(0);
+		}
+	}
+	
+	function SetNakedMode ()
+	{
+		Actor_SetFixedLod (this, 0);
+		Actor_RemoveChild (this, hearingAidActorL);
+		Actor_RemoveChild (this, hearingAidActorR);
+		Actor_RemoveChild (this, wings);
+		//ShowHearingAid(false);
+		//EnableHearingAid(false);
+		Actor_SetVisible (wings, false);
+	}
+	
+	function SetAngelMode ()
+	{
+		Actor_SetFixedLod (this, 0);
+		Actor_RemoveChild (this, hearingAidActorL);
+		Actor_RemoveChild (this, hearingAidActorR);
+		Actor_RemoveChild (this, wings);
+		Actor_AddChild (this, wings, Actor_FindDummy (this, "wings", -1));
+		//ShowHearingAid(false);
+		//EnableHearingAid(false);
+		Actor_SetVisible (wings, true);
+		game.AddLandMark("player_state", 3);
+	}
+	
+	function SetJimWorkMode ()
+	{
+		Actor_SetFixedLod (this, 1);
+		Actor_RemoveChild (this, hearingAidActorL);
+		Actor_RemoveChild (this, hearingAidActorR);
+		Actor_RemoveChild (this, wings);
+		Actor_AddChild (this, hearingAidActorL, Actor_FindDummy (this, "hearing_aid_left", -1));
+		Actor_AddChild (this, hearingAidActorR, Actor_FindDummy (this, "hearing_aid_right", -1));
+		//ShowHearingAid(game.IsItemUsed("item_hearing_aid"));
+		//EnableHearingAid(game.IsItemUsed("item_hearing_aid"));
+		Actor_SetVisible (wings, false);
+		game.AddLandMark("player_state", 2);
+	}
+	
+	function ShowDivineLight (_v)
+	{
+		game.hud.ShowDivineLight (_v);
+	}
+	
+	function Speak ()
+	{
+		Actor_BlendKin (this, ANI_SPEAK, KINMODE_LOOP);
+		_change ("speak");
+	}
+
+	function OnEndIntro ()
+	{
+		game.AddLandMark("player_state", 1);
+		Quiet();	
+	}
+	
+	state "speak"
+	{
+	}
+	
+	function WalkTo (_x, _y, _z, _continuePressing = false)
+	{
+		if (!_continuePressing) 
+			VisualEffect_Create (veffTouch, _x, _y, _z + 1, 1);
+	
+		//DebugMsg ("WALKTO:", _x, _y, _z);
+		if (_continuePressing)
+		{
+			_ani = lastAni;
+			_speed = lastSpeed;
+		}
+		else
+		{
+			if (game.isDoublePressed || PointDistance(_x, _y, _z, posX, posY, posZ) > 200)
+			{
+				_speed = WALK_SPEED*2;
+				_ani = ANI_RUN;
+			}
+			else
+			{
+				_speed = WALK_SPEED;
+				_ani = ANI_WALK;
+			}
+		}
+		lastAni = _ani;
+		lastSpeed = _speed;
+		
+		dstX = _x;
+		dstY = _y;
+		dstZ = _z;
+		_dir = GetRayVector(posX, posY, posZ, dstX, dstY, dstZ);
+		dirX = _dir[0];
+		dirY = _dir[1];
+		dirSpeed = _speed;
+		//Actor_RouteTo (this, _x, _y, _z, _speed, 0.25f);
+		
+		Actor_BlendKin (this, _ani, KINMODE_LOOP);
+		notifyActor = null;
+		camOffX = 0;
+		camOffY = 0;
+		camOffZ = 0;
+		_change ("walking");
+	}
+
+	function CompatibleDropItem (_itemName)
+	{
+		return _itemName in ["item_feather", "item_hearing_aid", "item_jim_coveralls"];
+	}
+
+	function OnDropItem (_itemName)
+	{
+		//DebugMsg ("DROP ITEM:", _itemName, "OVER ACTOR:", name);
+		switch (_itemName)
+		{
+			case "item_feather":
+			{
+				if (game.GetItemQuantity("item_feather") < TOTAL_FEATHERS)
+				{
+					game.hud.OpenPlayerTID ("player_item_feather_1");
+					return false;
+				}
+				else
+				{
+					if (game.stageID != STAGE_STATUE_ROOM)
+					{
+						game.hud.OpenPlayerTID ("player_item_feather_4");
+						return false;
+					}
+					else
+					{
+						_dlg = game.NewDialogue();
+						_dlg.FadeOn ();
+						_dlg.AddNPCCall (game.hud, "ShowDivineLight", [true]);
+						_dlg.AddNPCCall (this, "SetAngelMode");
+						_dlg.AddNPCSet (this, "angleZ", 0.0f);
+						_dlg.FadeOff ();
+						_dlg.AddNPCText (null, "player_item_feather_2_1");
+						_dlg.AddNPCCall (game.hud, "ShowDivineLight", [false]);
+						_dlg.AddNPCText (null, "player_item_feather_2_2");
+						//_dlg.FadeOn ();
+						_dlg.AddNPCCall (this, "OnOutro");
+						game.ShowDialogue (_dlg);
+						return true;
+					}
+				}
+			}
+			break;
+			case "item_hearing_aid":
+			{
+				TaskDone("put_hearing_aid");
+				AddTask("pickup_battery");
+				game.hud.OpenPlayerTID ("player_item_hearing_aid_2");
+				ShowHearingAid(true);
+				EnableHearingAid(CanHearingAid());
+				AddTask("talk_with_jim");
+				UseInventory(_itemName);
+				return true;
+			}
+			break;
+			case "item_jim_coveralls":
+			{
+				TaskDone("put_jim_coveralls");
+				game.hud.OpenPlayerTID ("player_item_jim_coveralls_2");
+				SetJimWorkMode();
+				return true;
+			}
+		}
+		return false;
+	}
+
+	function OnOutro()
+	{
+		_outro = Service_Run ("outro", "outro");
+	}
+
+	function OnCursorClick()
+	{
+		Quiet();
+	}
+	
+	function SpeakWith (_actor)
+	{
+		_ray = GetRayVector (_actor.posX, _actor.posY, 0, posX, posY, 0);
+		_dx = _actor.posX + _ray[0] * 100;
+		_dy = _actor.posY + _ray[1] * 100;
+		WalkTo (_dx, _dy, _actor.posZ);
+		notifyActor = _actor.PlayerCanNotify() ? _actor : null;
+		camOffX = -_ray[0]*100;
+		camOffY = -_ray[1]*100;
+	}
+	
+	function LookTo (_actor, _applyClick = true)
+	{
+		Actor_LookTo (this, _actor.posX, _actor.posY, _actor.posZ, 0.25f);
+		Actor_LookTo (_actor, posX, posY, posZ, 0.25f);
+		//DebugMsg (notifyActor.posX, notifyActor.posY, notifyActor.posZ, posX, posY, posZ);
+		if (_applyClick) 
+			_change ("looking_applyClick");
+		else
+			_change ("looking");
+	}
+	
+	state "walking"
+	{
+		_lx = posX;
+		_ly = posY;
+		_lz = posZ;
+		
+		posX += dirX * GetFTime() * dirSpeed;
+		posY += dirY * GetFTime() * dirSpeed;
+		angleZ = IncreaseAngle (angleZ, atan2(-dirY, dirX), GetFTime() * 0.25f);
+		_retM = (PointDistance(posX, posY, 0, dstX, dstY, 0) > 100);
+		//_retM = Actor_RouteMove (this);	
+		
+		if (Actor_GetFloorID (this) < 0 || Scene_GetCellCollision(scene, posX, posY, posZ))
+		{
+			posX = _lx;
+			posY = _ly;
+			posZ = _lz;
+			_retM = false;
+		}
+		
+		if (!_retM)
+		{
+			if (Input_IsMouseButton(MOUSE_LEFT) && !notifyActor)
+			{
+				game.OnMouseLeftPress(true);
+			}
+			else
+			{
+				Actor_BlendKin (this, ANI_QUIET, KINMODE_LOOP);
+				if (notifyActor)
+				{
+					if (!notifyActor.PlayerNeedsLookTo())
+					{
+						notifyActor.OnCursorClick();
+						Quiet();
+					}
+					else
+					{
+						LookTo (notifyActor);
+					}
+				}
+				else
+					Quiet();
+			}
+		}
+	}
+	
+	state "looking_applyClick"
+	{
+		_ret = Actor_LookMove (this);
+		if (!_ret)
+		{
+			notifyActor.OnCursorClick();
+			Quiet();
+		}
+	}
+
+	state "looking"
+	{
+		_ret = Actor_LookMove (this);
+		if (!_ret)
+		{
+			Quiet();
+		}
+	}
+
+	function Move ()
+	{
+		if (!game.hud.dialogue && !game.hud.popup)
+		{
+			if (HasHearingAid())
+			{
+				if (batteryTime <= 0.0f)
+				{
+					batteryTime = 100.0f;
+					ConsumeBattery (1);
+				}
+				else batteryTime -= GetFTime();
+			}
+		}
+		
+		if (notifyActor)
+		{
+			Actor_LookMove (notifyActor);
+		}
+	}
+	
+	function AddTask (_id, _checkHA = false/*true*/, _checkADD = true)
+	{
+		if (_checkHA && !CanHearingAid())
+			return;
+	
+		_add = true;
+		_foundIX = -1;
+		
+		for (i=0; i<sizeof(checkList); i++)
+		{
+			if (checkList[i][0] == _id) // YA EXISTE??!
+			{
+				_add = false;
+				_foundIX = i;
+				break;
+			}
+		}
+		
+		if (_checkADD)
+		{
+			if (_foundIX >= 0 && checkList[_foundIX][1] == 0) // ESTA YA HECHA!!!
+			{
+				//checkList /= _foundIX;
+				_add = false;
+			}
+		}
+		else
+		{
+			if (game.hud.FindTask(_id))
+				return;
+		}
+		if (_add) 
+		{
+			checkList += [[_id, 1]]; // La marco como para hacer!
+			game.hud.AddTask(_id);
+		}
+		game.AddLandmark (LANDMARK_CHECKLIST, checkList);
+	}
+	
+	function TaskDone (_id)
+	{
+		DebugMsg("TASKDONE:", _id);
+		DebugMsg("TASKDONE OK!");
+		_add = true;
+		for (i=0; i<sizeof(checkList); i++)
+		{
+			if (checkList[i][0] == _id)
+			{	
+				if (checkList[i][1] == 1) // ESTA POR HACER!!
+				{
+					checkList[i][1] = 0; // HECHA!!
+					//checkList /= i;
+				}
+				_add = false;
+				break; // Ya está marcada
+			}
+		}
+		if (_add)
+		{
+			checkList += [[_id, 0]]; // La marco como hecha!!
+		}
+		game.hud.TaskDone(_id);
+		game.AddLandmark (LANDMARK_CHECKLIST, checkList);
+	}
+	
+	function AddInventory (_item)
+	{	
+		if (typeof(_item) == TYPE_STRING)
+		{
+			AddInventoryByName (_item);
+		}
+		else
+		{
+			_item.visible = false;
+			_item.enabled = false;
+			_item.subClassID &= ~CLASS_TYPE_COLLISIONABLE;
+			game.SetItemMaxQuantity(_item.name, _item.maxq);
+			AddInventoryByName (_item.name);
+		}
+	}
+	
+	function AddInventoryByName (_itemName)
+	{
+		if (_itemName in ["item_petra_photo", "item_michael_photo", "item_stone_photo"])
+			main.PlayFX(sndCamera);
+		else if (_itemName == "item_feather")
+			main.PlayFX(sndFeather);
+		else
+		{
+			if (_itemName == "item_vase")
+			{
+				AddTask("deliver_vase");
+			}
+			else if (_itemName == "item_green_ball")
+			{
+				TaskDone("lookfor_green_ball");
+				AddTask("deliver_green_ball");
+			}
+			main.PlayFX(sndAddItem);
+		}
+	
+		game.SetItemInInventory (_itemName);
+
+		_v = game.GetItemQuantity (_itemName);
+		game.SetItemQuantity (_itemName, _v+1);
+
+		if !(_itemName in inventoryList)
+		{
+			inventoryList += [_itemName];
+			game.AddLandmark (LANDMARK_INVENTORY, inventoryList);
+		}
+	}
+	
+	function SetInventory (_itemName)
+	{
+		AddInventory (_itemName);
+		game.SetItemQuantity (_itemName, 1);
+	}
+	
+	function UseInventory (_itemName)
+	{
+		inventoryList -= [_itemName];
+		game.SetItemUsed (_itemName);
+		game.AddLandmark (LANDMARK_INVENTORY, inventoryList);
+	}
+
+	function CreateFeather (_x, _y, _z, _id = 0)
+	{
+		_actor = Scene_NewActor (scene, "item_feather", "item_feather", _x, _y, _z, ["id", _id]);
+		_actor.Fall();
+		return _actor;
+	}
+	
+	function KinEvent (_kinId, _time, _eventID)
+	{
+		switch (_eventID)
+		{
+			case KE_LSTEP: 
+			case KE_RSTEP:
+			{
+				main.PlayFX(sndStepList[Rand(0,sizeof(sndStepList)-1)]);
+			}
+			break;
+			case KE_BOUNCE:
+			{
+				main.PlayFX(sndBounce);
+				_step = (NUM_PI*2)/10;
+				_angle = 0;
+				for (i=0; i<10; i++)
+				{
+					_cos = cos(_angle) * 5.0f;
+					_sin = sin(_angle) * 5.0f;
+					VisualEffect_SetProperty (veffDust, VEP_SPEED_MIN_X, _cos);
+					VisualEffect_SetProperty (veffDust, VEP_SPEED_MIN_Y, _sin);
+					VisualEffect_SetProperty (veffDust, VEP_SPEED_MAX_X, _cos);
+					VisualEffect_SetProperty (veffDust, VEP_SPEED_MAX_Y, _sin);
+					VisualEffect_Create (veffDust, posX, posY, posZ, 2);
+					_angle += _step;
+				}
+			}
+			break;
+		}
+	}
+	
+	function LoadSound3D (_name, _loop = false)
+	{
+		_snd = ::LoadSound(_name, _loop);
+		if (_snd)
+		{
+			// Resulta que el 3DTI no tiene en cuenta que las voces emanen de la cabeza por lo que se escuchan súper bajitas
+			Sound_SetProperty (_snd, SOUND_API, ["ANECHOIC", false]);
+		}
+		return _snd;
+	}
+}

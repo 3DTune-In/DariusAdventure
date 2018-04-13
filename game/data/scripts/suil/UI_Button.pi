@@ -1,0 +1,615 @@
+class UI_Button implements UI_Frame
+{
+	properties:
+		hasTwoStates = false;
+
+		checked = false;
+		changeCheckedOnClick = true;
+		changeCheckedOnDoubleClick = true;
+		isMousePressed = false;
+
+		text = "";
+		textPadding = [0, 0];
+		pressedTextPadding = [2, 2];
+
+		fontstring = null;
+
+		fontNormal = null;
+		fontDisabled = null;
+		fontHighlight = null;
+
+		textureNormal = null;
+		textureHighlight = null;
+		textureDisabled = null;
+		texturePressed = null;
+		textureChecked = null;
+
+		texPressedOverlay = false;
+		texCheckedOverlay = false;
+		texHighlightOverlay = true;
+
+		hideNormalOnChecked = false;
+
+		isUsingDefinedColors = false;
+		normalColor = 0;
+		normalColorSet = false;
+		hightlightColor = 0;
+		hightlightColorSet = false;
+		pressedColor = 0;
+		pressedColorSet = false;
+		checkedColor = 0;
+		checkedColorSet = false;
+		disabledColor = 0;
+		disabledColorSet = false;
+
+		// Radio Button
+		radioGroup = -1;
+
+
+	function _operator_new(_uisystem, _name)
+	{
+		::_operator_new(_uisystem, _name);
+
+		selectable = true; // En tablet no se puede seleccionar un boton... pero si que tiene que limpiar el foco (por ejemplo si está en un textbox)
+	}
+
+	function OnInit()
+	{
+		::OnInit();
+
+		_fs = CreateFontString();
+		_fs.PinToBounds();
+		_fs.SetTextAlign(DT_CENTER | DT_VCENTER);
+		_fs.Show();
+		SetFontString(_fs);
+	}
+
+	function SetChecked(_value)
+	{
+		if (checked == _value) return;
+
+		if (radioGroup >= 0)
+		{
+			_checkedControl = GetGroupboxChecked();
+			if (_checkedControl == this && !_value) return; // No podemos quitarle el checked una vez puesto
+			if (_checkedControl) _checkedControl.Core_ClearChecked();
+		}
+
+		if (checked == _value) return;
+		checked = _value;
+		//DebugMsg("SET CHECKED", _value);
+
+		OnCheckedChanged();
+	}
+
+	function GetChecked()
+	{
+		return checked;
+	}
+
+	function SetTwoStates(_value)
+	{
+		if (_value == hasTwoStates) return;
+
+		hasTwoStates = _value;
+		if (!hasTwoStates && GetChecked()) SetChecked(false);
+		Core_UpdateVisual();
+	}
+
+	function SetChangeCheckedOnClick(_value)
+	{
+		changeCheckedOnClick = _value;
+	}
+
+	function SetChangeCheckedOnDoubleClick(_value)
+	{
+		changeCheckedOnDoubleClick = _value;
+	}
+
+	function IsPressed()
+	{
+		return isMousePressed;
+	}
+
+	// virtual System_MouseDoubleClick(_btnId)
+	// {
+	// 	if (_btnId == MOUSE_LEFT) OnClick(_btnId, Cursor_GetX(), Cursor_GetY());
+	// }
+
+
+	function DoClick(_btnId = MOUSE_LEFT)
+	{
+		if (hasTwoStates && changeCheckedOnClick) SetChecked(!checked);
+		OnClick(_btnId, -1, -1);
+	}
+
+	function SetText(_value)
+	{
+		text = _value;
+		if (fontString) fontString.SetText(text);
+	}
+
+	function GetText()
+	{
+		return text;
+	}
+
+	function GetButtonState()
+	{
+		if (!GetEnabled()) return UI_BUTTON_STATE_DISABLED;
+		if (IsPressed()) return UI_BUTTON_STATE_PRESSED;
+		if (cursorOver) return UI_BUTTON_STATE_HIGHLIGHT;
+		//if (GetChecked()) return UI_BUTTON_STATE_CHECKED;
+		return UI_BUTTON_STATE_NORMAL;
+	}
+
+// Button:SetFormattedText("formatString", ...) - Sets the button's label text using format specifiers
+// height = Button:GetTextHeight() - Returns the height of the button's text label
+// width = Button:GetTextWidth() - Returns the width of the button's text label
+
+	function UseDefinedFontColors(_value)
+	{
+		isUsingDefinedColors = _value;
+	}
+
+	function DefineNormalFontColor(_color, _isValid = true)
+	{
+		normalColor = _color;
+		normalColorSet = _isValid;
+	}
+
+	function DefineHighlightFontColor(_color, _isValid = true)
+	{
+		hightlightColor = _color;
+		hightlightColorSet = _isValid;
+	}
+
+	function DefineCheckedFontColor(_color, _isValid = true)
+	{
+		checkedColor = _color;
+		checkedColorSet = _isValid;
+	}
+
+	function DefineDisabledFontColor(_color, _isValid = true)
+	{
+		disabledColor = _color;
+		disabledColorSet = _isValid;
+	}
+
+	function DefinePressedFontColor(_color, _isValid = true)
+	{
+		pressedColor = _color;
+		pressedColorSet = _isValid;
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Texturas
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function GetFontString()
+	{
+		return fontstring;
+	}
+
+	function SetFontString(_fontstring)
+	{
+		if (fontstring) delete fontstring;
+
+		fontstring = _fontstring;
+		if (fontString)
+		{
+			fontString.SetText(text);
+			fontstring.IncPosition(textPadding[0], textPadding[1]);
+		}
+
+		Core_UpdateVisual();
+	}
+
+	function GetDisabledFontObject()
+	{
+		return fontDisabled;
+	}
+
+	function GetHighlightFontObject()
+	{
+		return fontHighlight;
+	}
+
+	function GetNormalFontObject()
+	{
+		return fontNormal;
+	}
+
+	function SetDisabledFontObject(_font)
+	{
+		fontDisabled = _font;
+		Core_UpdateVisual();
+	}
+
+	function SetHighlightFontObject(_font)
+	{
+		fontHighlight = _font;
+		Core_UpdateVisual();
+	}
+
+	function SetNormalFontObject(_font)
+	{
+		fontNormal = _font;
+		Core_UpdateVisual();
+	}
+
+	function Core_UpdateVisual()
+	{
+		if (textureNormal) textureNormal.Hide();
+		if (textureHighlight) textureHighlight.Hide();
+		if (textureDisabled) textureDisabled.Hide();
+		if (texturePressed) texturePressed.Hide();
+		if (textureChecked) textureChecked.Hide();
+
+
+		_font = fontNormal;
+		_texture = textureNormal;
+		_textureH = null;
+		_buttonState = GetButtonState();
+		_definedColor = 0;
+		_definedColorSet = false;
+		if (normalColorSet)
+		{
+			_definedColor = normalColor;
+			_definedColorSet = true;
+		}
+
+		if (_buttonState == UI_BUTTON_STATE_DISABLED)
+		{
+			if (fontDisabled) _font = fontDisabled;
+			if (textureDisabled) _texture = textureDisabled;
+			if (disabledColorSet)
+			{
+				_definedColor = disabledColor;
+				_definedColorSet = true;
+			}
+		}
+		else if (_buttonState == UI_BUTTON_STATE_HIGHLIGHT)
+		{
+// En ios/android no hay over
+#if __MACHINE_PC__ || __MACHINE_RASPBERRY__ && !_UISYS_SIMULATE_IOS_
+	//#if !_UISYS_SIMULATE_IOS_
+			if (fontHighlight) _font = fontHighlight;
+			if (textureHighlight)
+			{
+				if (texHighlightOverlay) _textureH = textureHighlight;
+				else _texture = textureHighlight;
+			}
+
+			if (hightlightColorSet)
+			{
+				_definedColor = hightlightColor;
+				_definedColorSet = true;
+			}
+
+	//#endif
+#endif
+		}
+		else if (_buttonState == UI_BUTTON_STATE_PRESSED)
+		{
+			if (texturePressed)
+			{
+				if (texPressedOverlay) _textureH = texturePressed;
+				else _texture = texturePressed;
+			}
+
+			if (pressedColorSet)
+			{
+				_definedColor = pressedColor;
+				_definedColorSet = true;
+			}
+		}
+
+		if (GetChecked())
+		{
+			if (textureChecked)
+			{
+				if (texCheckedOverlay)
+				{
+					_textureH = textureChecked;
+				}
+				else
+				{
+					textureChecked.Show();
+				}
+				BringToFront(textureChecked);
+			}
+
+			if (hideNormalOnChecked && _texture == textureNormal)
+				_texture = null;
+
+			if (checkedColorSet)
+			{
+				_definedColor = checkedColor;
+				_definedColorSet = true;
+			}
+		}
+
+		if (_texture) _texture.Show();
+		// if (_textureH) _textureH.Show();
+		if (_textureH)
+		{
+			_textureH.Show();
+			BringToFront(_textureH);
+		}
+
+
+		if (!fontstring) return;
+		//fontString.PinToBounds();
+		if (_font) fontstring.SetFontObject(_font);
+
+		if (isUsingDefinedColors && _definedColorSet)
+		{
+			fontString.SetTextColor(_definedColor);
+		}
+
+		BringToFront(fontString);
+	}
+
+	function GetDisabledTexture()
+	{
+		return textureDisabled;
+	}
+
+	function GetHighlightTexture()
+	{
+		return textureHighlight;
+	}
+
+	function GetNormalTexture()
+	{
+		return textureNormal;
+	}
+
+	function GetPressedTexture()
+	{
+		return texturePressed;
+	}
+
+	function GetCheckedTexture()
+	{
+		return textureChecked;
+	}
+
+	function SetNormalTexture(_texture, _removePreviousTexture = true)
+	{
+		if (textureNormal && _removePreviousTexture) delete textureNormal;
+
+		if (typeof(_texture) == TYPE_STRING)
+		{
+			textureNormal = CreateTexture();
+			textureNormal.SetTexture(_texture);
+			textureNormal.PinToBounds();
+			//textureNormal.SetVisible(false);
+		}
+		else textureNormal = _texture;
+
+		Core_UpdateVisual();
+	}
+
+	function SetDisabledTexture(_texture, _removePreviousTexture = true)
+	{
+		if (textureDisabled && _removePreviousTexture) delete textureDisabled;
+
+		if (typeof(_texture) == TYPE_STRING)
+		{
+			textureDisabled = CreateTexture();
+			textureDisabled.SetTexture(_texture);
+			textureDisabled.PinToBounds();
+			//textureDisabled.SetVisible(false);
+		}
+		else textureDisabled = _texture;
+
+		Core_UpdateVisual();
+	}
+
+	function SetHighlightTexture(_texture, _overlay = true, _removePreviousTexture = true)
+	{
+		if (textureHighlight && _removePreviousTexture) delete textureHighlight;
+
+		if (typeof(_texture) == TYPE_STRING)
+		{
+			textureHighlight = CreateTexture();
+			textureHighlight.SetTexture(_texture);
+			textureHighlight.PinToBounds();
+			//textureHighlight.SetVisible(false);
+		}
+		else textureHighlight = _texture;
+
+		texHighlightOverlay = _overlay;
+
+		Core_UpdateVisual();
+	}
+
+	function SetPressedTexture(_texture, _overlay = false, _removePreviousTexture = true)
+	{
+		if (texturePressed && _removePreviousTexture) delete texturePressed;
+
+		if (typeof(_texture) == TYPE_STRING)
+		{
+			texturePressed = CreateTexture();
+			texturePressed.SetTexture(_texture);
+			texturePressed.PinToBounds();
+			//texturePressed.SetVisible(false);
+		}
+		else texturePressed = _texture;
+
+		texPressedOverlay = _overlay;
+
+		Core_UpdateVisual();
+	}
+
+	function SetCheckedTexture(_texture, _overlay = false, _removePreviousTexture = true, _hideNormalOnChecked = false)
+	{
+		if (textureChecked && _removePreviousTexture) delete textureChecked;
+
+		if (typeof(_texture) == TYPE_STRING)
+		{
+			textureChecked = CreateTexture();
+			textureChecked.SetTexture(_texture);
+			textureChecked.PinToBounds();
+			//textureChecked.SetVisible(false);
+		}
+		else textureChecked = _texture;
+
+		texCheckedOverlay = _overlay;
+		hideNormalOnChecked = _hideNormalOnChecked;
+
+		Core_UpdateVisual();
+	}
+
+	function SetTextPadding(_x, _y)
+	{
+		if (fontstring) fontstring.IncPosition(-textPadding[0], -textPadding[1]);
+		textPadding = [_x, _y];
+		if (fontstring) fontstring.IncPosition(textPadding[0], textPadding[1]);
+	}
+
+	function SetPressedTextOffset(_x, _y)
+	{
+		pressedTextPadding = [_x, _y];
+	}
+
+	function GetPressedTextOffset()
+	{
+		return pressedTextPadding;
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Eventos
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function OnEnter()
+	{
+		::OnEnter();
+		Core_UpdateVisual();
+	}
+
+	function OnLeave()
+	{
+		::OnLeave();
+		Core_UpdateVisual();
+	}
+
+	function OnEnabledChanged()
+	{
+		::OnEnabledChanged();
+		Core_UpdateVisual();
+	}
+
+	function OnPressedChanged()
+	{
+		Core_UpdateVisual();
+		CallEvent(UI_EVENT_PRESSED_CHANGED);
+	}
+
+	function	OnCheckedChanged()
+	{
+		Core_UpdateVisual();
+		CallEvent(UI_EVENT_CHECKED_CHANGED);
+	}
+
+	function OnClick(_btnId, _x, _y)
+	{
+		::OnClick(_btnId, _x, _y);
+		if (hasTwoStates && changeCheckedOnClick)	SetChecked(!checked);
+	}
+
+	function OnDoubleClick(_btnId, _x, _y)
+	{
+		::OnDoubleClick(_btnId, _x, _y);
+		if (hasTwoStates && changeCheckedOnDoubleClick)	SetChecked(!checked);
+	}
+
+
+	function System_MouseDown(_btnId, _mx, _my)
+	{
+		if (!::System_MouseDown(_btnId, _mx, _my)) return false;
+
+		//if (_btnId == MOUSE_LEFT)
+		if (uiSystem.IsMouseLeft(_btnId))
+		{
+			isMousePressed = true;
+			OnPressedChanged();
+		}
+
+		if (fontString)
+		{
+			fontString.IncPosition(pressedTextPadding[0], pressedTextPadding[1]);
+		}
+
+		return true;
+	}
+
+	function System_MouseUp(_btnId, _mx, _my)
+	{
+		isMousePressed = false;
+		::System_MouseUp(_btnId, _mx, _my);
+
+		OnPressedChanged();
+
+		if (fontString)
+		{
+			fontString.IncPosition(-pressedTextPadding[0], -pressedTextPadding[1]);
+		}
+	}
+
+	function System_CaptureChanged(_frameGainCapture, _frameLostCapture)
+	{
+		::System_CaptureChanged(_frameGainCapture, _frameLostCapture);
+
+		if (_frameLostCapture == this)
+		{
+			isMousePressed = false;
+			OnPressedChanged();
+		}
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Radio Button
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function SetRadioGroup(_value)
+	{
+		radioGroup = _value;
+	}
+
+	function GetGroupboxChecked()
+	{
+		if (checked) return this;
+
+		_container = GetParent();
+		if (_container)
+		{
+			_controls = _container.GetChildren();
+			for (i = 0; i < sizeof(_controls); i++)
+			{
+				_child = _controls[i];
+				if (_child._instanceof("UI_Button") && _child.checked && radioGroup == _child.radioGroup)
+					return _child;
+			}
+		}
+
+		return null;
+	}
+
+	function Core_ClearChecked()
+	{
+		if (checked == false) return;
+
+		checked = false;
+		OnCheckedChanged();
+	}
+
+}

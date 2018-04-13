@@ -1,0 +1,74 @@
+class Actor implements Item
+{
+	properties:
+		sndFall = null;
+		
+	virtual Init ()
+	{	
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "item_key.msh");
+		
+		sndFall = LoadSound3D ("keys_fall.ogg");
+		
+		EndLoadResources ();
+		
+		name = "item_key";
+	}
+	
+	virtual Final ()
+	{
+	}
+	
+	virtual Start ()
+	{
+		//DebugMsg ("USED:", game.IsItemUsed(name), "INVEN:", game.IsItemInInventory(name));
+		if (game.IsItemUsed(name) || game.IsItemInInventory(name)) // Item usado o en el inventario
+		{
+			visible = false;
+			SetEnabled (false);
+			stage.FindActor("npc_green_door").SetEnabled(true);
+		}
+		else if (game.IsItemUsed("item_lever_1")) // Llave en el suelo, se usó la palanca
+		{
+			posZ = 10.0f;
+			shadow = true;
+			SetEnabled (true);
+		}
+		else 
+		{
+			_jim = stage.FindActor("npc_jim");
+			if (_jim.GetState() >= 1)
+			{
+				SetEnabled(true);
+			}
+		}
+	}
+
+	function Fall ()
+	{
+		posZ = 10.0f;
+		shadow = true;
+		main.PlayFX(sndFall);
+	}
+
+	function OnCursorClick()
+	{
+		if (enabled)
+		{
+			if (game.IsItemUsed("item_lever_1") || game.IsItemInInventory("item_lever_1")) // Lo he activado, la llave está en el suelo
+			{
+				_player = game.GetPlayer();
+				game.hud.OpenPlayerTID ("player_item_key_2");
+				stage.FindActor("npc_green_door").SetEnabled(true);
+				_player.AddInventory (this);
+				_player.TaskDone("pickup_key");	
+			}
+			else // Todavia no he activado el lever_1
+			{
+				game.hud.OpenPlayerTID ("player_item_key_1");
+			}
+		}
+	}
+}

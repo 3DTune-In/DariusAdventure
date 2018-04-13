@@ -1,0 +1,139 @@
+class Actor implements NPC
+{
+	constants:
+		MOBILE_RED = 0;
+		MOBILE_GREEN = 1;
+		MOBILE_BLUE = 2;
+		MOBILE_ORANGE = 3;
+		MOBILE_YELLOW = 4;
+		
+	properties:
+		mobileList = []; 
+		dummyList = ["red", "green", "blue", "orange", "yellow"];
+		orderList = [];
+		text = "";
+		angle = 0;
+		showText = false;
+		
+	virtual Init ()
+	{	
+		StartLoadResources ();
+			
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_mobile_shelving.msh");
+		                                        
+		EndLoadResources ();
+		name = "npc_mobile_shelving";
+		useAngles = 0;
+		gravity = false;
+		shadow = false;
+		
+		text = g_language.GetText("mobile_shelving_1");
+		
+		_red = Scene_NewActor (scene, "mobile_red", "item_mobile_phone_red", 0, 0, 0);
+		mobileList += [_red];
+
+		_green = Scene_NewActor (scene, "mobile_green", "item_mobile_phone_green", 0, 0, 0);
+		mobileList += [_green];
+
+		_blue = Scene_NewActor (scene, "mobile_blue", "item_mobile_phone_blue", 0, 0, 0);
+		mobileList += [_blue];
+
+		_orange = Scene_NewActor (scene, "mobile_orange", "item_mobile_phone_orange", 0, 0, 0);
+		mobileList += [_orange];
+
+		_yellow = Scene_NewActor (scene, "mobile_yellow", "item_mobile_phone_yellow", 0, 0, 0);
+		mobileList += [_yellow];
+	}
+	
+	virtual Final ()
+	{
+	}
+
+	virtual Start ()
+	{
+		_npc = stage.FindActor ("npc_joseph");
+		if (_npc.GetState() < 4)
+		{
+			Reset ();
+		}
+		else
+		{
+			for (i=0; i<sizeof(mobileList); i++)
+			{
+				_mobile = mobileList[i];
+				Actor_AddChild (this, _mobile, Actor_FindDummy (this, dummyList[i]));
+				_mobile.SetVisible (true);
+			}
+		}
+	}
+	
+	function OnDropItem (_itemName)
+	{	
+		for (i=0; i<sizeof(mobileList); i++)
+		{
+			_mobile = mobileList[i];
+			if (_mobile.name == _itemName)
+			{
+				Actor_AddChild (this, _mobile, Actor_FindDummy (this, dummyList[sizeof(orderList)]));
+				_mobile.SetVisible (true);
+				orderList += [_mobile];
+				showText = true;
+				return true;
+			}
+			
+		}
+		showText = sizeof(orderList) != sizeof(mobileList);
+		return false;
+	}
+	
+	function IsOk ()
+	{
+		if (sizeof(orderList) != sizeof(mobileList))
+			return false;
+			
+		for (i=0; i<sizeof(orderList); i++)
+		{
+			if (orderList[i].name != mobileList[i].name)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+	
+	function IsAllPlaced ()
+	{
+		if (sizeof(orderList) == sizeof(mobileList))
+		{
+			return true;
+		}
+		else
+		{
+			return false;
+		}		
+	}
+	
+	function Reset ()
+	{
+		// Sorting mobiles
+		for (i=0; i<sizeof(mobileList); i++)
+		{
+			_mobile = mobileList[i];
+			_mobile.SetEnabled(false);	
+			_mobile.SetVisible(false);
+		}
+		orderList = [];
+		showText = false;
+	}
+	
+	virtual Draw()
+	{
+		if (showText)
+		{
+			_pos = Convert3DTo2D(posX, posY, posZ);
+			Render_PrintRect(game.hud.font, _pos[0]-200, _pos[2]+200+sin(angle)*10, 400, 200, text, -1);
+			angle += GetFTime() * 0.25f;
+		} 
+	}
+}

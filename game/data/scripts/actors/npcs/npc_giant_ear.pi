@@ -1,0 +1,23 @@
+class Actor implements NPC
+{
+	properties:
+		ANI_QUIET = null;
+		
+	virtual Init ()
+	{	
+		StartLoadResources ();
+			
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_giant_ear.msh");
+		
+		ANI_QUIET = Actor_LoadKinematic (this, "npc_giant_ear_quiet.kin");
+
+		EndLoadResources ();
+		
+		name = "npc_giant_ear";
+	}
+
+	virtual Start ()
+	{                                                  	
+	}
+}

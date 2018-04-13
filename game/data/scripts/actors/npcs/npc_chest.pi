@@ -1,0 +1,80 @@
+class Actor implements NPC
+{
+	properties:
+		ANI_CLOSED = null;
+		ANI_OPEN = null;
+		ANI_OPENED = null;
+		sndOpen = null;
+		
+	virtual Init ()
+	{	
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_chest.msh");
+	
+		ANI_CLOSED = Actor_LoadKinematic (this, "npc_chest_closed.kin");
+		ANI_OPEN = Actor_LoadKinematic (this, "npc_chest_open.kin");
+		ANI_OPENED = Actor_LoadKinematic (this, "npc_chest_opened.kin");
+	
+		sndOpen = LoadSound("door_open.ogg"); 
+	
+		EndLoadResources ();
+		name = "npc_chest";
+		useAngles = 0;
+	}
+
+	virtual Start ()
+	{                         
+		if (game.IsItemUsed(name))
+		{
+			SetEnabled (false);
+			Actor_SetKin (this, ANI_OPENED, KINMODE_LOOP);
+			_change ("opened");
+		}
+		else
+		{
+			Actor_SetKin (this, ANI_CLOSED, KINMODE_LOOP);
+			_change ("closed");
+		}
+	}
+	
+	state "closed"
+	{
+	}
+	
+	function Open ()
+	{
+		game.SetItemUsed(name);
+		Actor_SetKin (this, ANI_OPEN, KINMODE_ENDFIX);
+		main.PlayFX(sndOpen);
+		_change ("opening");
+	}
+	
+	state "opening"
+	{
+		if (Actor_IsKinTimeEnd (this))
+		{
+			SetEnabled (false);
+			Actor_SetKin (this, ANI_OPENED, KINMODE_LOOP);
+			_change ("opened");
+		}
+	}
+	
+	state "opened"
+	{
+	}
+
+	function OnDropItem (_itemName)
+	{
+		if (_itemName == "item_pliers")
+		{
+			Open();
+			game.hud.OpenPlayerTID ("chest_1_1");
+			game.GetPlayer().AddInventory ("item_treasure_map");
+			game.GetPlayer().AddTask("use_treasure_map");
+			return true;
+		}
+		return false;
+	}
+}

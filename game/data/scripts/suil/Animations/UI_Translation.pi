@@ -1,0 +1,26 @@
+class UI_Translation implements UI_Animation
+{
+	properties:
+		x = 0;
+		y = 0;
+
+	function SetXOffset(_x)
+	{
+		x = _x;
+	}
+
+	function SetYOffset(_y)
+	{
+		y = _y;
+	}
+
+	function Core_InternalUpdate()
+	{
+		_g = GetParent().GetParent();
+		if (x != 0)	_g.animationCurrentPoint.x += Interpolate(0, x, GetProgress());
+		if (y != 0)	_g.animationCurrentPoint.y += Interpolate(0, y, GetProgress());
+
+		_g.animationCurrentPoint.flags |= UI_ANI_FLAG_POSITION;
+		//DebugMsg("x", x, GetProgress(), _g.animationCurrentPoint.x);
+	}
+}

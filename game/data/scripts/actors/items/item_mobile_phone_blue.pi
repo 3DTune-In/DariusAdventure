@@ -1,0 +1,14 @@
+class Actor implements Item
+{
+	virtual Init ()
+	{	
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "item_mobile_phone_blue.msh");
+		
+		EndLoadResources ();
+
+		name = "item_mobile_phone_blue";
+	}
+}

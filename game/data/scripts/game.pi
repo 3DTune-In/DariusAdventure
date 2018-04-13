@@ -1,0 +1,844 @@
+class Service
+{
+	defines:
+		LANDMARK_ITEM_QUANTITY_MASK 	= 0x00FF00FF;
+		LANDMARK_ITEM_IN_INVENTORY 		= 0x00000100;
+		LANDMARK_ITEM_USED 				= 0x00000200;
+		LANDMARK_ITEM_ENABLED			= 0x00000400;
+		LANDMARK_ITEM_STATE_MASK		= 0xFFFFFF00;
+		
+		VOICE_GIRL = 1;
+		VOICE_BOY = 2;
+		VOICE_PLAYER = 3;
+	
+		CLASS_TYPE_ENEMY = 1;
+		CLASS_TYPE_PLAYER = 2;
+		CLASS_TYPE_ITEM = 4;
+		CLASS_TYPE_NPC = 8;
+		CLASS_TYPE_DECO = 16;
+		CLASS_TYPE_PLATFORM = 32;
+		CLASS_TYPE_COLLISIONABLE = 128;
+		
+		INTERACT_DISTANCE = 500;
+
+ 		WEAPON_TYPE_WHIP = 0;
+		WEAPON_TYPE_SWORD = 1;
+		WEAPON_TYPE_CROSSBOW = 2;
+
+		STAGE_SCRAPYARD = 1;
+		STAGE_BUS_STOP = 2;
+		STAGE_GASOIL_STATION = 3;
+		STAGE_CROSS_ROADS = 4;
+		STAGE_BEACH = 5;
+		STAGE_ISLAND = 6;
+		STAGE_CITY_ENTRANCE = 7;	
+		STAGE_STATUE_ROOM = 8;
+		STAGE_CROSS_STREET_1 = 9;
+		STAGE_BACK_STREET_1 = 10;
+		STAGE_CROSS_STREET_2 = 11;
+		STAGE_MOBILE_SHOP = 12;
+		STAGE_RESTAURANT = 13;
+		STAGE_SEWER_1 = 14;
+		STAGE_BOOK_SHOP = 15;	
+		STAGE_BACK_STREET_2 = 16;
+		STAGE_SEWER_2 = 17;	
+		STAGE_SEWAGE_EXIT = 18;
+		STAGE_MAX = 19;
+		
+		TOTAL_FEATHERS = 15;
+		TOTAL_POTATOES = 5;
+		TOTAL_REDBOOKS = 10;
+		TOTAL_SUGARCUBES = 2;
+		TOTAL_APPLES = 10;
+		
+		END_DIALOGUE = 1000000;
+		NEXT_DIALOGUE = -1;
+		START_DIALOGUE = 0;
+
+	properties:
+		stage = null;
+		scanline = null;
+		stageID = -1;
+		stagePR = "";
+		fogStart = 0;
+		fogEnd = 0;
+		fogColor = 0;
+		hud = null;
+		numPlayers = 1;
+		characterID = 0;
+		curTime = 0.0f;
+		maxTime = 6400.0f;
+		music = null;
+		ambience = null;
+		menuingame = null;
+		profile = null;
+		currentMusicName = "";
+		currentAmbienceName = "";
+		currentMusicVol = DEFAULT_MUSIC_VOLUME;
+		currentMusicNewLoad = false;
+		//
+		isUntouchable = false;
+		sndVoiceList = [];
+		profileID = 1;
+		playTime = 0;
+		bNOAnechoic = false;
+		isDoublePressed = false;		
+		bShowScene = true;	
+
+		//
+#if __DEBUG__ && ___HL_TUNNER___
+		hlGainDB = [-7,  -7, -12, -15, -22, -25, -25, -25, -25];
+		hlGainDBIndex = 0;
+		hlCompressor = false;
+#endif
+
+	function Init ()
+	{
+		SetAnechoic(true);
+		SetSystemUnit(0.01f);
+
+		#if CHEAT_STAGE
+		_stageID = int(CHEAT_STAGE);
+		DebugMsg ("CHEAT_STAGE=", CHEAT_STAGE);
+		#else
+		_stageID = STAGE_SCRAPYARD;
+		#endif
+
+		profile = new Profile();	
+	
+		System_SetDirectory (DIRECTORY_SCRIPT, "data/scripts/");
+		System_SetDirectory (DIRECTORY_SCENE, "data/stages/");
+		System_SetDirectory (DIRECTORY_MESH, "data/meshes/");
+		System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/"); // Para que cargue el shadow.png
+		System_SetDirectory (DIRECTORY_SOUND, "data/sounds/");
+		System_SetDirectory (DIRECTORY_MUSIC, "data/musics/");
+
+   		hud = Service_Load ("hud", "hud", ["game", this]);
+		Service_SetVisible (hud, false);
+
+		#if CHEAT_STAGE
+			LoadStage (_stageID);
+		#else
+		if (!LoadProfile(profileID))
+			LoadStage (_stageID);
+		#endif
+		
+		//scanline = Service_Run ("scanline", "scanline");
+		
+		EnableInputEvents();
+		
+		System_AddKinEvent ("LSTEP", 1);
+		System_AddKinEvent ("RSTEP", 2);
+		System_AddKinEvent ("BOUNCE", 3);
+		
+		System_SetDirectory (DIRECTORY_SOUND, "data/sounds/");
+		sndVoiceList += [Sound_Load ("voice_bla_1.ogg", true)];
+		sndVoiceList += [Sound_Load ("voice_bla_2.ogg", true)];
+		sndVoiceList += [Sound_Load ("voice_bla_3.ogg", true)];
+		sndVoiceList += [Sound_Load ("voice_bla_1.ogg", true)];
+	}
+	
+	function Final ()
+	{
+		for (i=0; i<sizeof(sndVoiceList); i++) Sound_Delete (sndVoiceList[i]);
+		if (scanline) Service_Delete (scanline);
+		if (stage) Service_Delete (stage);
+		if (hud) Service_Delete (hud);
+		if (music) Music_Delete (music);
+		//if (ambience) Sound_Delete (ambience); // Se  borra con la SCENE
+		if (menuingame) Service_Delete (menuingame);
+		if (profile) delete profile;
+	}
+	
+	function Start ()
+	{
+	}
+
+    function Pause ()
+    {
+		if (stage) Service_Pause (stage);
+		if (hud) Service_Pause (hud);
+		DisableInputEvents();
+    }
+    
+    function Resume ()
+    {
+		if (stage) Service_Resume (stage);
+		if (hud) Service_Resume (hud);
+		EnableInputEvents();
+    }
+	
+	function EnableInputEvents ()
+	{
+		Input_AddEvent (INPUT_EVENT_CHAR, this, "OnChar");
+		Input_AddEvent (INPUT_EVENT_MOUSELEFTPRESS, this, "OnMouseLeftPress");
+		Input_AddEvent (INPUT_EVENT_MOUSEDBLLEFT, this, "OnMouseDblLeftPress");
+		Input_AddEvent (INPUT_EVENT_MOUSELEFTRELEASE, this, "OnMouseLeftRelease");
+		Input_AddEvent (INPUT_EVENT_MOUSEMOVE, this, "OnMouseMove");
+	}
+	
+	function DisableInputEvents ()
+	{
+		Input_RemoveEvent (INPUT_EVENT_CHAR, this);
+		Input_RemoveEvent (INPUT_EVENT_MOUSELEFTPRESS, this);
+		Input_RemoveEvent (INPUT_EVENT_MOUSELEFTRELEASE, this);
+		Input_RemoveEvent (INPUT_EVENT_MOUSEDBLLEFT, this);
+		Input_RemoveEvent (INPUT_EVENT_MOUSEMOVE, this);
+	}
+	
+	function PlayMusic ()
+	{
+		Music_FadeAndPlay (music, 16);
+	}
+	
+	function GotoMenu ()
+	{
+		Service_Delete (this);
+		_menu = Service_Run ("menu", "menu");
+		g_fade.Off ();
+	}
+	
+	function GetPlayer ()
+	{
+		return stage.GetPlayer(0);
+	}
+	
+	function NewDialogue ()
+	{
+		_dlg = new Dialogue();
+		return _dlg;
+	}
+	
+	function ShowDialogue (_dlg)
+	{
+		hud.ShowDialogue (_dlg);
+	}
+	
+	function OpenPopup (_text)
+	{
+		hud.OpenPopup (_text);
+	}
+	
+	function OnStageClear ()
+	{
+		g_lastPlayerStageID = stageID;
+		Service_Pause (this);
+		Service_Run ("stage_clear", "stage_clear", ["game", this]);
+	}
+	
+	function GameOver ()
+	{
+		g_lastPlayerStageID = stageID;
+		Service_Pause (this);
+		_gameover = Service_Run ("gameover", "gameover");
+	}
+	
+	function LoadStage (_stageID, _playerRef = "")
+	{
+		SetHAMode(false);
+		SetHLMode(false);
+		
+		hud.Reset();
+		
+		DebugMsg ("LOAD_STAGE:", _stageID, _playerRef, stageID);
+
+		stageID = _stageID;
+		stagePR = _playerRef;
+		
+		Service_Resume (this);
+		
+		_musicName = "";//"bg_ingame.ogg";
+		_ambience = "";
+		_volMusic = Registry_GetValueInt (DEFAULT_MUSIC_KEY, DEFAULT_MUSIC_VOLUME);
+		DebugMsg ("VOLMUSIC:", _volMusic);
+		fogStart = 0;
+		fogEnd = 0;
+		fogColor = 0;
+		
+		switch (stageID)
+		{
+			case STAGE_SCRAPYARD:
+			{
+				_ambience = "ambience_scrapyard.ogg";
+			}
+			break;
+			case STAGE_BUS_STOP:
+			{
+				_ambience = "ambience_busstop.ogg";
+			}
+			break;
+			case STAGE_GASOIL_STATION:
+			{
+				_ambience = "ambience_busstop.ogg";
+			}
+			break;
+			case STAGE_CROSS_ROADS:
+			{
+				_ambience = "ambience_crossroads.ogg";
+			}
+			break;
+			case STAGE_BEACH:
+			{
+				_ambience = "ambience_beach.ogg";
+			}
+			break;
+			case STAGE_ISLAND:
+			{
+				_ambience = "ambience_island.ogg";
+			}
+			break;
+			case STAGE_CITY_ENTRANCE:
+			{
+				fogStart = 1500;
+				fogEnd = 4000;
+				fogColor = ARGB(255,53,83,129);
+				_ambience = "ambience_cityentrance.ogg";
+			}
+			break;	
+			case STAGE_STATUE_ROOM:
+			{
+				_ambience = "ambience_statueroom.ogg";
+			}
+			break;
+			case STAGE_CROSS_STREET_1:
+			{
+				_ambience = "ambience_crossstreet.ogg";
+			}
+			break;
+			case STAGE_BACK_STREET_1:
+			{
+				_ambience = "ambience_backstreet.ogg";
+			}
+			break;
+			case STAGE_CROSS_STREET_2:
+			{
+				_ambience = "ambience_crossstreet.ogg";
+			}
+			break;
+			case STAGE_MOBILE_SHOP:
+			{
+				_ambience = "ambience_mobileshop.ogg";
+			}
+			break;
+			case STAGE_RESTAURANT:
+			{
+				_ambience = "ambience_restaurant.ogg";
+			}
+			break;
+			case STAGE_SEWER_1:
+			{
+				_ambience = "ambience_sewer.ogg";
+			}
+			break;
+			case STAGE_BOOK_SHOP:	
+			{
+				_ambience = "ambience_bookshop.ogg";
+			}
+			break;
+			case STAGE_BACK_STREET_2:
+			{
+				_ambience = "ambience_backstreet.ogg";
+			}
+			break;
+			case STAGE_SEWER_2:	
+			{
+				_ambience = "ambience_sewer.ogg";
+			}
+			break;
+			case STAGE_SEWAGE_EXIT:
+			{
+				_ambience = "ambience_sewer.ogg";
+			}
+			break;
+		}
+		
+		if (currentMusicName != _musicName)
+		{
+			currentMusicNewLoad = true;
+			Music_FadeOff (16);
+		}
+		else
+		{
+			currentMusicNewLoad = false;
+			if (ambience)
+			{
+				Sound_Delete (ambience);
+				ambience = null;
+			}
+		}
+
+		currentAmbienceName = _ambience;
+		currentMusicName = _musicName;
+		
+		SetMusicVolume(currentMusicVol);
+		//currentMusicVol = _volMusic;
+
+		if (stage) Service_Delete (stage);
+
+		Service_SetVisible (hud, false);
+		hud.Start();
+
+		DebugMsg ("NEXT STAGE:", stageID);
+		stage = Service_Run ("stage", "stage", ["game", this]);
+	}
+	
+	function SetMusicVolume(_vol)
+	{
+		currentMusicVol = _vol;
+		if (ambience) Sound_SetProperty (ambience, SOUND_VOLUME, currentMusicVol);
+		if (music) Music_SetVolume (currentMusicVol);
+	}
+	
+	function OnStageLoadEnd ()
+	{
+		if (currentAmbienceName != "")
+		{
+			if (ambience) Sound_Delete (ambience);
+			System_SetDirectory (DIRECTORY_SOUND, "data/musics/");
+			_center = stage.GetCenter();
+			ambience = Scene_LoadSound3D (stage.scene, currentAmbienceName, _center[0], _center[1], _center[2], true);
+			Sound_SetProperty (ambience, SOUND_API, ["ANECHOIC", false]);
+			Sound_SetProperty (ambience, SOUND_VOLUME, currentMusicVol);
+			Sound_Play (ambience);
+		}
+	
+		if (!music || currentMusicNewLoad)
+		{
+			System_SetDirectory (DIRECTORY_MUSIC, "data/musics/");
+			if (music) Music_Delete (music);
+			if (currentMusicName != "")
+			{
+				music = Music_Load (currentMusicName);
+				Music_Play (music, true);
+				Music_SetVolume (currentMusicVol);
+				Debugmsg ("MUSICSETVOL:", Music_GetVolume());
+				Music_FadeOn (16);
+			}
+		}
+		else
+		{
+			Debugmsg ("MUSICGETVOL:", Music_GetVolume());
+			Music_FadeTo (currentMusicVol, 16);
+		}
+		DebugMsg ("MUSICVOLUME:", currentMusicVol);
+	}
+
+	function SaveProfile ()
+	{
+		SaveProfile (profileID);
+	}
+
+	function SaveProfile (_id)
+	{
+		profile.stageID = stageID;
+		_player = GetPlayer();
+		profile.posX = _player.posX; 
+		profile.posY = _player.posY; 
+		profile.posZ = _player.posZ;
+		profile.angleZ = _player.angleZ; 
+		profile.playTime += GetTime() - playTime;
+		playTime = GetTime();
+		return profile.Save(_id);
+	}
+	
+	function LoadProfile (_id)
+	{
+		if (profile.Load(_id))
+		{               	
+			SetHADual(profile.hadual);
+			SetHADirectionality(profile.haomni==false);
+			g_language.SetPrefix(profile.lang);
+			if (profile.playTime == 0) _params = "";
+			else _params = [profile.posX, profile.posY, profile.posZ, profile.angleZ];
+			playTime = GetTime(); 
+			LoadStage (profile.stageID, _params);
+			return true;
+		}
+		else
+		{
+			DebugMsg ("LoadProfile:", _id, "load FAILED!");
+			return false;
+		}	
+	}
+
+	function AddLandMark (_name, _value)
+	{
+		//DebugMsg ("ADDLANDMARK", _name, _value);
+		Dictionary_InsertItem (profile.landmarks, _name, _value);
+		//DebugMsg ("ADD_LANDMARK:", _name, "V:", hex(_value));
+		//DebugStackTrace();
+	}
+
+	function DeleteLandMark (_name)
+	{
+		Dictionary_DeleteItem (profile.landmarks, _name);
+	}
+	
+	function GetLandMark (_name)
+	{
+		return Dictionary_GetItem (profile.landmarks, _name);
+	}
+	
+	function SetItemUsed (_name)
+	{
+		_v = GetLandMark (_name);
+		AddLandMark (_name, (_v & LANDMARK_ITEM_QUANTITY_MASK) | LANDMARK_ITEM_USED);
+	}
+	
+	function IsItemUsed (_name)
+	{
+		return (GetLandMark (_name) & LANDMARK_ITEM_USED);
+	}
+	
+	function SetItemInInventory (_name)
+	{
+		_v = GetLandMark (_name);
+		AddLandMark (_name, (_v & LANDMARK_ITEM_QUANTITY_MASK) | LANDMARK_ITEM_IN_INVENTORY);
+		hud.AlertNewItemInInventory();
+	}
+
+	function IsItemInInventory (_name)
+	{
+		return (GetLandMark (_name) & LANDMARK_ITEM_IN_INVENTORY);
+	}
+	
+	function SetItemEnabled (_name)
+	{
+		_v = GetLandMark (_name);
+		AddLandMark (_name, (_v & LANDMARK_ITEM_QUANTITY_MASK) | LANDMARK_ITEM_ENABLED | (_v & (LANDMARK_ITEM_USED | LANDMARK_ITEM_IN_INVENTORY)));
+	}
+	
+	function IsItemEnabled (_name)
+	{
+		return (GetLandMark(_name) & LANDMARK_ITEM_STATE_MASK);
+	}
+	
+	function SetItemQuantity (_name, _q)
+	{
+		_v = GetLandMark (_name);
+		_v &= 0xFFFFFF00;
+		_v |= _q;
+		AddLandmark (_name, _v);
+	}
+	
+	function FindActor (_name)
+	{
+		return stage.FindActor(_name);
+	}
+
+	function GetItemQuantity (_name)
+	{
+		return (GetLandMark (_name) & LANDMARK_ITEM_QUANTITY_MASK) & 0xFF;
+	}
+
+	function GetItemMaxQuantity (_name)
+	{
+		_v = GetLandMark (_name);
+		//DebugMsg ("GET_ITEMMAXQUANTITY:", _name, "V:", hex(_v));
+		return (_v & LANDMARK_ITEM_QUANTITY_MASK) >> 16;
+	}
+
+   	function SetItemMaxQuantity (_name, _q)
+	{
+		_v = GetLandMark (_name);
+		_v &= 0xFF00FFFF;
+		_v |= (_q << 16);
+		AddLandmark (_name, _v);
+		//DebugMsg ("SET_ITEMMAXQUANTITY:", _name, "V:", hex(_v));
+	}
+
+    function PausePlay ()
+    {
+		if (!menuingame && stage.bReady && !g_fade.IsFading())
+		{
+			Service_Pause (this);
+			menuingame = Service_Run ("menu_ingame", "menu_ingame", ["game", this]);
+		}
+    }
+	
+	function ContinuePlay ()
+	{
+		if (menuingame && stage.bReady && !g_fade.IsFading())
+		{
+			Service_Resume (this);
+			Service_Delete (menuingame);
+			menuingame = null;
+		}
+	}
+	
+	function CheckMouseOver (_dropItem = "")
+	{
+		_x = Cursor_GetX();
+		_y = Cursor_GetY();
+		_player = stage.GetPlayer(0);
+		
+		_mouseOver = null;
+		_list = [];
+		_list += Scene_GetObjects (stage.scene, OBJECT_CLASSID_ACTOR, CLASS_TYPE_COLLISIONABLE | CLASS_TYPE_ITEM, _player.posX, _player.posY, _player.posZ, INTERACT_DISTANCE, -1);
+		_list += Scene_GetObjects (stage.scene, OBJECT_CLASSID_ACTOR, CLASS_TYPE_COLLISIONABLE | CLASS_TYPE_NPC, _player.posX, _player.posY, _player.posZ, INTERACT_DISTANCE, -1);
+		_list += [_player];
+		
+		if (_dropItem != "")
+		{
+			/*for (j=0; j<sizeof(_list)-1; j++)
+			{
+				for (i=j; i<sizeof(_list); i++)
+				{
+					_cam = stage.camera;
+					_actor1 = _list[i];
+					_actor2 = _list[j];
+					_d1 = PointDistance(_cam.srcX, _cam.srcY, _cam.srcZ, _actor1.posX, _actor1.posY, _actor1.posZ);
+					_d2 = PointDistance(_cam.srcX, _cam.srcY, _cam.srcZ, _actor2.posX, _actor2.posY, _actor2.posZ);
+					if (_d1 < _d2)
+					{
+						_list[i] = _actor2;
+						_list[j] = _actor1;
+					}
+				}
+			} */
+			// En caso de DROP, priorizamos sobre el player primero
+			_w = 2;
+			_ret = Actor_IntersectWith2DRect (_player, _x, _y, _w, _w, "box"); 
+			if (_ret)
+			{
+				if (_player.CompatibleDropItem(_dropItem))
+				{
+					return _player;
+				}
+			}
+		}	
+		
+		for (i=0; i<sizeof(_list); i++)
+		{
+			_actor = _list[i];
+			if (_actor._instanceOf("Item")) _w = 100;
+			else _w = 2;
+			_ret = Actor_IntersectWith2DRect (_actor, _x, _y, _w, _w, "box"); 
+			if (_ret)
+			{
+				//DebugMsg ("POINT OVER:", _actor.name, _ret);
+				_mouseOver = _actor;
+				break; 
+			}
+		}
+		return _mouseOver;
+	}
+	
+	function OnMouseMove (_x, _y)
+	{
+		if (hud.dialogue || hud.IsInventoryOpen())
+		{
+			hud.OnMouseMove(_x, _y);
+			hud.mouseOver = null;
+			return;
+		}
+	
+		if (stage && sizeof(stage.playerList))
+		{
+			_mouseOver = CheckMouseOver();
+
+            if (_mouseOver != hud.mouseOver)
+            {
+            	if (hud.mouseOver) hud.mouseOver.OnCursorLeave();
+            	if (_mouseOver) _mouseOver.OnCursorEnter();
+            	hud.mouseOver = _mouseOver;
+            }
+			
+			_ret = Scene_GetPosFromScreen (stage.scene, Cursor_GetX(), Cursor_GetY());
+			if (_ret[0]) 
+			{
+				if (_mouseOver)
+					hud.SetCursor(hud.CURSOR_TALKTO);
+				else
+					hud.SetCursor(hud.CURSOR_WALKTO);
+			}
+			else hud.SetCursor(hud.CURSOR_FORBIDDEN);
+		}
+	}
+	
+	function GetMouseOver ()
+	{
+		return hud.mouseOver;
+	}
+	
+	function OnMouseDblLeftPress ()
+	{
+		isDoublePressed = true;
+		OnMouseLeftPress();
+	}
+	
+	function OnMouseLeftPress (_continuePressing = false)
+	{
+        if (hud.OnMouseLeftPress() || !stage.IsReady())
+        	return;
+			
+		_player = GetPlayer();
+		
+		OnMouseMove (Cursor_GetX(), Cursor_GetY());
+		
+		if (hud.mouseOver && hud.mouseOver != _player)
+		{
+			_player.SpeakWith (hud.mouseOver);
+		}
+		else
+		{
+			_ret = Scene_GetPosFromScreen (stage.scene, Cursor_GetX(), Cursor_GetY());
+			if (_ret[0])
+			{
+				//if (!Scene_GetCellCollision (stage.scene, _ret[1], _ret[2], _ret[3]))
+				{
+					_player.WalkTo (_ret[1], _ret[2], _ret[3], _continuePressing);
+				}
+			}
+		}
+	}
+
+	function OnMouseLeftRelease ()
+	{
+		isDoublePressed = false;
+        if (hud.OnMouseLeftRelease())
+        	return;
+	}
+	
+	function OnChar (_key)
+	{
+	#if __DEBUG__ && ___CHEAT_MODE___
+		if (_key == 'd' || _key == 'D')
+		{
+			stage.debugMode = !stage.debugMode;
+		}
+		else if (_key == 's' ||  _key == 'S')
+		{
+			SaveProfile (5);
+		}
+		else if (_key == 'l' ||  _key == 'L')
+		{
+			LoadProfile (5);
+		}
+		else if (_key == '1')
+		{
+			GetPlayer().SetNakedMode();
+		}
+		else if (_key == '2')
+		{
+			GetPlayer().SetJimWorkMode();
+		}
+		else if (_key == '3')
+		{
+			GetPlayer().SetAngelMode();
+		}
+		else if (_key == '4')
+		{
+			_v = GetPlayer().CanHearingAid();
+			if (_v == false)
+			{
+				//REINICIAMOS AL APAGARLO
+				profile.haQuality = 1;
+			}
+			GetPlayer().EnableHearingAid(!_v);
+			GetPlayer().ShowHearingAid (!_v);
+		}
+		else if (_key == '0')
+		{
+			GetPlayer().LevelUpHearingAid ();
+		}
+		else if (_key == 'N' || _key == 'n')
+		{
+			if (stageID < STAGE_MAX-1) LoadStage (stageID + 1);
+		}
+		else if (_key == 'P' || _key == 'p')
+		{
+			if (stageID > 1) LoadStage (stageID - 1);
+		}
+	#endif 
+	#if __DEBUG__ && __HL_TUNNER___
+		else if (_key == 'E' || _key == 'e')
+		{
+			hlGainDB[hlGainDBIndex]++;
+			Music_SetProperty(null, MUSIC_API, ["HLGainsDB", hlGainDB]);
+		}
+		else if (_key == 'R' || _key == 'r')
+		{
+			hlGainDB[hlGainDBIndex]--;
+			Music_SetProperty(null, MUSIC_API, ["HLGainsDB", hlGainDB]);
+		}
+		else if (_key == 'Q' || _key == 'q')
+		{
+			if (hlGainDbIndex > 0)
+				hlGainDBIndex--;
+		}
+		else if (_key == 'W' || _key == 'w')
+		{
+			if (hlGainDbIndex < sizeof(hlGainDB)-1)
+				hlGainDbIndex++;
+		}
+		else if (_key == 'C' || _key == 'c')
+		{
+			hlCompressor = !hlCompressor;
+			Music_SetProperty(null, MUSIC_API, ["HLCompressor", hlCompressor]);
+		}
+	#endif
+		if (_key == CHAR_ESCAPE)
+		{
+			//PausePlay ();
+			System_Exit();
+		}
+		return false;
+	}
+	
+	function SetHLMode (_mode)
+	{
+		Music_SetProperty(null, MUSIC_API, ["HLQuality", _mode]);
+	}
+	
+	function SetHAMode (_mode)
+	{
+		Music_SetProperty(null, MUSIC_API, ["HAQuality", _mode]);
+	}
+
+	function SetHAQuality (_mode)
+	{
+		_qv = [0, 8, 10, 12, 14, 16]; 
+		Music_SetProperty(null, MUSIC_API, ["HAQuantization", _qv[_mode]]);
+	}
+	
+	function SetHADual (_v)
+	{
+		Music_SetProperty(null, MUSIC_API, ["HADual", _v]);
+	}
+
+	function SetHADirectionality (_v)
+	{
+		Music_SetProperty(null, MUSIC_API, ["HADirectionality", _v]);
+	}
+
+	function SetSystemUnit (_v)
+	{
+		Music_SetProperty(null, MUSIC_API, ["SystemUnit", _v]);
+	}
+	
+	function SetAnechoic (_v)
+	{
+		if (_v)
+		{
+			Music_SetProperty(null, MUSIC_API, ["HRTF", "data/3dti/IRC_1008_R_HRIR.3dti-hrtf"]);
+			Music_SetProperty(null, MUSIC_API, ["BRIR", "data/3dti/room-small-1-src-6.3dti-brir"]);
+		}
+		Music_SetProperty(null, MUSIC_API, ["Anechoic", _v]);
+	}
+	
+#if __DEBUG__ && ___HL_TUNNER___
+	function Draw ()
+	{
+		_x = 10;
+		_y = 10;
+		for (i=0; i<sizeof(hlGainDB); i++)
+		{
+			if (i==hlGainDBIndex) { _str = ">> "; _c = ARGB(255,255,255,0); }
+			else { _str = " "; _c = ARGB(100,200,200,200); }
+			Render_Print (hud.font, _x, _y, _str + string(hlGainDB[i]), _c, DT_TOP|DT_LEFT);
+			_y += hud.FONT_H;
+		}
+	}
+#endif
+}

@@ -1,0 +1,52 @@
+class LinkedList
+{
+	properties:
+		firstItem = null;
+		lastItem = null;
+
+		count = 0;
+
+	function Add(_item)
+	{
+		if (lastItem) lastItem.nextItem = _item;
+		_item.previousItem = lastItem;
+		lastItem = _item;
+		if (firstItem == null) firstItem = _item;
+
+		_item.list = this;
+		count++;
+	}
+
+	function Remove(_item)
+	{
+		//if (!_item) return;
+
+		if (_item == firstItem)
+		{
+			firstItem = _item.nextItem;
+		}
+
+		if (_item == lastItem)
+		{
+			lastItem = _item.previousItem;
+		}
+
+		if (_item.previousItem)
+		{
+			_item.previousItem.nextItem = _item.nextItem;
+		}
+
+		if (_item.nextItem)
+		{
+			_item.nextItem.previousItem = _item.previousItem;
+		}
+
+		_item.list = null;
+		count--;
+	}
+
+	function Count()
+	{
+		return count;
+	}
+}

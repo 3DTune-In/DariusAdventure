@@ -1,0 +1,33 @@
+class Service 
+{
+	properties:
+		menu = null;
+		music = null;
+		
+	function Init ()
+	{
+		g_main.CreateLanguage();
+	
+		music = Music_Load ("menu.ogg");
+		Music_Play (music, true);
+		Music_SetVolume (Registry_GetValueInt(DEFAULT_MUSIC_KEY, DEFAULT_MUSIC_VOLUME));
+		Music_SetFXVolume (DEFAULT_FX_VOLUME);
+		Music_FadeOn(16);
+	
+		LoadMenu ("main");	
+	}
+	
+	function Final ()
+	{
+		if (music) Music_Delete (music);
+		if (menu) Service_Delete (menu);
+	}
+	
+	function LoadMenu (_name, _params = [])
+	{
+		DebugMsg ("LOADMENU", _name, _params);
+		if (menu) Service_Delete (menu);
+		menu = Service_Run ("menu", "menu_" + _name, _params, this);
+		Service_SetPriority(menu, 100);
+	}
+}

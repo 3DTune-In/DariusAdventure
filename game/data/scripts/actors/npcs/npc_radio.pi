@@ -1,0 +1,73 @@
+class Actor implements NPC
+{
+	properties:
+		sndOn = null;
+		sndOff = null;
+		on = false;
+		cx = 0;
+		cy = 0;
+		interactive = true;
+		play = false;
+		
+	virtual Init ()
+	{	
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_radio.msh");
+		
+		EndLoadResources ();
+		name = "npc_radio";
+		useAngles = 0;
+		gravity = false;
+		
+		sndOn = LoadSound3D ("metal.ogg", true);
+		sndOff = LoadSound("cassette_off.ogg");
+	}
+
+	virtual Start ()
+	{
+		cx = posX;
+		cy = posY;
+		SetEnabled(interactive);
+		if (play)
+		{
+			Play();
+		}
+	}
+	
+	function Move()
+	{
+		//posX = cx + cos(angleZ) * 200.0f;
+		//posY = cy + sin(angleZ) * 200.0f;
+		//angleZ += GetFTime() * 0.01f; 
+	}
+
+	virtual Play()
+	{
+		Sound_Play(sndOn);
+		on = true;
+	}
+	
+	virtual Stop()
+	{
+		Sound_Stop(sndOn);
+		Sound_Play(sndOff);
+		on = false;
+	}
+
+	function OnCursorClick()
+	{
+		if (interactive)
+		{
+			if (on)
+			{
+				Stop();
+			}
+			else
+			{
+				Play();
+			}
+		}
+	}                             	
+}

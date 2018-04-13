@@ -1,0 +1,167 @@
+class Actor implements NPC
+{
+	properties:    	
+		KIN_QUIET = 0;
+		KIN_SPEAK = 0;
+		
+	virtual Init ()
+	{
+		StartLoadResources ();
+		
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_jim.msh");
+		
+		KIN_QUIET = Actor_LoadKinematic (this, "npc_jim_quiet.kin");
+		KIN_SPEAK = Actor_LoadKinematic (this, "npc_jim_speak.kin");                                            
+		
+		EndLoadResources ();
+		
+		name = "npc_jim";
+		collide = true;
+		Scene_AddStatic (scene, this);
+		bMoveHead  = true;
+		
+		voiceID = VOICE_BOY;
+	}
+
+	virtual Start ()
+	{
+		_cat = stage.FindActor("item_cat");
+		if (GetState() < 3)
+		{
+			_cat.SetVisible(false);
+		}
+		else
+		{
+			_cat.SetEnabled (false);
+			_cat.SetVisible(true);
+		}
+	}
+	
+	function Quiet ()
+	{
+		Actor_BlendKin (this, KIN_QUIET, KINMODE_LOOP);
+	}
+	
+	function Speak ()
+	{
+		Actor_BlendKin (this, KIN_SPEAK, KINMODE_LOOP);
+	}
+	
+	function OnDropItem (_itemName)
+	{	
+		if (_itemName == "item_cat")
+		{
+			_dlg = ShowAutoDialogue ("jim_6", 1, [this]);
+		    _dlg.AddNPCCall (game.GetPlayer(), "AddInventory", ["item_feather"]);
+		    _dlg.AddNPCCall (stage.FindActor("item_cat"), "SetVisible", ["true"]);
+		    _dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["pickup_jim_cat"]);
+			SetState(3);
+			return true;
+		}
+		return false;
+	}
+		
+	function OnCursorClick()
+	{
+		game.GetPlayer().TaskDone("talk_with_jim"); // Hablar con Jim!
+		
+		switch (GetState())
+		{
+			case 0: // MONO DE JIM
+			{
+				_dlg = game.NewDialogue();
+	
+				_dlg.bCheckHA = false; // para evitar que compruebe nada de si llevo o no HA
+
+				_text1 = "$jim_coveralls$"; //_dlg.GetHLString("item_jim_coveralls", 0); 
+
+				_dlg.AddNPCSpeak (game.GetPlayer(), "jim_1_1");
+				_dlg.AddNPCSpeak (this, "jim_1_2", _text1);
+				
+				if (!game.GetPlayer().CanHearingAid()) // Audífono NO OK!
+				{
+					if (game.GetPlayer().HasHearingAid()) // RENOVAR BATERIAS
+					{
+						_dlg.AddNPCQUestion(game.GetPlayer(), "jim_7_1", ["jim_7_1A", "jim_7_1C"], 1, 1, END_DIALOGUE); 
+					}
+					else // PONERSE AUDIFONO
+					{
+						_dlg.AddNPCQUestion(game.GetPlayer(), "jim_7_1", ["jim_7_1A", "jim_7_1B"], 1, 1, END_DIALOGUE); 
+					}
+				}
+				else
+				{
+					_dlg.AddNPCCall (game.GetPlayer(), "AddNewCard", ["card_1"]);
+				
+					_dlg.AddNPCSpeak (game.GetPlayer(), "jim_1_3");
+					_dlg.AddNPCSpeak (this, "jim_1_4", _text1); 
+					_dlg.AddNPCSpeak (game.GetPlayer(), "jim_1_5"); 
+					_dlg.AddNPCSpeak (this, "jim_1_6"); 
+					_dlg.AddNPCSpeak (game.GetPlayer(), "jim_1_7");
+					_dlg.AddNPCSpeak (game.GetPlayer(), "jim_1_8");
+					_dlg.AddNPCSpeak (this, "jim_1_4", _text1);
+					
+					//if (!game.IsItemUsed("item_hearing_aid") && !game.IsItemInInventory("item_hearing_aid")) _dlg.AddNPCCall (stage.FindActor("item_hearing_aid"), "SetEnabled", [true]);
+					_dlg.AddNPCCall (stage.FindActor("item_key"), "SetEnabled", [true]); // Ni lo he codigo todavia
+					_dlg.AddNPCCall (stage.FindActor("item_lever_1"), "SetEnabled", [true]);
+					//if (!game.IsItemUsed("item_hearing_aid")) _dlg.AddNPCSpeak (game.GetPlayer(), "jim_1_9");
+					//if (!game.IsItemUsed("item_hearing_aid")) _dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["pickup_hearing_aid"]);   // Consigue el audífono
+					_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["pickup_key"]);
+					_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["pickup_jim_coveralls"]);
+	
+					SetState(1);
+				}
+
+			    game.ShowDialogue (_dlg);
+			}
+			break;
+			case 1: // YA SE HA COMENTADO LO DEL AUDIFONO, ESPERANDO EL MONO
+			{
+				_dlg = game.NewDialogue();
+				_dlg.AddNewCard ("card_1");
+				if (!game.IsItemUsed("item_jim_coveralls")) // No tengo el mono puesto todavia 
+				{
+					_text1 = "$item_jim_coveralls$"; 
+					_dlg.AddNPCSpeak (this, "jim_1_4", _text1);
+					_dlg.AddNPCSpeak (game.GetPlayer(), "jim_2_1", _text1);
+					_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["pickup_key"]);
+					_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["pickup_jim_coveralls"]);
+				}
+				else
+				{
+					_dlg.AddNPCSpeak (this, "jim_3_1");
+					if (game.GetPlayer().HasHearingAid())
+					{
+						_dlg.AddNPCCall (game.GetPlayer(), "ShowDivineLight", [true]);
+						_dlg.AddNPCCall (game.GetPlayer(), "CreateFeather", [posX-200, posY, posZ, 1]);
+						_dlg.AddNPCCall (game.GetPlayer(), "LevelUpHearingAid");
+					}
+					_dlg.AddNPCSpeak (game.GetPlayer(), "jim_3_2");
+					_dlg.AddNPCSpeak (this, "jim_3_3");
+					_dlg.AddNPCSpeak (game.GetPlayer(), "jim_3_4");
+					_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["pickup_jim_cat"]);
+					SetState(2);
+				}
+			    game.ShowDialogue (_dlg);
+			}
+			break;
+			case 2: // GATO DE JIM
+			{
+				_dlg = game.NewDialogue();
+				_dlg.AddNPCSpeak (this, "jim_4_1");
+				_dlg.AddNPCSpeak (game.GetPlayer(), "jim_4_2");
+		    	game.ShowDialogue (_dlg);
+			}
+			break;
+			case 3: // YA LE HEMOS DADO EL GATO, FIN
+			{
+				_dlg = game.NewDialogue();
+				_dlg.AddNPCSpeak (this, "jim_5_1");
+				_dlg.AddNPCSpeak (game.GetPlayer(), "jim_5_2");
+			    game.ShowDialogue (_dlg);
+			}
+			break;
+		}
+	}
+}

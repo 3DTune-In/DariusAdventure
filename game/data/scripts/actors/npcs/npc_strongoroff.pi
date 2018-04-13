@@ -1,0 +1,149 @@
+class Actor implements NPC
+{
+	properties:    	
+		KIN_QUIET = 0;
+		KIN_SPEAK = 0;
+		
+	virtual Init ()
+	{
+		StartLoadResources ();
+		
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_strongoroff.msh");
+		
+		KIN_QUIET = Actor_LoadKinematic (this, "npc_strongoroff_quiet.kin");
+		KIN_SPEAK = Actor_LoadKinematic (this, "npc_strongoroff_speak.kin");                                            
+		
+		EndLoadResources ();
+		
+		name = "npc_strongoroff";
+		collide = true;
+		Scene_AddStatic (scene, this);
+		bMoveHead = true;
+		
+		voiceID = VOICE_BOY;
+	}
+
+	virtual Start ()
+	{
+		switch (game.stageID)
+		{
+			case STAGE_BACK_STREET_2:
+			{
+				if (GetState() < 2)
+				{
+					SetVisible (false);
+					_connector = stage.FindActor ("stage_" + string(STAGE_SEWER_2));
+					_connector.SetEnabled (false);
+				}
+				else if (GetState() == 3)
+				{
+					_stone = stage.FindActor ("npc_stone");
+					_stone.SetVisible (false);
+					SetVisible (false);
+				}
+				else // == 2
+				{
+					_connector = stage.FindActor ("stage_" + string(STAGE_SEWER_2));
+					_connector.SetEnabled (false);
+				}
+			}
+			break;
+			case STAGE_CROSS_STREET_2:
+			{
+				if (game.GetLandMark ("npc_pessimus_state") < 3)
+				{
+					SetVisible (false);
+				}
+				else
+				{
+					if (GetState() >= 2) // Ya deberiamos estar en la alcantarilla
+					{
+						SetVisible (false);
+					}
+				}
+			}
+			break;
+		}
+	}
+	
+	function Quiet ()
+	{
+		Actor_BlendKin (this, KIN_QUIET, KINMODE_LOOP);
+	}
+	
+	function Speak ()
+	{
+		Actor_BlendKin (this, KIN_SPEAK, KINMODE_LOOP);
+	}
+
+	function OnDropItem (_itemName)
+	{	
+		switch (_itemName)
+		{
+			case "item_stone_photo":
+			{
+				SetState(2);
+				OnCursorClick();
+				game.GetPlayer().TaskDone("deliver_stone_photo");
+				return true;
+			}
+			break;
+		}
+		return false;
+	}
+
+	function OnCursorClick()
+	{                             	
+		switch (GetState())
+		{
+			case 0: // Presentación 
+			{
+				_dlg = ShowAutoDialogue ("strongoroff_1", 10, [this, game.GetPlayer()]);
+				_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["take_stone_photo"]);
+				SetState(1);
+			}
+			break;
+			case 1: // Esperando la foto de la roca
+			{
+				ShowAutoDialogue ("strongoroff_3", 1, [this, game.GetPlayer()]);
+			}
+			break;
+			case 2: // Esperando a que vayamos donde está la ROCA
+			{
+				if (game.stageID == STAGE_CROSS_STREET_2)
+				{
+					ShowAutoDialogue ("strongoroff_5", 1, [this, game.GetPlayer()]);
+				}
+				else
+				{
+					_dlg = game.NewDialogue();
+					_dlg.AddNPCSpeak (this, "strongoroff_2_1");
+					_dlg.AddNPCSpeak (game.GetPlayer(), "strongoroff_2_2");
+					_dlg.FadeOn ();
+					_dlg.AddNPCCall (stage.FindActor("npc_stone"), "SetVisible", [false]);
+					_dlg.AddNPCCall (stage.FindActor("stage_17"), "SetEnabled", [true]);
+					_dlg.FadeOff ();
+					_dlg.AddNPCSpeak (game.GetPlayer(), "strongoroff_2_3");
+					_dlg.AddNPCSpeak (this, "strongoroff_2_4");
+					_dlg.AddNPCSpeak (game.GetPlayer(), "strongoroff_2_5");
+					_dlg.AddNPCSpeak (this, "strongoroff_2_6");
+					_dlg.AddNPCSpeak (game.GetPlayer(), "strongoroff_2_7");
+					_dlg.AddNPCSpeak (this, "strongoroff_2_8");
+					_dlg.AddNPCSpeak (game.GetPlayer(), "strongoroff_2_9");
+					_dlg.AddNPCSpeak (this, "strongoroff_2_10");
+					_dlg.AddNPCSpeak (game.GetPlayer(), "strongoroff_2_11");
+					_dlg.AddNPCSpeak (this, "strongoroff_2_12");
+					game.ShowDialogue(_dlg);
+					SetState(3);
+				}
+			}
+			break;
+			case 3: // Ha movido la piedra
+			{
+				ShowAutoDialogue ("strongoroff_4", 2, [game.GetPlayer(), this]);
+			}
+			break;
+		}
+	}
+}

@@ -1,0 +1,137 @@
+class Actor implements NPC
+{
+	properties:    	
+		KIN_QUIET = 0;
+		KIN_SPEAK = 0;
+		
+	virtual Init ()
+	{
+		StartLoadResources ();
+		
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_price.msh");
+		
+		KIN_QUIET = Actor_LoadKinematic (this, "npc_price_quiet.kin");
+		KIN_SPEAK = Actor_LoadKinematic (this, "npc_price_speak.kin");                                            
+		
+		EndLoadResources ();
+		
+		name = "npc_price";
+		collide = true;
+		Scene_AddStatic (scene, this);
+		bMoveHead = true;
+		
+		voiceID = VOICE_BOY;
+	}
+
+	virtual Start ()
+	{
+		if (GetState() < 2)
+		{
+			_stage6 = stage.FindActor ("stage_" + string(STAGE_ISLAND));
+			_stage6.SetEnabled (false);
+		}
+	}
+	
+	function Quiet ()
+	{
+		Actor_BlendKin (this, KIN_QUIET, KINMODE_LOOP);
+	}
+	
+	function Speak ()
+	{
+		Actor_BlendKin (this, KIN_SPEAK, KINMODE_LOOP);
+	}
+
+	function OnDropItem (_itemName)
+	{	
+		return false;
+	}
+
+	function OnCursorClick()
+	{
+	    //PRICE_1 => Presentación, esperando "fish"
+	    //PRICE_2 => Fish ha vuelto
+		//PRICE_3 => Esperando "fish"
+		//PRICE_4 => Comentario sobre el tesoro 
+		
+		switch (GetState())
+		{
+			case 0: // Presentacion
+			{
+				if (!game.GetPlayer().IsCard("card_7"))
+				{
+					game.SetHAQuality(1); // 8bit!
+				
+					_dlg = game.NewDialogue();
+					_dlg.AddNPCSpeak (game.GetPlayer(), "price_1_1");
+	
+					_dlg.AddNPCQUestion(game.GetPlayer(), "price_5_1", ["price_5_1A", "price_5_1B"], 0, NEXT_DIALOGUE, 4);
+					
+					_dlg.AddNPCSpeak (game.GetPlayer(), "price_1_2");
+
+					_dlg.AddEndDialogue ();
+	
+					_dlg.AddNewCard("card_7");
+
+       				_dlg.AddNPCCall(game, "SetHAQuality", [game.profile.haQuality]);
+
+					_dlg.AddNPCSpeak (this, "price_1_6");
+					_dlg.AddNPCSpeak (game.GetPlayer(), "price_1_7");
+					_dlg.AddNPCSpeak (this, "price_1_8");
+					
+					_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["find_fish"]);
+					
+					_dlg.AddNPCCall (this, "SetState", [1]);
+	
+				    game.ShowDialogue (_dlg);
+				}
+				else
+				{
+					_fish = game.FindActor("npc_fish");
+					if (_fish.visible)
+					{
+						SetState(1);
+						OnCursorClick();
+					}
+					else
+					{
+						_dlg = ShowAutoDialogue ("price_1", 7, [game.GetPlayer(), this]);
+						SetState(1);
+					}
+				}
+			}
+			break;
+			case 1: // Waiting fish
+			{
+				_fish = game.FindActor("npc_fish");
+				if (_fish.visible)
+				{
+					_dlg = game.NewDialogue();
+		
+					_dlg.AddNPCSpeak (this, "price_2_1");
+					_dlg.AddNPCSpeak (_fish, "price_2_2");
+					_dlg.AddNPCSpeak (this, "price_2_3");
+					_dlg.AddNPCSpeak (game.GetPlayer(), "price_2_4");
+					_dlg.AddNPCSpeak (this, "price_2_5");
+					_dlg.AddNPCCall (stage.FindActor("stage_" + string(STAGE_ISLAND)), "SetEnabled", [true]);
+					_dlg.AddNPCSpeak (game.GetPlayer(), "price_2_6");
+					_dlg.AddNPCCall (game.GetPlayer(), "LevelUpHearingAid");
+					
+				    game.ShowDialogue (_dlg);
+				    SetState(2);
+				}
+				else
+				{
+					ShowAutoDialogue ("price_3", 2, [this, game.GetPlayer()]);
+				}
+			}
+			break;
+			case 2: // Fish is here!
+			{
+				ShowAutoDialogue ("price_4", 2, [this, game.GetPlayer()]);
+			}
+			break;
+		}
+	}
+}

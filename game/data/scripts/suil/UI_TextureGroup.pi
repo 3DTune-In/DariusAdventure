@@ -1,0 +1,178 @@
+class UI_TextureGroup implements UI_InternalRegion
+{
+	properties:
+
+	function _operator_new(_uisystem, _name)
+	{
+		::_operator_new(_uisystem, _name);
+
+		//SetAlpha(255);
+	}
+
+	function _operator_delete()
+	{
+		::_operator_delete();
+	}
+
+	function SetRadians(_rad)
+	{
+		Sprite_SetProperty(sprite, SPRITE_ANGLE, _rad);
+	}
+
+	function SetDegrees(_deg)
+	{
+		Sprite_SetProperty(sprite, SPRITE_ANGLE, DegToRad(_deg));
+	}
+
+	function GetDegrees()
+	{
+		return RadToDeg(Sprite_GetProperty(sprite, SPRITE_ANGLE));
+	}
+
+	function GetRadians()
+	{
+		return Sprite_GetProperty(sprite, SPRITE_ANGLE);
+	}
+
+	function FlipHorizontal(_enable)
+	{
+		_flags = Sprite_GetProperty(sprite, SPRITE_FLAGS);
+		if (_enable)
+			_flags |= DTE_HFLIP;
+		else
+			_flags &= ~DTE_HFLIP;
+
+		Sprite_SetProperty(sprite, SPRITE_FLAGS, _flags);
+	}
+
+	function FlipVertical(_enable)
+	{
+		_flags = Sprite_GetProperty(sprite, SPRITE_FLAGS);
+		if (_enable)
+			_flags |= DTE_VFLIP;
+		else
+			_flags &= ~DTE_VFLIP;
+
+		Sprite_SetProperty(sprite, SPRITE_FLAGS, _flags);
+	}
+
+	function CreateTexture(_name = null, _layer = UI_LAYER_NORMAL)
+	{
+		_tex = new UI_Texture(uiSystem, _name);
+		_tex.SetLayer(_layer);
+		_tex.SetParent(this);
+		uiSystem.RegisterObject(_tex);
+		_tex.parentAlpha = GetEffectiveAlpha();
+		return _tex;
+	}
+
+	function Core_AddChild(_region)
+	{
+		::Core_AddChild(_region);
+
+		BringToFront(_region);
+	}
+
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Order management
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function Core_MoveChild(_child, _other, _above = true)
+	{
+		_otherSprite = null;
+		if (_other)
+		{
+			_otherSprite = _other.sprite;
+		}
+
+		Sprite_ChangeChildOrder(sprite, _child.sprite, _otherSprite, _above);
+	}
+
+	function Lower()
+	{
+		_p = GetParent();
+		if (!_p) return;
+		_p.SendToBack(this);
+	}
+
+	function SendToBack(_region)
+	{
+		if (_region.GetParent() != this) return;
+
+		_other = Core_GetBottomRegionInLayer(_region.layerId, _region.topMost, _region);
+		Core_MoveChild(_region, _other, false);
+	}
+
+	function Raise()
+	{
+		_p = GetParent();
+		if (!_p) return;
+		_p.BringToFront(this);
+	}
+
+	function BringToFront(_region)
+	{
+		//DebugMsg("BringToFront", _region.GetName());
+		if (_region.GetParent() != this) return;
+		//DebugMsg(_region.GetName(), _region);
+
+		_other = Core_GetTopRegionInLayer(_region.layerId, _region.topMost, _region);
+		Core_MoveChild(_region, _other, _other != null);
+		// DebugMsg(_region.GetName(), _region.GetRegionIndex());
+	}
+
+	// function OptimizedBringToFront(_region)
+	// {
+	// 	if (_region.GetParent() != this) return;
+	// 	//DebugMsg(_region.GetName(), _region);
+
+	// 	_other = null;
+	// 	_ix = _region.topMost ? 1 : 0;
+
+	// 	_above = true;
+	// 	_other = Core_GetTopRegionInLayer(_region.layerId, _region.topMost, _region);
+	// 	_above = _other != null;
+
+	// 	Core_MoveChild(_region, _other, _above);
+	// }
+
+	function Core_GetTopRegionInLayer(_layerId, _includeTopMost = false, _exclude = null)
+	{
+		// DebugMsg(d_var(_layerId), d_var(_includeTopMost), d_var(_exclude));
+		_lastRegion = null;
+		_count = Sprite_GetProperty(sprite, SPRITE_NUM_CHILDS);
+		for (i = 0; i < _count; i++)
+		{
+			_child = Sprite_GetProperty(Sprite_GetChild(sprite, i), SPRITE_CONTEXT);
+			if (!_child || !_child._instanceof("UI_Region")) continue;
+			// DebugMsg("1");
+			if (_child == _exclude) continue;
+			// DebugMsg("2");
+			if (_child.layerId > _layerId) break;
+			// DebugMsg("3");
+			if (_child.layerId == _layerId && !_includeTopMost && _child.topMost) break;
+			// DebugMsg("4");
+			_lastRegion = _child;
+		}
+		return _lastRegion;
+	}
+
+	function Core_GetBottomRegionInLayer(_layerId, _includeTopMost = false, _exclude = null)
+	{
+		_lastRegion = null;
+		_count = Sprite_GetProperty(sprite, SPRITE_NUM_CHILDS);
+		for (i = _count - 1; i >= 0; i--)
+		{
+			_child = Sprite_GetProperty(Sprite_GetChild(sprite, i), SPRITE_CONTEXT);
+			if (!_child || !_child._instanceof("UI_Region")) continue;
+			if (_child.layerId > _layerId) continue;
+			if (_includeTopMost && !_child.topMost) break;
+			_lastRegion = _child;
+			if (_child.layerId < _layerId) break;
+		}
+		return _lastRegion;
+	}
+}

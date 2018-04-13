@@ -1,0 +1,40 @@
+class UI_Resize implements UI_Animation
+{
+	properties:
+		x = 0;
+		y = 0;
+		w = 0;
+		h = 0;
+
+	function SetXOffset(_x)
+	{
+		x = _x;
+	}
+
+	function SetYOffset(_y)
+	{
+		y = _y;
+	}
+
+	function SetWOffset(_w)
+	{
+		w = _w;
+	}
+
+	function SetHOffset(_h)
+	{
+		h = _h;
+	}
+
+	function Core_InternalUpdate()
+	{
+		_g = GetParent().GetParent();
+		//DebugMsg(x, GetProgress(), Interpolate(0, x, GetProgress()));
+		if (x != 0)	_g.animationCurrentPoint.x += Interpolate(0, x, GetProgress());
+		if (y != 0)	_g.animationCurrentPoint.y += Interpolate(0, y, GetProgress());
+		if (w != 0)	_g.animationCurrentPoint.w += Interpolate(0, w, GetProgress());
+		if (h != 0)	_g.animationCurrentPoint.h += Interpolate(0, h, GetProgress());
+
+		_g.animationCurrentPoint.flags |= UI_ANI_FLAG_POSITION;
+	}
+}

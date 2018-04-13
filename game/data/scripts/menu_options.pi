@@ -1,0 +1,311 @@
+class Service
+{
+	constants:
+		QUALITY_FOR_DUAL = 1;//4;
+		QUALITY_FOR_OMNI = 1;//3;
+
+	properties:
+		frame = null;
+		sndOk = null;
+		sndBack = null;
+		sndBla = null;
+		sndVoice = null;
+		bg = null;
+		bgX = 0.0f;
+		curLangButton = null;
+		haLabel = null;
+	
+	function Init ()
+	{
+		System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/menus/");
+	
+		_frame = UI_CreateFrame("GUI_Frame");
+		_frame.SetBounds (0, 0, RESX, RESY);
+		bg = _frame.CreateImage ("menu_background.jpg", true);
+		_frame.CreateImage ("menu_background_fixed.png");
+		frame = _frame;
+		
+		_button = frame.CreateButton (5, 5, 104, 107);
+		_button.SetNormalTexture ("back_button.png");
+		_button.SetOnClick (this, "OnBack");
+		
+		_window = _frame.CreateFrame (0, 0, 868, 457);
+		_window.Center();
+		_window.CreateImage ("option_window.png");
+
+	    _label = _window.CreateLabel (30, 20, _window.GetWidth()-60, 100);
+		_label.SetFont (DEFAULT_MENU_FONT, 40);
+		_label.SetTextAlign (DT_CENTER);
+		_label.SetText (g_language.GetText("menu_options"));
+
+	    _label = _window.CreateLabel (30, 120, 400, 60);
+		_label.SetFont (DEFAULT_MENU_FONT, 30);
+		_label.SetText (g_language.GetText("menu_musicvolume"));
+		
+		_slider = _window.CreateSlider (400, _label.GetTop()-20, 420, 80);
+		_slider.CreateImage("slider_bar.png");
+		_tex = _slider.CreateImage("slider.png", 0, 0, 45, 46);
+		_slider.SetThumbTexture (_tex);
+		_slider.SetMinValue(0);
+		_slider.SetMaxValue(255);
+		_vol = Registry_GetValueInt (DEFAULT_MUSIC_KEY, DEFAULT_MUSIC_VOLUME);
+		_slider.SetValue(_vol);
+		_slider.SetOnChange (this, "OnMusicVolume");
+
+	    _label = _window.CreateLabel (_label.GetLeft(), _label.GetBottom(), _label.GetWidth(), _label.GetHeight());
+		_label.SetFont (DEFAULT_MENU_FONT, 30);
+		_label.SetText (g_language.GetText("menu_fxvolume"));
+
+   		_slider = _window.CreateSlider (_slider.GetLeft(), _label.GetTop()-20, _slider.GetWidth(), _slider.GetHeight());
+		_slider.CreateImage("slider_bar.png");
+		_tex = _slider.CreateImage("slider.png", 0, 0, 45, 46);
+		_slider.SetThumbTexture (_tex);
+		_slider.SetMinValue(0);
+		_slider.SetMaxValue(255);
+		_vol = Registry_GetValueInt (DEFAULT_FX_KEY, DEFAULT_FX_VOLUME);
+		_slider.SetValue(_vol);
+		_slider.SetOnChange (this, "OnFXVolume");
+
+	    _label = _window.CreateLabel (_label.GetLeft(), _label.GetBottom(), _label.GetWidth(), _label.GetHeight());
+		_label.SetFont (DEFAULT_MENU_FONT, 30);
+		_label.SetText (g_language.GetText("menu_voicevolume"));
+
+   		_slider = _window.CreateSlider (_slider.GetLeft(), _label.GetTop()-20, _slider.GetWidth(), _slider.GetHeight());
+		_slider.CreateImage("slider_bar.png");
+		_tex = _slider.CreateImage("slider.png", 0, 0, 45, 46);
+		_slider.SetThumbTexture (_tex);
+		_slider.SetMinValue(0);
+		_slider.SetMaxValue(255);
+		_slider.SetValue(128);
+		_vol = Registry_GetValueInt(DEFAULT_VOICE_KEY, DEFAULT_VOICE_VOLUME);
+		_slider.SetValue(_vol);
+		_slider.SetOnChange (this, "OnVoiceVolume");
+
+		if (!Service_Get("game")) // NO IN GAME!!
+		{
+			/*_button = _window.CreateButton (50, 310, 400, 114);
+			_button.SetFontSize(40);
+			_button.SetNormalTexture ("menu_button.png");
+			_button.SetText(g_language.GetText("menu_credits"));
+			_button.SetTextPadding(0, -5);
+			_button.SetOnClick (this, "OnCredits");*/
+	
+			_button = _window.CreateButton (600, 310, 100, 64);
+			_button.SetNormalTexture ("es_flag.jpg");
+			_button.SetUserData ("es");
+			_button.SetOnClick (this, "OnLanguage");
+			if (g_language.GetPrefix() == "es") 
+			{
+				_button.SetTextureColor(ARGB(255,255,255,255));
+				curLangButton = _button;
+			}
+			else _button.SetTextureColor(ARGB(100,255,255,255)); 
+	
+			_button = _window.CreateButton (_button.GetRight()+10, _button.GetTop(), _button.GetWidth(), _button.GetHeight());
+			_button.SetNormalTexture ("gb_flag.jpg");
+			_button.SetUserData ("gb");
+			_button.SetOnClick (this, "OnLanguage");
+			if (g_language.GetPrefix() == "gb") 
+			{
+				_button.SetTextureColor(ARGB(255,255,255,255));
+				curLangButton = _button;
+			}
+			else _button.SetTextureColor(ARGB(100,255,255,255));
+		}
+		else
+		{
+			_game = Service_Get("game");
+		
+		    /*_label = _window.CreateLabel (_label.GetLeft(), _label.GetBottom(), 600, 50);
+			_label.SetFont (DEFAULT_MENU_FONT, 20);
+			_label.SetText (g_language.GetText("menu_haoptions"));
+
+		    _label1 = _window.CreateLabel (_label.GetLeft(), _label.GetBottom(), 600, 50);
+			_label1.SetFont (DEFAULT_MENU_FONT, 20);
+			haLabel = _label1;
+			UpdateHALabel();
+			
+			_button = _window.CreateButton (_label.GetRight()-250, _label.GetTop()-20, 157, 157);
+			_button.SetTwoStates(true);
+			_button.SetNormalTexture ("mono_hearing_aid.png");
+			_button.SetCheckedTexture ("dual_hearing_aid.png", false, true, true);
+			_button.SetOnClick (this, "OnHAMonoDual");
+			_button.SetChecked(_game.profile.hadual);
+			_button.SetEnabled(_game.profile.haQuality >= QUALITY_FOR_DUAL); 
+			_button.SetAlpha(_button.GetEnabled() ? 255 : 100);
+
+			_button = _window.CreateButton (_button.GetRight()+75, _button.GetTop(), 157, 157);
+			_button.SetTwoStates(true);
+			_button.SetNormalTexture ("directional_hearing_aid.png");
+			_button.SetCheckedTexture ("omni_hearing_aid.png", false, true, true);
+			_button.SetOnClick (this, "OnHAOmniDir");
+			_button.SetChecked(_game.profile.haomni);
+			_button.SetEnabled(_game.profile.haQuality >= QUALITY_FOR_OMNI); 
+			_button.SetAlpha(_button.GetEnabled() ? 255 : 100);   */
+		}
+		
+		System_SetDirectory (DIRECTORY_SOUND, "data/sounds/");
+		sndOk = Sound_Load ("ui_menu_ok.ogg");
+		sndBack = Sound_Load ("ui_menu_back.ogg");
+		//sndBla = Sound_Load ("voice_bla_1.ogg");
+		sndBla = Sound_Load ("cat.ogg");
+		sndVoice = Sound_Load ("voices/gb/jim_1_1.ogg"); 
+
+		//Sound_SetProperty (sndVoice, SOUND_VOLUME, _vol);
+	}
+	
+	function Final ()
+	{
+		Sound_Delete (sndOk);
+		Sound_Delete (sndBack);
+		Sound_Delete (sndVoice);
+		Sound_Delete (sndBla);
+		delete frame;
+	}
+	
+	function Start ()
+	{
+	}
+
+	function Move ()
+	{
+		bg.SetTexCoordAll (bgX, 0, 1, 1);
+		bgX += GetFTime()*0.001f;
+	}
+	
+	function OnFadeBack()
+	{
+		_game = Service_Get ("game"); 
+		if (_game) // In Game Mode!!
+		{
+			Service_Delete (this);
+			Service_Resume(_game);
+			Service_SetVisible(_game.hud, true);
+			_game.bShowScene = true;
+		}
+		else
+		{
+			parent.LoadMenu ("main");
+		}
+		g_fade.Off ();
+	}
+	
+	function OnBack (_button)
+	{
+		g_main.PlayFX(sndBack);
+		frame.SetEnabled (false);
+		g_fade.On (this, "OnFadeBack");
+	}
+	
+	function OnFade()
+	{
+		_game = Service_Get("game"); // We are ingame?
+		if (_game)
+		{
+			Service_Run ("credits", "menu_credits", [], this);
+		}
+		else
+		{
+			parent.LoadMenu ("credits");
+		}
+		g_fade.Off();
+	}
+	
+	function OnCredits (_button)
+	{
+		frame.SetEnabled(false);		
+		g_fade.On (this, "OnFade");
+		g_main.PlayFX(sndOk);
+	}
+	
+	function OnHAMonoDual (_button)
+	{
+		_game = Service_Get("game");
+		_v = !_button.GetChecked();
+		DebugMsg("MONODUAL:", _v);
+		_game.profile.hadual = _v;
+		_game.SetHADual(_v);
+		_game.GetPlayer().ShowHearingAid(true); // Ahora siempre lleva audífono!!!! Aquí actualizo si muestro uno o dos.
+		UpdateHALabel();
+		g_main.PlayFX(sndOk);
+	}
+	
+	function OnHAOmniDir (_button)
+	{
+		_game = Service_Get("game");
+		_v = !_button.GetChecked();
+		DebugMsg("DIROMNI:", !_v);
+		_game.profile.haomni = _v;
+		_game.SetHADirectionality(!_v);
+		UpdateHALabel();
+		g_main.PlayFX(sndOk);
+	}
+	
+	function UpdateHALabel ()
+	{
+		_game = Service_Get("game");
+		_v1 = _game.profile.hadual;
+		_v2 = _game.profile.haomni;
+		if (_v1) _text1 = "DUAL"; else _text1 = "MONO";
+		//if (_game.profile.haQuality < QUALITY_FOR_OMNI) _text1 += " (Level >= 3)";
+		if (_v2) _text2 = "OMNIDIRECTIONAL"; else _text2 = "DIRECTIONAL";
+		//if (_game.profile.haQuality < QUALITY_FOR_OMNI) _text2 += " (Level >= 4)";
+		haLabel.SetText ("-" + _text1 + "\n" + "-" + _text2);
+	}
+	
+	function OnMusicVolume (_sender, _event, _params)
+	{
+		_musicVol = int(_sender.GetValue()); 
+		Registry_SetValueInt (DEFAULT_MUSIC_KEY, _musicVol);
+		DebugMsg("MUSICREGISTRY:", _musicVoL);
+		_game = Service_Get("game");
+		if (_game)
+			_game.SetMusicVolume(_musicVol);
+		Music_SetVolume (_musicVol);
+	}
+
+	function OnFXVolume (_sender, _event, _params)
+	{
+		_fxVol = int(_sender.GetValue()); 
+		Registry_SetValueInt (DEFAULT_FX_KEY, _fxVol);
+		//Music_SetFXVolume (_fxVol);
+		//if (!Sound_IsPlaying(sndBack)) g_main.PlayFX(sndBack);
+
+		if (!Sound_IsPlaying(sndBla)) g_main.PlayFX(sndBla);
+		Sound_SetProperty (sndBla, SOUND_VOLUME, _fxVol);
+	}
+
+	function OnVoiceVolume (_sender, _event, _params)
+	{
+		_voiceVol = int(_sender.GetValue()); 
+		Registry_SetValueInt (DEFAULT_VOICE_KEY, _voiceVol);
+		if (!Sound_IsPlaying(sndVoice)) g_main.PlayVoice(sndVoice);
+		Sound_SetProperty (sndVoice, SOUND_VOLUME, _voiceVol);
+	}
+	
+	function OnLanguageFade ()
+	{
+		parent.LoadMenu ("options");
+		g_fade.Off();
+	}
+	
+	function OnLanguage (_button)
+	{
+		g_main.PlayFX(sndOk);
+
+		if (curLangButton != _button)
+		{
+			if (curLangButton)
+				curLangButton.SetTextureColor(ARGB(100,255,255,255));
+			_lang = _button.GetUserData();
+			g_language.SetPrefix(_lang);
+			curLangButton = _button;
+			curLangButton.SetTextureColor(ARGB(255,255,255,255));
+	
+			frame.SetEnabled (false);
+			g_fade.On (this, "OnLanguageFade");
+			
+			Registry_SetValueStr(DEFAULT_LANGUAGE_KEY, _lang);
+		}
+	}
+}

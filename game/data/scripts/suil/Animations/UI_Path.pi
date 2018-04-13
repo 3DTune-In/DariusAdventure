@@ -1,0 +1,5 @@
+class UI_Path implements UI_Animation
+{
+	properties:
+		/* data */
+}

@@ -1,0 +1,277 @@
+class UI_EditorFrame implements UI_Frame
+{
+	properties:
+		uiDesktop = null;
+		enableEditor = false;
+		font = null;
+
+		selectedFrame = null;
+
+		// Depuración
+		markPoint = [];
+		drawLines = true;
+
+		boxInfo = 1;
+
+		clickThroughState = false;
+
+		initialized = false;
+
+		autoCreatedFont = false; // Interna
+
+		// Frames
+		stackFrame = null;
+
+	function OnInit()
+	{
+		::OnInit();
+
+		//SetEnabled(false);
+		SetClickThrough(true);
+
+
+		SetStrata(UI_STRATA_EDITOR);
+
+		uiDesktop = uiSystem.GetDesktop();
+		PinToBounds();
+		//SetBounds(0, 0, uiDesktop.GetWidth(), uiDesktop.GetHeight());
+		uiSystem.EnableHooks();
+		uiSystem.HookEvent(UI_SYS_KEYDOWN, this, "OnKeyDown");
+
+		EnableDraw(true, 1);
+	}
+
+	function OnDestroy()
+	{
+		uiSystem.RemoveEvent(UI_SYS_KEYDOWN, this);
+		UnregisterHooks();
+	}
+
+	function Show()
+	{
+		::Show();
+		clickThroughState = uiSystem.CanClickThroughFrames();
+		uiSystem.EnableClickThroughFrames();
+		RegisterHooks();
+
+		if (font)
+		{
+			//font.RemoveEvent(UI_EVENT_FONT_CHANGED, this);
+			if (autoCreatedFont)
+			{
+				delete font;
+				font = null;
+				autoCreatedFont = false;
+				//DebugMsg("DELETE EDITOR FONT", suil_system.GetObject("UI_EditorFont"));
+			}
+		}
+
+		font = suil_system.GetObject("UI_EditorFont");
+		if (!font)
+		{
+			font = suil_system.CreateFont("UI_EditorFont");
+			//DebugMSg("IN", font);
+			font.SetFont("micross", 21 * 2);
+			font.SetFontSize(21);
+			autoCreatedFont = true;
+		}
+
+		if (!initialized)
+		{
+			initialized = true;
+			stackFrame = suil_system.CreateFrame("UI_EditorStackFrame", "UI_EditorStackFrame", this);
+			//stackFrame.SetStrata(UI_STRATA_EDITOR);
+		}
+		stackFrame.Show();
+	}
+
+	function Hide()
+	{
+		::Hide();
+		if (!clickThroughState) uiSystem.DisableClickThroughFrames();
+		UnregisterHooks();
+	}
+
+	function Draw(_sprite, _x, _y, _w, _h, _level)
+	{
+		if (!enableEditor) return;
+
+		_p = GetCursorPoint();
+		_mx = _p[0];
+		_my = _p[1];
+
+		_startPos = 0;
+		_boxHeight = 200;
+		if (boxInfo == 1) _startPos = _h - _boxHeight;
+		Render_DrawBox(0, _startPos, _w, _boxHeight, ARGB(125, 255, 0, 0));
+
+// 		_info = Font_GetTextSize(desktop.GetFont(), _txt);
+// //		Render_DrawBox(0, GAME_RESY - _info[1], 70, _info[1], ARGB(125, 0, 0, 0));
+// //		Render_Print(font, 0, GAME_RESY - _info[1], _txt, ARGB(255, 255, 255, 0), DT_TOP | DT_LEFT);
+// 		Render_DrawBox(GAME_RESX - _info[0], GAME_RESY - _info[1], _info[0], _info[1], ARGB(220, 0, 0, 0));
+// 		Render_Print(desktop.GetFont(), GAME_RESX - _info[0], GAME_RESY - _info[1], _txt, ARGB(255, 255, 255, 0), DT_TOP | DT_LEFT);
+
+		_txt = "";
+		if (sizeof(markPoint))
+		{
+			_txt += "RECT: " + markPoint[0] + ", " + markPoint[1] + ", " + (_mx - markPoint[0]) + ", " + (_my - markPoint[1]);
+		}
+		else
+			_txt += "MOUSE: " + _mx + ", " + _my;
+
+		Render_PrintRect(font.Core_GetEngineFont(), 10, _startPos + 10, _w - 20, _boxHeight - 20, _txt, ARGB(255, 255, 255, 255), DT_TOP | DT_LEFT);
+
+		if (drawLines)
+		{
+			Render_DrawLine(0, Cursor_GetY(), _w, Cursor_GetY(), ARGB(255, 255, 255, 0));
+			Render_DrawLine(Cursor_GetX(), 0, Cursor_GetX(), _h, ARGB(255, 255, 255, 0));
+		}
+
+		if (sizeof(markPoint))
+		{
+			_s = GetEffectiveScale();
+			_rx = markPoint[0] * _s;
+			_ry = markPoint[1] * _s;
+			Render_DrawRect(_rx, _ry, (Cursor_GetX() - _rx), (Cursor_GetY() - _ry), ARGB(255, 255, 0, 0));
+		}
+	}
+
+	function OnMouseDown(_sender, _event, _params)
+	{
+		if (!enableEditor) return;
+
+		_hookargs = _params[0];
+		_btn = _hookargs.params[0];
+		if (_btn == MOUSE_RIGHT)
+		{
+			_p = GetCursorPoint();
+			_mx = _p[0];
+			_my = _p[1];
+
+			markPoint = [_mx, _my];
+		}
+
+		// _target = _hookargs.target;
+		// if (_target == uiDesktop) _target = null;
+
+		// if (_target && _target != selectedFrame)
+		// {
+		// 	selectedFrame = _target;
+		// 	DebugMsg("Editing", selectedFrame.GetName());
+		// }
+	}
+
+	function OnMouseUp(_sender, _event, _params)
+	{
+		if (!enableEditor) return;
+
+		markPoint = [];
+	}
+
+	function OnKeyDown(_sender, _event, _params)
+	{
+		_hookargs = _params[0];
+		_key = _hookargs.params[0];
+		if (uiSystem.IsControlPressed() && _key == KEY_F12)
+		{
+			enableEditor = !enableEditor;
+			if (enableEditor)
+			{
+				Show();
+			}
+			else
+			{
+				Hide();
+			}
+		}
+
+
+		if (!enableEditor) return;
+
+		if (uiSystem.IsControlPressed() && _key == KEY_DOWN)
+			boxInfo = 1;
+		else if (uiSystem.IsControlPressed() && _key == KEY_UP)
+			boxInfo = 0;
+		else if (uiSystem.IsControlPressed() && _key == KEY_F)
+		{
+			if (stackFrame.GetVisibleInternal()) stackFrame.Hide();
+			else stackFrame.Show();
+		}
+		else if (uiSystem.IsControlPressed() && _key == KEY_S)
+		{
+			stackFrame.SetRegionMode(!stackFrame.regionMode);
+		}
+		else if (uiSystem.IsControlPressed() && _key == KEY_P)
+		{
+			stackFrame.SetShowRelativePoint(!stackFrame.showRelativePoint);
+		}
+		else if (uiSystem.IsControlPressed() && _key == KEY_R)
+		{
+			uiSystem.ShowRects(!uiSystem.GetShowRects());
+		}
+		else if (uiSystem.IsControlPressed() && _key == KEY_A)
+		{
+			uiSystem.PrintStatistics();
+		}
+
+		// if (_key == KEY_P)
+		// {
+		// 	if (sizeof(markPoint)) DebugLog(markPoint[0] + ", " + markPoint[1] + ", " + (_mx - markPoint[0]) + ", " + (_my - markPoint[1]));
+		// 	else DebugLog(_mx + ", " + _my);
+		// }
+		// else if (_key == KEY_L)
+		// {
+		// 	drawLines = !drawLines;
+		// }
+	}
+
+	function RegisterHooks()
+	{
+		uiSystem.HookEvent(UI_SYS_MOUSE_DOWN, this, "OnMouseDown");
+		uiSystem.HookEvent(UI_SYS_MOUSE_UP, this, "OnMouseUp");
+	}
+
+	function UnregisterHooks()
+	{
+		uiSystem.RemoveEvent(UI_SYS_MOUSE_DOWN, this);
+		uiSystem.RemoveEvent(UI_SYS_MOUSE_UP, this);
+	}
+
+	function GetRegionOnPoint(_x, _y, _doHitTest = false)
+	{
+		//if (!desktop) return null;
+
+		//if (hitpointCheckAlways == UI_SYS_HITPOINT_ALWAYS) _doHitTest = true;
+
+		_regionList = [];
+		hitpoint = [_x, _y];
+
+		_params = [];
+		// _params = ["GetEnabled", true];
+
+		// if (ignoreDraggingFrames)
+		// 	_params += ["IsDragging", false];
+
+		// if (desktop.HasDialogs())
+		// 	_params += ["Core_CheckDialog", true];
+		// if (hitpointCheckAlways || _doHitTest)
+		// 	_params += ["HitPoint", true];
+
+		_regionList = SpriteManager_CheckCollision(uiSystem.spriteManager, _x, _y, 1, 1, 0, 0, 0, -1, SPRITE_CHECK_ALL, -1, _params);
+
+		for (i = sizeof(_regionList) - 1; i >= 0; i--)
+		{
+			_region = Sprite_GetProperty(_regionList[i], SPRITE_CONTEXT);
+			if (!_region || (_region && !_region._instanceof("UI_Region"))) continue;
+			if (_region == this || ContainsRegion(_region)) continue;
+			return _region;
+		}
+
+		return null;
+		// _region = Sprite_GetProperty(_regionList[sizeof(_regionList) - 1], SPRITE_CONTEXT);
+		// if (_region && !_region._instanceof("UI_Frame")) _region = null;
+		// if (_region == null && forceValidInputTarget) return desktop;
+		// return _region;
+	}
+
+}

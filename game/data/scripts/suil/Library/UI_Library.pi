@@ -1,0 +1,30 @@
+class UI_Library implements UI_Lib_String, UI_Lib_Date, UI_Lib_Font, UI_Lib_IO, UI_Lib_Math
+{
+	globals:
+		// Global por el problema de html5 en funciones globales
+		suil_library = null;
+
+	properties:
+
+	function _operator_new()
+	{
+		suil_library = this;
+
+		Core_Init_String();
+		Core_Init_IO();
+		Core_Init_Font();
+		Core_Init_Date();
+		Core_Init_Math();
+	}
+
+	function _operator_delete()
+	{
+		Core_Uninit_String();
+		Core_Uninit_IO();
+		Core_Uninit_Font();
+		Core_Uninit_Date();
+		Core_Uninit_Math();
+
+		suil_library = null;
+	}
+}

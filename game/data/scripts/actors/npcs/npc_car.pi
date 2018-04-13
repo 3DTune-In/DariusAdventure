@@ -1,0 +1,15 @@
+class Actor implements NPC
+{
+	virtual Init ()
+	{	
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_car.msh");
+		
+		EndLoadResources ();
+		name = "npc_car";
+		useAngles = 0;
+		gravity = false;
+	}
+}

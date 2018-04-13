@@ -1,0 +1,21 @@
+class Actor implements Item_Unique_Interface
+{
+	properties:
+		ANI_OFF = 0;
+		ANI_ON = 0;
+		
+	virtual Init ()
+	{	
+		StartLoadResources ();
+
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "item_lever_3.msh");
+		
+		ANI_OFF = Actor_LoadKinematic (this, "item_lever_1_off.kin");
+		ANI_ON = Actor_LoadKinematic (this, "item_lever_1_on.kin");
+		
+		EndLoadResources ();
+
+		name = "item_lever_3";
+	}
+}

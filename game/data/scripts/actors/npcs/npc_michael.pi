@@ -1,0 +1,200 @@
+class Actor implements NPC
+{
+	properties:    	
+		KIN_QUIET = 0;
+		KIN_SPEAK = 0;
+		vsSmoke = null;
+		cap = null;
+		
+	virtual Init ()
+	{
+		StartLoadResources ();
+		
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_michael.msh");
+		
+		KIN_QUIET = Actor_LoadKinematic (this, "npc_michael_quiet.kin");
+		KIN_SPEAK = Actor_LoadKinematic (this, "npc_michael_speak.kin");                                            
+		
+		vsSmoke = Actor_LoadVisualEffect (this, "visualeffect_smoke");
+
+		cap = Scene_NewActor (scene, "cap", "item_cap", 0, 0, 0);
+		Actor_AddChild (this, cap, Actor_FindDummy(this, "cap"));
+		cap.SetVisible(false);		
+		
+		EndLoadResources ();
+		
+		name = "npc_michael";
+		collide = true;
+		useAngles = 0;
+		bMoveHead = false;
+		
+		voiceID = VOICE_BOY;
+	}
+
+	virtual Start ()
+	{
+		if (GetState() >= 5)
+		{
+			cap.SetVisible(true);
+		}
+	}
+	
+	function Quiet ()
+	{
+		if (GetState() >= 1)
+		{
+			_kin = Actor_GetKinematic(this, KIN_QUIET);
+			Kinematic_SetTimeStart(_kin, 132);
+			Kinematic_SetLoopStart(_kin, 132);
+			Kinematic_SetTimeEnd(_kin, 135);
+			Actor_SetKin (this, KIN_QUIET, KINMODE_PINGPONG);
+			Actor_SetKinSpeed(this, 0.15f);
+		}
+		else
+		{
+			Actor_BlendKin (this, KIN_QUIET, KINMODE_LOOP);
+			Actor_SetKinSpeed(this, 1);
+		}
+	}
+	
+	function Speak ()
+	{
+		Actor_BlendKin (this, KIN_SPEAK, KINMODE_LOOP);
+		Actor_SetKinSpeed(this, 1);
+	}
+
+	function OnDropItem (_itemName)
+	{	
+		if (_itemName == "item_love_letter_2")
+		{
+			if (GetState() == 1)
+			{
+				_dlg = ShowAutoDialogue ("michael_2", 11, [game.GetPlayer(), this]);
+				_dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["deliver_love_letter_2"]);
+				SetState(2);
+				return true;
+			}
+		}
+		else if (_itemName == "item_mobile")
+		{
+			if (GetState() == 2)
+			{
+				_dlg = ShowAutoDialogue ("michael_10", 2, [game.GetPlayer(), this]);
+				_dlg.AddNPCCall (game.GetPlayer(), "AddInventory", ["item_michael_photo"]);
+				_dlg.AddNPCCall (game.GetPlayer(), "SetInventory", ["item_mobile"]);
+				_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_michael_photo"]);
+				_dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["take_michael_photo"]);
+				_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["take_petra_photo"]);
+				SetState(3);
+				return true;
+			}
+		}
+		else if (_itemName == "item_petra_photo")
+		{
+			if (GetState() == 3)
+			{
+				_dlg = ShowAutoDialogue ("michael_4", 5, [this, game.GetPlayer()]);
+				_dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["deliver_petra_photo"]);
+				SetState(4);
+				return true;
+			}
+		}
+		else if (_itemName == "item_cap")
+		{
+			if (GetState() == 4)
+			{
+				_dlg = ShowAutoDialogue ("michael_6", 2, [game.GetPlayer(), this]);
+				_dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["deliver_cap"]);
+				SetState(5);
+				cap.SetVisible(true);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	function OnCursorClick()
+	{
+		switch (GetState())
+		{
+			case 0: // Antes de la carta, la primera vez que hablan
+			{
+				//_dlg = ShowAutoDialogue ("michael_1", 7, [game.GetPlayer(), this]);
+				_dlg = game.NewDialogue();
+				_dlg.AddNPCSpeak (game.GetPlayer(), "michael_1_1");
+				_dlg.AddNPCSpeak (this, "michael_1_2");
+
+				//if (!game.GetPlayer().CanHearingAid())
+				{
+					_dlg.AddNPCQUestion(game.GetPlayer(), "michael_12_1", ["michael_12_1A", "michael_12_1B"], 1, 0, NEXT_DIALOGUE);
+				} 
+
+				_dlg.AddNewCard("card_2");
+				_dlg.AddNPCCall (this, "SetState", [1]);
+				_dlg.AddNPCCall (this, "Quiet", []);
+				_dlg.AddNPCCall(this, "SetMoveHead", [true, DEGTORAD(-30)]);
+				_dlg.AddNPCSpeak (game.GetPlayer(), "michael_1_3");
+				_dlg.AddNPCSpeak (this, "michael_1_4");
+				_dlg.AddNPCSpeak (game.GetPlayer(), "michael_1_5");
+				_dlg.AddNPCSpeak (this, "michael_1_6");
+				_dlg.AddNPCSpeak (game.GetPlayer(), "michael_1_7");
+				_dlg.AddNPCCall (game.GetPlayer(), "AddInventory", ["item_love_letter_1"]);
+				_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_love_letter_1", false]);
+
+			    game.ShowDialogue (_dlg);
+			}
+			break;
+			case 1: //Esperando la carta (ya ha hablado con él MICHAEL_1)
+			{
+				ShowAutoDialogue ("michael_3", 2, [this, game.GetPlayer()]);		
+			}
+			break;
+			case 2: //Esperando a que le haga la foto con el móvil
+			{
+				ShowAutoDialogue ("michael_5", 2, [this, game.GetPlayer()]);		
+			}
+			break;
+			case 3: // Esperando a que le entregue la foto a Petra
+			{
+				ShowAutoDialogue ("michael_11", 2, [this, game.GetPlayer()]);		
+			}
+			break;
+			case 4: // Esperando el regalo (la gorra)
+			{
+				ShowAutoDialogue ("michael_7", 3, [game.GetPlayer(), this]);		
+			}
+			break;
+			case 5: // Esperando a que Petra tenga su regalo y estén juntos en el mismo escenario
+			{
+				if (game.stageID == STAGE_BUS_STOP)
+				{
+					_petra = stage.FindActor("npc_petra");
+					if (_petra.GetVisible())
+					{
+						game.GetPlayer().AddInventory("item_feather");
+						SetState(6);
+						OnCursorClick();
+						return;
+					}
+				}
+				ShowAutoDialogue ("michael_8", 2, [this, game.GetPlayer()]);
+			}
+			break;
+			case 6: // Estan juntos y no hay nada más que hacer
+			{
+				ShowAutoDialogue ("michael_9", 6, [game.GetPlayer(), this]);		
+			}
+			break;
+		}
+	}
+	
+	virtual Move ()
+	{
+		if (!cap.GetVisible())
+		{
+			_dummy = Actor_GetDummyPos (this, Actor_FindDummy (this, "cap"));
+			VisualEffect_Create (vsSmoke, _dummy[0], _dummy[1], _dummy[2], 1);
+		}		
+	}
+}

@@ -1,0 +1,5 @@
+class UI_FontInstance implements UI_Object, UI_IFontInstance
+{
+	properties:
+		/* data */
+}

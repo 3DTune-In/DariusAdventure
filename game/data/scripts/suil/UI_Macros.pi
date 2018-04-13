@@ -1,0 +1,70 @@
+//-------------------------------------------------------------------------------------------------------------
+// DEPURACION
+//-------------------------------------------------------------------------------------------------------------
+// #macro NameOrNull(x)
+// 	((x == null)?"NULL":x.GetName())
+// #endmacro
+
+// #if __DEBUG__
+// #macro assert(x)
+// 	if (!(x))
+// 	{
+// 		DebugLog("Error in ASSERT \"" + #x + "\", file:", __FILE__, ", line:", __LINE__);
+// 		DebugStackTrace();
+// 		System_Exit();
+// 	}
+// #endmacro
+// #else
+// #macro assert(x)
+// #endmacro
+// #endif
+
+// #if __DEBUG__
+// #macro exitMsg(x)
+// 	{
+// 		DebugLog("");
+// 		DebugLog("");
+// 		DebugLog("************************************************************************************");
+// 		DebugLog("Error with EXITMSG:", x, " File:", __FILE__, ", line:", __LINE__);
+// 		DebugLog("************************************************************************************");
+// 		DebugLog("");
+// 		DebugLog("");
+// 		DebugStackTrace();
+// 		System_Exit();
+// 	}
+// #endmacro
+// #else
+// #macro exitMsg(x)
+// #endmacro
+// #endif
+
+// #macro d_var(x)
+// 		(#x + " = " + string(x))
+// #endmacro
+
+// #macro assert_instance(x, y)
+// 	assert(x._instanceOf(y))
+// #endmacro
+
+// #if __DEBUG__
+// #macro Debug_ObsoleteMark(_func_, _info_)
+// 	{
+// 		__uisystem__ = suil_system.GetSystem();
+// 		if (!__uisystem__.IsObsoleteMarked(Class_Id(this), __LINE__))
+// 		{
+// 			DebugLog(">>>>> WARNING: La función", _func_, "en", Class_Id(this) + ".pi (" + __LINE__ + ") está marcada como obsoleta. Info:", _info_);
+// 		}
+// 	}
+// #endmacro
+// #else
+// #macro Debug_ObsoleteMark(_func_, _info_)
+// #endmacro
+// #endif
+
+//-------------------------------------------------------------------------------------------------------------
+// LISTAS
+//-------------------------------------------------------------------------------------------------------------
+
+// #macro L_LAST(x)
+// 	x[sizeof(x) - 1]
+// #endmacro

@@ -1,0 +1,724 @@
+class UI_FontString implements UI_InternalRegion, UI_FontInstance
+{
+	properties:
+		font = null;
+		text = "";
+		textAlign = DT_TOP | DT_LEFT;
+		wordWrap = false; // Aunque se puede cambiar el wrap con el textalign, mejor lo sacamos para mantenerlo siempre activo si es necesario aunque cambie el textAlign
+
+		textHeight = -1; // -1 mismo valor que la fuente
+		textWidth = -1;
+
+		drawIfEmtpy = true;
+
+		autoCreatedFont = false; // Interna
+
+		// DrawCache
+		i_Font = null;
+		i_Color = 0;
+		backColor = 0;
+
+		// HTML TEXT
+		//htmlEnabled = false;
+		textdoc = null;
+		htmlStyles = [];
+		htmlText = "";
+		enableColorParse = false; // Para habilitar el color con |
+
+		autoEllipsisMode = 0; // 0 -> Quitado, DT_START_ELLIPSIS, DT_END_ELLIPSIS, DT_PATH_ELLIPSIS
+
+	function _operator_new(_uisystem, _name)
+	{
+		::_operator_new(_uisystem, _name);
+
+		i_Color = Sprite_GetProperty(sprite, SPRITE_COLOR);
+		//EnableDraw(true, 1);
+		SetWordWrap(true);
+	}
+
+	function _operator_delete()
+	{
+		//DebugMsg("DELETE UI_FontString", this);
+		SetFontObject(null);
+		if (i_Font) Font_Delete(i_Font);
+
+		DisableHTML();
+
+		::_operator_delete();
+	}
+
+	function SetText(_text)
+	{
+		if (textdoc)
+		{
+			if (enableColorParse)
+			{
+				_info = Core_ParseSentence(_text);
+				htmlStyles = _info[1];
+				htmlText = _info[0];
+				if (i_Font)
+				{
+					Core_UpdateStyles(false);
+					//DebugMsg(htmlText);
+					TextDoc_SetHTMLText(textDoc, htmlText);
+				}
+			}
+			else
+			{
+				TextDoc_SetHTMLText(textDoc, _text);
+			}
+			// DebugMsg(_info);
+			//text = GetText();
+		}
+
+		text = _text;
+
+		if (!drawIfEmtpy) Core_UpdateFontDrawCache(false);
+
+		InvalidateRT();
+	}
+
+	function SetHTMLText(_text)
+	{
+		if (textdoc)
+		{
+			if (i_Font)
+			{
+				//Core_UpdateStyles(false);
+				TextDoc_SetHTMLText(textDoc, _text);
+			}
+			// DebugMsg(_info);
+			//text = GetText();
+		}
+
+		text = _text;
+
+		if (!drawIfEmtpy)
+			Core_UpdateFontDrawCache(false);
+
+		InvalidateRT();
+	}
+
+	function GetText()
+	{
+		if (textDoc) return TextDoc_GetText(textDoc, 0, -1);
+		return text;
+	}
+
+	function SetTextAlign(_ta)
+	{
+		textAlign = _ta;
+
+		if (wordWrap) textAlign &= (~DT_SINGLELINE);
+		else textAlign |= DT_SINGLELINE;
+
+		if (autoEllipsisMode) textAlign |= autoEllipsisMode;
+		else textAlign &= (~(DT_START_ELLIPSIS | DT_END_ELLIPSIS | DT_PATH_ELLIPSIS));
+
+		if (textDoc)
+		{
+			TextDoc_SetProperty(textDoc, TEXTDOC_ALIGN, textAlign);
+		}
+	}
+
+	function GetTextAlign()
+	{
+		return textAlign;
+	}
+
+	function GetTextDoc()
+	{
+		return textDoc;
+	}
+
+	function SetWordWrap(_value)
+	{
+		wordWrap = _value;
+		if (wordWrap) textAlign &= (~DT_SINGLELINE);
+		else textAlign |= DT_SINGLELINE;
+	}
+
+	function DisableEllipsis()
+	{
+		autoEllipsisMode = 0;
+		textAlign &= (~(DT_START_ELLIPSIS | DT_END_ELLIPSIS | DT_PATH_ELLIPSIS));
+	}
+
+	function EnableEllipsisAtStart()
+	{
+		DisableEllipsis();
+
+		autoEllipsisMode = DT_START_ELLIPSIS;
+		textAlign |= autoEllipsisMode;
+	}
+
+	function EnableEllipsisAtEnd()
+	{
+		DisableEllipsis();
+
+		autoEllipsisMode = DT_END_ELLIPSIS;
+		textAlign |= autoEllipsisMode;
+	}
+
+	function EnableEllipsisAtCenter()
+	{
+		DisableEllipsis();
+
+		autoEllipsisMode = DT_PATH_ELLIPSIS;
+		textAlign |= autoEllipsisMode;
+	}
+
+
+	function GetWordWarp()
+	{
+		return wordWrap;
+	}
+
+	function SetTextHeight(_height)
+	{
+		textHeight = _height;
+		Core_UpdateFontSizeCache();
+	}
+
+	function SetTextWidth(_width)
+	{
+		textWidth = _width;
+		Core_UpdateFontSizeCache();
+	}
+
+	function SetTextHeightProp(_height)
+	{
+		if (!font) return;
+
+		_info = font.GetFont();
+		_factor = _info[1] / _info[2];
+
+		textHeight = _height;
+		textWidth = textHeight * _factor;
+		Core_UpdateFontSizeCache();
+	}
+
+	function GetTextHeight()
+	{
+		return textHeight;
+	}
+
+	function GetTextWidth()
+	{
+		return textWidth;
+	}
+
+	function SetBackColor(_backColor)
+	{
+		backColor = _backColor;
+	}
+
+	function SetDrawIfEmpty(_value)
+	{
+		drawIfEmtpy = _value;
+		Core_UpdateFontDrawCache(false);
+	}
+
+	function Draw(_sprite, _x, _y, _w, _h, _level)
+	{
+		if (backColor != 0) Render_DrawBox(_x, _y, _w, _h, backColor);
+
+		//DebugMsg("HAGO DRAW DEL FS");
+		if (textDoc)
+		{
+			TextDoc_Draw(textDoc, _x, _y);
+		}
+		else Render_PrintRect(i_Font, _x, _y, _w, _h, text, i_Color, textAlign);
+		// if (font)
+		// {
+		// 	_fontEngine = font.Core_GetEngineFont();
+		// 	if (!_fontEngine) return;
+
+		// 	_oldInfo = [];
+		// 	_scale = GetEffectiveScale();
+		// 	if (textHeight != -1 || textWidth != -1)
+		// 	{
+		// 		_oldInfo = font.GetFont();
+		// 		_fh = textHeight;
+		// 		_fw = textWidth;
+		// 		if (_w < 0) _w = 0;
+		// 		if (_h < 0) _h = 0;
+		// 		Font_SetSize(_fontEngine, _fw * _scale, _fh * _scale);
+		// 	}
+		// 	else if (_scale != 1)
+		// 	{
+		// 		_oldInfo = font.GetFont();
+		// 		Font_SetSize(_fontEngine, _oldInfo[1] * _scale, _oldInfo[2] * _scale);
+		// 	}
+
+		// 	Render_PrintRect(_fontEngine, _x, _y, _w, _h, text, Sprite_GetProperty(sprite, SPRITE_COLOR), textAlign);
+
+		// 	if (sizeof(_oldInfo)) Font_SetSize(_fontEngine, _oldInfo[1], _oldInfo[2]);
+		// }
+	}
+
+	function GetStringWidth(_checkOriginalFont = true)
+	{
+		if (textdoc)
+		{
+			_scale = 1;
+			if (_checkOriginalFont) _scale = GetEffectiveScale();
+
+			return TextDoc_GetStat(textDoc, TEXTDOC_STAT_MAX_WIDTH) / _scale;
+		}
+
+		_info = GetStringSize(_checkOriginalFont);
+		return _info[0];
+	}
+
+	function GetStringHeight(_checkOriginalFont = true)
+	{
+		if (textdoc)
+		{
+			_scale = 1;
+			if (_checkOriginalFont) _scale = GetEffectiveScale();
+
+			return TextDoc_GetStat(textDoc, TEXTDOC_STAT_MAX_HEIGHT) / _scale;
+		}
+
+		_info = GetStringSize(_checkOriginalFont);
+		return _info[1];
+	}
+
+	function GetStringSize(_checkOriginalFont = true)
+	{
+		if (textdoc)
+		{
+			DebugLog("------------- La función GetStringSize no está soportada para el FontString en modo HTML. Usar GetStringWidth/GetStringHeight. --------------");
+			return [-1, -1];
+		}
+		// if (_checkOriginalFont)
+		// 	_font = font.Core_GetEngineFont();
+		// else _font = i_Font;
+		_font = i_Font;
+		if (!_font) return [0, 0];
+		// if (!font) return [0, 0];
+		// _font = font.Core_GetEngineFont();
+		// if (!_font) return [0, 0];
+
+		_w = GetWidth();
+		if (_w == 0) _w = -1;
+		Core_UpdateFontSizeCache(false);
+		_size = Font_GetTextSize(_font, text, _w, -1, textAlign);
+		Core_UpdateFontSizeCache(true);
+		//return [_size[0] / _scale, _size[1] / _scale];
+		return [_size[0], _size[1]];
+	}
+
+	function MeasureText(_text, _width = -1, _checkOriginalFont = true)
+	{
+		// if (_checkOriginalFont)
+		// 	_font = font.Core_GetEngineFont();
+		// else _font = i_Font;
+		if (textdoc) return [0, 0];
+
+		_font = i_Font;
+		if (!_font) return [0, 0];
+		//_scale = GetEffectiveScale();
+		// _info = Font_GetTextSize(_font, _text, _width, -1, textAlign);
+		// return _info;
+		Core_UpdateFontSizeCache(false);
+		_size = Font_GetTextSize(_font, _text, _width, -1, textAlign);
+		Core_UpdateFontSizeCache(true);
+		//return [_size[0] / _scale, _size[1] / _scale];
+		return [_size[0], _size[1]];
+	}
+
+	function AdjustToText(_width = true, _height = true)
+	{
+		_size = MeasureText(GetText());
+		if (_width && _height)
+			SetSize(_size[0], _size[1]);
+		else if (_width)
+			SetWidth(_size[0]);
+		else if (_height)
+			SetHeight(_size[1]);
+	}
+
+
+	function AdjustToBounds(_grow = false)
+	{
+		if (!i_Font) return;
+		// if (!font) return;
+		// _fontEngine = font.Core_GetEngineFont();
+		// if (!_fontEngine) return;
+
+		//_scale = GetEffectiveScale();
+		Core_UpdateFontSizeCache(false);
+		_ts = suil_library.String_GetFontForRect(i_Font, GetText(), textAlign, GetWidth(), GetHeight(), _grow);
+		//_ts = suil_library.String_GetFontForRect(_fontEngine, GetText(), textAlign, GetWidth(), GetHeight(), _grow);
+		//DebugMsg("ATB", _ts, GetText(), textAlign, GetWidth(), GetHeight());
+		textWidth = _ts[0];
+		textHeight = _ts[1];
+		Core_UpdateFontSizeCache();
+	}
+
+	function Core_UpdateFontDrawCache(_checkFont = true)
+	{
+		if (_checkFont)
+		{
+			if (i_Font)
+			{
+				// if (GetParent().GetName() == "mainForm")
+				// 	DebugMsg("DELETE iFONT", i_Font);
+
+				if (textDoc) Core_ClearTextDoc();
+				Font_Delete(i_Font);
+			}
+			i_Font = null;
+
+			//DebugMsg("FONT", font, "THIS", this);
+			if (font)
+			{
+				_fontEngine = font.Core_GetEngineFont();
+				if (_fontEngine)
+				{
+					i_Font = Font_Clone(_fontEngine);
+					// if (GetParent().GetName() == "mainForm")
+					// 	DebugMsg("CREATING iFONT", i_Font);
+					Core_UpdateFontSizeCache();
+					Core_UpdateStyles(false);
+					//DebugMsg("Core_UpdateFontDrawCache", htmlText);
+					if (textDoc) TextDoc_SetHTMLText(textDoc, htmlText);
+				}
+			}
+		}
+
+		if (i_Font && (drawIfEmtpy || (!drawIfEmtpy && !suil_library.String_IsEmptyOrNull(text))))	EnableDraw(true, 1);
+		else EnableDraw(false);
+	}
+
+	function Core_UpdateFontSizeCache(_applyScale = true)
+	{
+		if (!i_Font) return;
+
+		_scale = 1;
+		if (_applyScale) _scale = GetEffectiveScale();
+		_info = font.GetFont();
+		if (textHeight != -1 || textWidth != -1)
+		{
+			_fh = textHeight;
+			_fw = textWidth;
+			if (_fw < 0) _fw = 0;
+			if (_fh < 0) _fh = 0;
+			Font_SetSize(i_Font, _fw * _scale, _fh * _scale);
+			// if (GetParent().GetName() == "mainForm")
+			// 	DebugMsg("UPDATE FONT SIZE", i_Font, Font_GetInfo(i_Font));
+		}
+		else
+		{
+			Font_SetSize(i_Font, _info[1] * _scale, _info[2] * _scale);
+			// if (GetParent().GetName() == "mainForm")
+			// 	DebugMsg("UPDATE FONT SIZE", i_Font, Font_GetInfo(i_Font));
+		}
+	}
+
+	function SetScale(_value)
+	{
+		::SetScale(_value);
+		Core_UpdateFontSizeCache();
+
+		Core_UpdateTextDocSize();
+	}
+
+	function Core_ParentScaleChanged()
+	{
+		::Core_ParentScaleChanged();
+		Core_UpdateFontSizeCache();
+
+		Core_UpdateTextDocSize();
+	}
+
+	function SetBounds(_left, _top, _width, _height)
+	{
+		::SetBounds(_left, _top, _width, _height);
+		if (textDoc) Core_UpdateTextDocSize();
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: FontInstance
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function GetFont()
+	{
+		return font.GetFont();
+	}
+
+	function GetFontObject()
+	{
+		return font;
+	}
+
+	function SetFont(_fileName, _size, _flags = 0, _cacheEnabled = false)
+	{
+		textHeight = -1;
+		textWidth = -1;
+		if (font == null)
+		{
+			_tf = suil_system.CreateFont(null);
+			if (_cacheEnabled)
+				_tf.EnableCache();
+			SetFontObject(_tf);
+			autoCreatedFont = true;
+		}
+
+		font.SetFont(_fileName, _size, _flags);
+	}
+
+	function SetFontObject(_font)
+	{
+		if (font == _font) return;
+
+		if (font)
+		{
+			//DebugMsg("font", font);
+			font.RemoveEvent(UI_EVENT_FONT_CHANGED, this);
+
+			if (autoCreatedFont)
+			{
+				delete font;
+				font = null;
+				autoCreatedFont = false;
+			}
+		}
+
+		textHeight = -1;
+		textWidth = -1;
+		font = _font;
+
+		if (font)
+		{
+			font.HookEvent(UI_EVENT_FONT_CHANGED, this, "OnFontProperyChanged");
+		}
+
+		Core_UpdateFontDrawCache();
+	}
+
+	function SetTextColor(_a, _r, _g, _b)
+	{
+		SetAlpha(_a);
+		_a = Color_GetA(Sprite_GetProperty(sprite, SPRITE_COLOR));
+		i_Color = ARGB(_a, _r, _g, _b);
+		Sprite_SetProperty(sprite, SPRITE_COLOR, i_Color);
+
+		Core_UpdateStyles();
+	}
+
+	function SetTextColor(_color)
+	{
+		SetAlpha(Color_GetA(_color));
+		_a = Color_GetA(Sprite_GetProperty(sprite, SPRITE_COLOR));
+		i_Color = Color_SetA(_color, _a);
+		Sprite_SetProperty(sprite, SPRITE_COLOR, i_Color);
+
+		Core_UpdateStyles();
+	}
+
+	function GetTextColor()
+	{
+		_color = Sprite_GetProperty(sprite, SPRITE_COLOR);
+		_color = Color_SetA(_color, GetAlpha());
+		return _color;
+	}
+
+	function Core_SetAlphaAndNotify(_parentAlpha)
+	{
+		::Core_SetAlphaAndNotify(_parentAlpha);
+		i_Color = Sprite_GetProperty(sprite, SPRITE_COLOR);
+		//DebugMsg("SetAlpha", _parentAlpha, Color_GetA(i_Color));
+
+		// Si el textdoc usamos en updateStyles es más lento.
+		if (textDoc)
+			TextDoc_SetProperty(textdoc, TEXTDOC_ALPHA, Color_GetA(i_Color));
+		//Core_UpdateStyles(false);
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: UI_InternalRegion
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function SetVertexColor(_r, _g, _b)
+	{
+		SetTextColor(GetAlpha(), _r, _g, _b);
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Eventos
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function OnFontProperyChanged(_sender, _event, _params)
+	{
+		Core_UpdateFontDrawCache();
+	}
+
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: HTML
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function EnableHTML(_enableColorParse = false)
+	{
+		if (textDoc) return;
+
+		textDoc = TextDoc_Create("");
+		TextDoc_SetProperty(textDoc, TEXTDOC_CURSOR_VISIBLE, false);
+		TextDoc_SetProperty(textDoc, TEXTDOC_MULTILINE , true);
+		TextDoc_SetProperty(textDoc, TEXTDOC_WORDWRAP, true);
+		Core_UpdateTextDocSize();
+		enableColorParse = _enableColorParse;
+
+		Core_UpdateFontDrawCache(false);
+	}
+
+	function DisableHTML()
+	{
+		if (textDoc)
+		{
+			TextDoc_Delete(textDoc);
+			textDoc = null;
+		}
+
+		Core_UpdateFontDrawCache(true);
+	}
+
+	function Core_ClearTextDoc()
+	{
+		SetText("");
+	}
+
+	function Core_UpdateTextDocSize()
+	{
+		if (!textDoc) return;
+
+		_size = GetSize();
+		_scale = GetEffectiveScale();
+		TextDoc_SetSize(textDoc, _size[0] * _scale, _size[1] * _scale);
+	}
+
+	function Core_UpdateStyles(_updateFirst = true)
+	{
+		//DebugMsg("Core_UpdateStyles", textdoc, i_Font);
+		if (!textdoc) return;
+		if (!i_Font) return;
+
+		// DebugMsg("UPDATE STYLES COUNT:", sizeof(htmlStyles), htmlStyles);
+
+		for (i = 0; i < sizeof(htmlStyles); i++)
+		{
+			_item = htmlStyles[i];
+			//DebugMSg("_item", _item);
+			if (_item == 0) // El item 0 corresponderá a los datos del sprite
+			{
+				_item = GetTextColor();
+			}
+			else
+			{
+				_ea = GetEffectiveAlpha();
+				_pctg = float(_ea) / 255.0f;
+				_a = Color_GetA(_item) * _pctg;
+				//DebugMsg("GetEffectiveAlpha", _ea, _a, _pctg);
+				_item = Color_SetA(_item, _a);
+			}
+			TextDoc_SetStyleWithFont(textdoc, i, i_Font, _item, ARGB(0, 0, 0, 0));
+			// if (GetParent().GetName() == "mainForm")
+			// 	DebugMsg("STYLE ", i, "FONT PTR", i_Font, Font_GetInfo(i_Font));
+			if (_updateFirst) return;
+		}
+	}
+
+	function Core_ParseSentence(_txt)
+	{
+		_styleColor = [0];
+		_inEscape = false;
+		_lastChar = "";
+
+		_finalText = "<style id=0>";
+		_currentColor = "";
+		for (i = 0; i < strlen(_txt); i++)
+		{
+			_item = ascii(_txt[i]);
+			if (_item == "|")
+			{
+				if (_inEscape)
+				{
+					_inEscape = false;
+					if (_lastChar == "|")
+					{
+						_finalText += "|";
+					}
+					else
+					{
+						if (strlen(_currentColor) == 8)
+						{
+							_finalText += "<style id=" + string(sizeof(_styleColor)) + ">";
+							_c = hex2int(_currentColor);
+							if (_c == 0 && _currentColor != "00000000") _c = ARGB(255, 255, 255, 255);
+							_styleColor += [_c];
+						}
+						else _finalText += _currentColor;
+					}
+				}
+				else
+				{
+					// Primer |
+					_currentColor = "";
+					_inEscape = true;
+				}
+			}
+			else
+			{
+				if (_inEscape)
+				{
+					_currentColor += _item;
+					if (strlen(_currentColor) > 8)
+					{
+						_finalText += _currentColor;
+						_inEscape = false;
+					}
+				}
+				else _finalText += _item;
+			}
+
+			_lastChar = _item;
+		}
+
+		//DebugMsg(_finalText, _styleColor);
+		return [_finalText, _styleColor];
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Funciones sobre el Textdoc
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function DeleteLine(_lineNumber)
+	{
+		_numLines = TextDoc_GetProperty(textDoc, TEXTDOC_STAT_NUM_LINES);
+		DebugMsg("NUM LINES", _numLines, "DELETE", _lineNumber);
+		if (_numLines == 0 ||_numLines < _lineNumber)
+			return false;
+
+		TextDoc_SetProperty (textDoc, TEXTDOC_CURSOR_LINE, _lineNumber);
+		_start = TextDoc_GetProperty (textDoc, TEXTDOC_CURSOR_POS);
+		TextDoc_DoAction (textDoc, TEXTDOC_ACTION_END_OF_LINE);
+		_end = TextDoc_GetProperty (textDoc, TEXTDOC_CURSOR_POS);
+		TextDoc_DeleteText (textDoc, _start, (_end - _start) + 1);
+
+		return true;
+	}
+
+}

@@ -1,0 +1,650 @@
+class Scene3D
+{
+	constants:
+	#if __OS_IOS__ || __OS_ANDROID__
+		DEVELOPER_MODE = false;
+	#else
+		DEVELOPER_MODE = true;
+	#endif
+
+	class Object
+	{
+		properties:
+			name = "";
+			parent = null;
+			tex = null;
+			frameList = [];
+			frameBaseList = [];
+			pos_y = 0;
+			bb_x = 0;
+			bb_y = 0;
+			width = 0;
+			height = 0;
+			visible = true;
+			pivot_x = 0;
+			pivot_y = 0;
+			//pivot_z = 0;
+			value = "";
+			
+			function _operator_delete ()
+			{
+				for (i=0; i<sizeof(frameBaseList); i++)
+					delete frameBaseList[i];
+			}
+			
+			function SaveDAT (_file)
+			{
+				File_WriteString (_file, name);
+				if (parent) File_WriteString (_file, parent.name);
+				else File_WriteString (_file, "");
+				if (tex) File_WriteString (_file, Texture_GetName(tex));
+				else File_WriteString (_file, "");
+				File_WriteFloat (_file, bb_x);
+				File_WriteFloat (_file, bb_y);
+				File_WriteFloat (_file, pivot_x);
+				File_WriteFloat (_file, pivot_y);
+				File_WriteFloat (_file, pos_y);
+				File_WriteInt (_file, visible);
+				File_WriteString (_file, value);
+				
+				File_WriteInt (_file, sizeof(frameBaseList));
+				for (i=0; i<sizeof(frameBaseList); i++)
+				{
+					frameBaseList[i].SaveDAT (_file);
+				}
+				
+				File_WriteInt (_file, sizeof(frameList));
+				for (i=0; i<sizeof(frameList); i++)
+				{
+					_ix = indexof(frameBaseList, frameList[i]);
+					File_WriteInt (_file, _ix);
+				}
+			}
+			
+			function LoadDAT (_scene, _file)
+			{
+				name = File_ReadString (_file);
+				_parent = File_ReadString (_file);
+				parent = _scene.FindObject(_parent);
+				_tex = File_ReadString (_file);
+				if (_tex != "")	tex = _scene.LoadTexture(_tex);
+				bb_x = File_ReadFloat (_file);
+				bb_y = File_ReadFloat (_file);
+				pivot_x = File_ReadFloat (_file);
+				pivot_y = File_ReadFloat (_file);
+				pos_y = File_ReadFloat (_file);
+				visible = File_ReadInt (_file);
+				value = File_ReadString (_file);
+				_num_frames = File_ReadInt (_file);
+				for (i=0; i<_num_frames; i++)
+				{
+					_frame = new Frame();
+					_frame.LoadDAT(_file);
+					frameBaseList += [_frame];
+				}
+				_num_frames = File_ReadInt (_file);
+				for (i=0; i<_num_frames; i++)
+				{
+					_ix = File_ReadInt (_file);
+					frameList += [frameBaseList[_ix]];
+				}
+			}
+	};
+	
+	class Frame
+	{
+		properties:
+			//time = 0;
+			pos_x = 0;
+			//pos_y = 0;
+			pos_z = 0;
+			//rot_x = 0;
+			//rot_y = 0;
+			//rot_z = 0;
+			//rot_w = 0;
+			scl_x = 1;
+			//scl_y = 0;
+			scl_z = 1;
+			//bb_x = 0;
+			//bb_y = 0;
+			//bb_z = 0;
+			//euler_x = 0;
+			//euler_y = 0;
+			//euler_z = 0;
+			angle = 0;
+			visibility = 1;
+			
+			function SaveDAT (_file)
+			{
+				File_WriteFloat (_file, pos_x);
+				File_WriteFloat (_file, pos_z);
+				File_WriteFloat (_file, scl_x);
+				File_WriteFloat (_file, scl_z);
+				File_WriteFloat (_file, angle);
+				File_WriteFloat (_file, visibility);
+			}
+			
+			function LoadDAT (_file)
+			{
+				pos_x = File_ReadFloat (_file);
+				pos_z = File_ReadFloat (_file);
+				scl_x = File_ReadFloat (_file);
+				scl_z = File_ReadFloat (_file);
+				angle = File_ReadFloat (_file);
+				visibility = File_ReadFloat (_file);
+			}
+	};
+	
+	properties:
+		actor = null;
+		scale = 1.0f;
+		ani_start = 0;
+		ani_end = 0;
+		ani_frames = 0;
+		bb_x = 0;
+		bb_y = 0;
+		objectList = [];
+		objectVisibleList = [];
+		offset_z = 0.0f;
+		
+	function _operator_new (_actor)
+	{
+		actor = _actor;
+	}
+	
+	function _operator_delete ()
+	{
+		for (i=0; i<sizeof(objectList); i++)
+			delete objectList[i];
+	}
+	
+	function GetWidth ()
+	{
+		return bb_x * scale;
+	}
+	
+	function GetHeight ()
+	{
+		return bb_y * scale;
+	}
+	
+	function LoadTexture (_path)
+	{
+		_ps = Path_Split(_path);
+		_tex = Actor_LoadTexture (actor, _ps[2]+_ps[3]);
+		if (!_tex)
+		{
+			DebugMsg ("Error Texture can't be loaded:", _ps[2]+_ps[3]);
+		}
+		return _tex;
+	}
+	
+	function FindObject (_name)
+	{
+		_obj = null;
+		for (i=0; i<sizeof(objectList); i++)
+		{
+			if (objectList[i].name == _name)
+				return objectList[i];
+		}
+		return _obj;
+	}
+	
+	function SaveDAT (_path)
+	{
+		_file = File_Open (_path, FILE_MODE_WRITE);
+		if (_file)
+		{
+			File_WriteFloat (_file, ani_start);
+			File_WriteFloat (_file, ani_end);
+			File_WriteFloat (_file, ani_frames);
+			File_WriteFloat (_file, bb_x);
+			File_WriteFloat (_file, bb_y);
+			File_WriteInt (_file, sizeof(objectList));
+			
+			for (i=0; i<sizeof(objectList); i++)
+			{
+				objectList[i].SaveDAT (_file);
+			}
+			
+			File_Close (_file);
+			return true;
+		}
+		DebugMsg ("ERROR!!! SaveDAT can't be possible:", _path);
+		return false;
+	}
+	
+	function LoadDAT (_path)
+	{
+		_file = File_Open (_path, FILE_MODE_READ);
+		if (_file)
+		{
+			ani_start = File_ReadFloat (_file);
+			ani_end = File_ReadFloat (_file);
+			ani_frames = File_ReadFloat (_file);
+			bb_x = File_ReadFloat (_file);
+			bb_y = File_ReadFloat (_file);
+			
+			DebugMsg ("ANI_START:", ani_start, "ANI_END:", ani_end, "ANI_NUMFRAMES:", ani_frames, "ANI_DURATION:", (ani_end - ani_start + 1));
+			
+			_num_objects = File_ReadInt (_file);
+			for (i=0; i<_num_objects; i++)
+			{
+				_obj = new Object ();
+				_obj.LoadDAT (this, _file);
+				objectList += [_obj];
+				if (_obj.visible && _obj.tex)
+					objectVisibleList += [_obj];
+
+				//DebugMsg (_obj.name, _obj.pos_y, _obj.bb_x, _obj.bb_y);
+			}
+			
+			File_Close (_file);
+			return true;
+		}
+		return false;
+	}
+	
+	function LoadXML (_path)
+	{
+		_ps = Path_Split(_path);
+		
+		if (!DEVELOPER_MODE)
+		{
+			if (File_Exists (_ps[0] + _ps[1] + _ps[2] + ".dat"))
+			{
+				//_info = System_FindFiles (_path, true);
+				//_file = File_Open (_ps[0] + _ps[1] + "~" + _ps[2] + _ps[3], FILE_MODE_READ);
+				//if (_file)
+				{
+					//_xmltimestamp = File_ReadLong (_file);
+					//File_Close(_file);
+					//if (_info[0][5] == _xmltimestamp)
+					{
+						return LoadDAT (_ps[0] + _ps[1] + _ps[2] + ".dat");
+					}
+				}
+			}
+		}
+	
+		_time = GetHiResTime();
+		DebugMsg ("Loading XML Start...", _path);
+		_xml = new XMLImport();
+		if (!_xml.Load (_path))
+		{
+			DebugMsg ("Scene3D :: LoadXML :: Path not found:", _path);
+			delete _xml;
+			return false;
+		}
+		DebugMsg ("Loading XML End...", GetHiResTime()-_time);
+		
+		_time = GetHiResTime();
+		DebugMsg ("Decompiling Start...");
+
+		bb_x = float(_xml.sceneList[0].bb_x);
+		bb_y = float(_xml.sceneList[0].bb_y);
+		//bb_z = float(_xml.sceneList[0].bb_z);
+		
+		ani_start = int(_xml.animationList[0].start); 			
+		ani_end = int(_xml.animationList[0].end);
+		ani_frames = int(_xml.animationList[0].numframes); 			
+			
+		DebugMsg (ani_start, ani_end, ani_frames);
+		
+		_num_objects = sizeof(_xml.objectList);
+		
+		for (i=0; i<_num_objects; i++)
+		{
+			_objXML = _xml.objectList[i];
+
+            _visible = int(_objXML.hidden) == 0;
+            
+            if (!_objXML._implements("materialList")) _difTex = "";
+            else _difTex = _objXML.materialList[0].diftex;
+
+            _obj = new Object();
+            _obj.name = _objXML.name;
+            _obj.parent = FindObject(_objXML.parent);
+            
+            if (_difTex != "")
+           		_obj.tex = LoadTexture(_difTex);
+           	else
+           		_obj.tex = null;
+
+            _obj.visible = _visible;
+            
+            _obj.value = _objXML.value;
+            
+            _bmin_x = float(_objXML.bmin_x);
+            _bmin_y = float(_objXML.bmin_y);
+            _bmin_z = float(_objXML.bmin_z);
+            _bmax_x = float(_objXML.bmax_x);
+            _bmax_y = float(_objXML.bmax_y);
+            _bmax_z = float(_objXML.bmax_z);
+            
+            _obj.bb_x = abs(_bmax_x - _bmin_x);
+            //_bb_z = abs(_bmax_z - _bmin_z);
+            _obj.bb_y = abs(_bmax_y - _bmin_y);
+            
+            _obj.pivot_x = float(_objXML.pivot_x);
+           	_obj.pivot_y = float(_objXML.pivot_y);
+           	//_obj.pivot_y = float(_objXML.pivot_z);
+            
+            //Debugmsg (_obj.name, _obj.pivot_x, _obj.pivot_y, _obj.pivot_z, GetWidth(), GetHeight());
+            
+            _pos_x = 0;
+            //_pos_y = 0;
+            _pos_z = 0;
+            _rot_x = 0;
+            _rot_y = 0;
+            _rot_z = 0;
+            _rot_w = 0;
+            _scl_x = 1;
+            //_scl_y = 1;
+            _scl_z = 1;
+            //_bb_x = _obj.bb_x;
+            //_bb_y = _obj.bb_y;
+            //_bb_z = _obj.bb_z;
+            _euler_x = 0;
+            _euler_y = 0;
+            _euler_z = 0;
+            _visibility = 1;
+            
+            _num_frames = sizeof(_objXML.frameList);  // Frames distintos!
+            
+            _obj.frameList = [];
+            _obj.frameList += ani_frames;
+            
+            _obj.frameBaseList = [];
+            _obj.frameBaseList += _num_frames;
+            
+            // Vamos a asumir que el pos_y será fijo para TODOS los frames!
+            if (_objXML.frameList[0]._implements("pos_y")) _obj.pos_y = float(_objXML.frameList[0].pos_y);
+            //if (_objXML.frameList[0]._implements("scl_x")) _obj.bb_x *= float(_objXML.frameList[0].scl_x); 
+            //if (_objXML.frameList[0]._implements("scl_y")) _obj.bb_y *= float(_objXML.frameList[0].scl_y); 
+
+			_frameIndex = 0;
+			_frame = null;
+			
+		//	DebugMsg ("OBJ:", i, "FRAMES:", _num_frames, "ANI_FRAMES:", ani_frames, "ANI_DURATION:", (ani_end - ani_start + 1));
+			            
+            for (j=0; j<_num_frames; j++)
+            {
+            	_frameXML = _objXML.frameList[j];
+            	
+				_index = int(_frameXML.index);
+
+               	for (k=_frameIndex; k<_index; k++)
+            	{
+            		_obj.frameList[k] = _frame;
+            	}
+            	_frameIndex = _index;
+
+            	_frame = new Frame();
+            	_obj.frameBaseList[j] = _frame;
+            	
+            	if (_frameXML._implements("pos_x")) _pos_x = float(_frameXML.pos_x); 
+            	//if (_frameXML._implements("pos_y")) _pos_y = float(_frameXML.pos_y); 
+            	if (_frameXML._implements("pos_z")) _pos_z = float(_frameXML.pos_z); 
+
+            	//if (_frameXML._implements("rot_x")) _rot_x = float(_frameXML.rot_x); 
+            	//if (_frameXML._implements("rot_y")) _rot_y = float(_frameXML.rot_y); 
+            	//if (_frameXML._implements("rot_z")) _rot_z = float(_frameXML.rot_z); 
+            	//if (_frameXML._implements("rot_w")) _rot_w = float(_frameXML.rot_w); 
+
+            	if (_frameXML._implements("scl_x")) _scl_x = float(_frameXML.scl_x); 
+            	//if (_frameXML._implements("scl_y")) _scl_y = float(_frameXML.scl_y); 
+            	if (_frameXML._implements("scl_z")) _scl_z = float(_frameXML.scl_z); 
+
+            	//if (_frameXML._implements("bb_x")) _bb_x = float(_frameXML.bb_x); 
+            	//if (_frameXML._implements("bb_y")) _bb_y = float(_frameXML.bb_y); 
+            	//if (_frameXML._implements("bb_z")) _bb_z = float(_frameXML.bb_z); 
+
+            	if (_frameXML._implements("euler_x")) _euler_x = float(_frameXML.euler_x); 
+            	if (_frameXML._implements("euler_y")) _euler_y = float(_frameXML.euler_y); 
+            	//if (_frameXML._implements("euler_z")) _euler_z = float(_frameXML.euler_z); 
+
+            	if (_frameXML._implements("visibility")) _visibility = float(_frameXML.visibility); 
+
+            	_frame.pos_x = _pos_x;
+            	//_frame.pos_y = _pos_y;
+            	_frame.pos_z = _pos_z;
+            	//_frame.rot_x = _rot_x;
+            	//_frame.rot_y = _rot_y;
+            	//_frame.rot_z = _rot_z;
+            	//_frame.rot_w = _rot_w;
+            	_frame.scl_x = _scl_x;
+            	//_frame.scl_y = _scl_y;
+            	_frame.scl_z = _scl_z;
+            	//_frame.bb_x = _bb_x;
+            	//_frame.bb_y = _bb_y;
+            	//_frame.bb_z = _bb_z;
+            	//_frame.euler_x = _euler_x;
+            	//_frame.euler_y = _euler_y;
+            	//_frame.euler_z = _euler_z;
+            	
+            	_frame.angle = -_euler_y;
+            	if (_euler_x < 0) _frame.angle = DEGTORAD(90) - _frame.angle;
+            	
+				/*_axis = QRotationToAngleAxis (_rot_x, _rot_y, _rot_z, _rot_w);
+				_frame.angle = _axis[0];// * _axis[1];
+				_qx = _axis[1]>=0;
+				_qy = _axis[2]>=0;
+				_qz = _axis[3]>=0;
+				if (!_qx && !_qy)
+				{
+					_frame.angle = _frame.angle + DEGTORAD(90);
+				}
+				else if (_qx && _qy)
+				{
+					_frame.angle = DEGTORAD(90) - _frame.angle;
+				}
+				else if (!_qx && _qy)
+				{
+					_frame.angle = DEGTORAD(90) - _frame.angle;
+				}
+				else
+				{
+					_frame.angle = _frame.angle + DEGTORAD(90);
+				}
+				
+				_frame.angle = -_frame.angle*2;
+				
+					//DebugMsg (_obj.name, _frame.angle, j, _axis);//"Q:", _axis[1]>=0, _axis[2]>=0, _axis[3]>=0);
+				}*/
+				
+				_frame.visibility = _visibility;
+			}
+			
+			// El resto de frames hasta el final!
+           	for (k=_frameIndex; k<ani_frames; k++)
+          	{
+          		_obj.frameList[k] = _frame;
+          	}
+			
+			if (_obj.visible && _difTex != "")
+				objectVisibleList += [_obj];
+				
+			objectList += [_obj];
+		}
+		
+		DebugMsg ("Decompiling End... ", GetHiResTime() - _time);
+
+		// SORT THE OBJECT LIST BY POS_Y
+		for (j=0; j<sizeof(objectList)-1; j++)
+		{
+			for (i=j+1; i<sizeof(objectList); i++)
+			{
+				_obj1 = objectList[j];
+				_obj2 = objectList[i];
+				if (_obj1.pos_y < _obj2.pos_y)
+				{
+					_aux = objectList[j];
+					objectList[j] = objectList[i];
+					objectList[i] = _aux;
+				}
+			}
+		}
+		
+		// SORT THE OBJECT LIST BY POS_Y
+		for (j=0; j<sizeof(objectVisibleList)-1; j++)
+		{
+			for (i=j+1; i<sizeof(objectVisibleList); i++)                                
+			{
+				_obj1 = objectVisibleList[j];
+				_obj2 = objectVisibleList[i];
+				if (_obj1.pos_y < _obj2.pos_y)
+				{
+					_aux = objectVisibleList[j];
+					objectVisibleList[j] = objectVisibleList[i];
+					objectVisibleList[i] = _aux;
+				}
+			}
+		}
+		
+		/*for (j=0; j<sizeof(objectList); j++)
+		{
+			DebugMsg (objectList[j].name, objectList[j].pos_y, objectList[j].bb_x, objectList[j].bb_y);
+		}*/
+		
+		delete _xml;
+		
+		if (DEVELOPER_MODE)
+		{
+			SaveDAT (_ps[0] + _ps[1] + _ps[2] + ".dat");
+		
+			//XML MODIFICATION TIME STAMP!
+			/*_info = System_FindFiles (_path, true);
+			_file = File_Open (_ps[0] + _ps[1] + "~" + _ps[2] + _ps[3], FILE_MODE_WRITE);
+			if (_file)
+			{
+				File_WriteLong(_file, _info[0][5]);
+				File_Close (_file);
+			} */
+		}
+		
+		return true;
+	}
+	
+	function SetScale (_scale)
+	{
+		scale = _scale;
+		for (i=0; i<sizeof(objectList); i++)
+		{
+			_obj = objectList[i];
+			_obj.width = _obj.bb_x * scale;
+			_obj.height = _obj.bb_y * scale;
+		}
+	}
+	
+	function SetVisible (_obj, _v)
+	{
+		if (typeof(_obj) == TYPE_STRING)
+			_obj = FindObject(_obj);
+	
+		if (_obj.visible == _v)
+			return;
+	
+		_obj.visible = _v;
+		if (!_v)
+			objectVisibleList -= [_obj];
+		else
+		{
+			_len = sizeof(objectVisibleList); 
+			for (i=0; i<_len; i++)
+			{
+				if (objectVisibleList[i].pos_y < _obj.pos_y)
+				{
+					objectVisibleList *= i;
+					objectVisibleList[i] = _obj;
+					break;
+				}
+			}
+			if (i == _len)
+			{
+				objectVisibleList += [_obj];
+			}
+		}
+	}
+	
+	function GetABSPosition (_obj, _time = -1)
+	{
+		if (_time < 0) _time = actor.GetABSFrame();
+		if (typeof(_obj) == TYPE_STRING) _obj = FindObject (_obj);
+		if (_obj)
+		{
+			_pos = actor.GetPos ();
+			_xb = _pos[0];
+			_yb = _pos[1];
+			_zb = _pos[2];
+			_dir = cos(actor.angleZ);//actor.GetDir();
+			_frame = _obj.frameList[_time];
+			_angle = _frame.angle * _dir;
+			_rot = PointRotate2D (_obj.pivot_x * _dir, _obj.pivot_y, _angle);
+			_x = _xb + (-_rot[0] + _frame.pos_x * _dir) * scale;
+			_z = _zb + (-_rot[1] + _frame.pos_z) * scale;
+			return [_x, _yb, _z + offset_z, _angle];		
+		}
+		return [0,0,0,0];
+	}
+
+	function GetRELPosition (_obj, _time = -1)
+	{
+		if (_time < 0) _time = actor.GetABSFrame();
+		if (typeof(_obj) == TYPE_STRING) _obj = FindObject (_obj);
+		if (_obj)
+		{
+			_dir = cos(actor.angleZ);//actor.GetDir();
+			_frame = _obj.frameList[_time];
+			_angle = _frame.angle * _dir;
+			_x = _frame.pos_x * _dir * scale;
+			_z = _frame.pos_z * scale;
+			return [_x, 0, _z + offset_z, _angle];		
+		}
+		return [0,0,0,0];
+	}
+	
+	function Draw ()
+	{
+		_pos = actor.GetPos ();
+		_xb = _pos[0];
+		_yb = _pos[1];
+		_zb = _pos[2];
+		
+		_frameIx = actor.GetABSFrame();
+		
+		_dir = cos(actor.angleZ);//actor.GetDir();
+		
+		_yPos = _yb;
+		_prio = -_yb;//actor.drawPriority;
+		
+		_zb += offset_z; // Este factor permite ajustar en altura a todo el personaje. Se genera alto, se nota por la sombra.
+		
+		_alpha = actor.GetAlpha();
+	  	
+		for (i=0; i<sizeof(objectVisibleList); i++)
+		{
+			_obj = objectVisibleList[i];
+
+			_frame = _obj.frameList[_frameIx];
+			
+			_angle = _frame.angle * _dir;
+
+			_rot = PointRotate2D (_obj.pivot_x * _dir, _obj.pivot_y, _angle);
+			_x = _xb + (-_rot[0] + _frame.pos_x * _dir) * scale;
+			_z = _zb + (-_rot[1] + _frame.pos_z) * scale;
+
+			_color = Color_SetA(actor.color, _frame.visibility * _alpha);
+
+			//Render_DrawPlane (_obj.tex, _x, _yb + _frame.pos_y * scale, _z, _obj.width, _obj.height, _angle, actor.color, 0, 0, 1, 1, actor.drawPriority, actor.curFlags, 0, 0);
+			Render_DrawPlane (_obj.tex, _x, _yPos, _z, _obj.width * _frame.scl_x, _obj.height * _frame.scl_z, _angle, _color, 0, 0, 1, 1, _prio, actor.curFlags, 0, 0);
+			
+			_yPos--;
+			_prio++;
+			
+			//Render_Draw3DBox (_x, _y, _z, _w, 2, _h, ARGB(255,255,0,255));
+			//DebugMsg (_obj.name, _obj.tex, _frame.pos_z, _frame.pos_x, _obj.pivot_x, _obj.pivot_y, _angle);
+			//DebugMsg (_obj.name, _obj.tex, _obj.width, _obj.height); 			
+		}		
+	}
+}

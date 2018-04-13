@@ -1,0 +1,8 @@
+class UI_Curve_In implements UI_Curve
+{
+	virtual Init() : void
+	{
+		points += [[0.000000f, 0.000000f, 1, 0.250000f, 0.000000f, 0, 0.000000f, 0.000000f]];
+		points += [[1.000000f, 1.000000f, 0, 0.000000f, 0.000000f, 1, 0.683333f, 0.316667f]];
+	}
+}

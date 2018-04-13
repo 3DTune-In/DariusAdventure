@@ -1,0 +1,110 @@
+class Service
+{
+	properties:
+		fadeOn = false;
+		fadeAlpha = 0.0f;
+		ctx = null;
+		ctxCB = "";
+		colorR = 0;
+		colorG = 0;
+		colorB = 0;
+		tex = null;
+		font = null;
+	
+	function On (_ctx = null, _ctxCB = "", _speed = 16.0f)
+	{
+		fadeOn = _speed;
+		fadeAlpha = 0.0f;
+		Service_Resume (this);
+		ctx = _ctx;
+		ctxCB = _ctxCB;
+	}
+	
+	function Off (_ctx = null, _ctxCB = "", _speed = 16.0f)
+	{
+		fadeOn = -_speed;
+		fadeAlpha = 255.0f;
+		Service_Resume (this);
+		ctx = _ctx;
+		ctxCB = _ctxCB;
+	}
+	
+	function Quit ()
+	{
+		fadeOn = 0;
+		fadeAlpha = 0.0f;
+		Service_Pause (this);
+	}
+	
+	function IsFading ()
+	{
+		return fadeOn!=0;
+	}
+	
+	function SetColor (r, g, b)
+	{
+		colorR = r;
+		colorG = g;
+		colorB = b;
+	}
+	
+	function Init ()
+	{
+		priority = 255;
+		
+		System_SetDirectory (DIRECTORY_FONT, "data/fonts/");
+		font = Font_Load (DEFAULT_FONT, 12, 18); 
+		//System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/");
+		//tex = Texture_Load ("loading" + g_language + ".png");
+	}
+	
+	function Final ()
+	{
+		font_Delete (font);
+		//Texture_Delete (tex);
+	}
+	
+	function Start ()
+	{
+		Service_Pause (this);
+	}
+	
+	function Stop ()
+	{
+	}
+	
+	function Pause ()
+	{
+	}
+	
+	function Resume ()
+	{
+	}
+	
+	function Move ()
+	{
+		fadeAlpha += GetFTime() * fadeOn;
+		if (fadeOn < 0 && fadeAlpha <= 0)
+		{
+			fadeOn = 0;
+			fadeAlpha = 0.0f;
+			Service_Pause (this);
+			if (ctx) ctx._call (ctxCB);
+		}
+		else if (fadeOn > 0 && fadeAlpha >= 255)
+		{
+			fadeOn = 0;
+			fadeAlpha = 255.0f;
+			Service_Pause (this);
+			if (ctx) ctx._call (ctxCB);
+		}
+	}
+	
+	function Draw ()
+	{
+		Render_DrawBox (-1, -1, RESX+1, RESY+1, ARGB(fadeAlpha, colorR, colorG, colorB));
+		//Render_Print (font, RESX/2, RESY-22, "     ", ARGB(255,255,255,255), DT_CENTER);
+		//if (fadeOn)
+		//	Render_DrawTex (tex, RESX-170, RESY-170, 165, 165, 0, ARGB(fadeAlpha,255,255,255));
+	}
+}

@@ -1,0 +1,46 @@
+class UI_InputKeyboard implements UI_Input
+{
+	function Enable()
+	{
+		::Enable();
+
+		if (enabled)
+		{
+			Input_AddEvent(INPUT_EVENT_KEYPRESS, this, "InputEventKeyPress");
+			Input_AddEvent(INPUT_EVENT_KEYRELEASE, this, "InputEventKeyRelease");
+			Input_AddEvent(INPUT_EVENT_CHAR, this, "InputEventChar");
+		}
+	}
+
+	function Disable()
+	{
+		::Disable();
+
+		if (!enabled)
+		{
+			Input_RemoveEvent(INPUT_EVENT_KEYPRESS, this);
+			Input_RemoveEvent(INPUT_EVENT_KEYRELEASE, this);
+			Input_RemoveEvent(INPUT_EVENT_CHAR, this);
+		}
+	}
+
+	function InputEventKeyPress(_key)
+	{
+		//DebugMsg("INPUT_EVENT_KEYPRESS Start", _key);
+		CallEvent(UI_INPUTEV_KEYDOWN, [_key]);
+		//DebugMsg("INPUT_EVENT_KEYPRESS End", _key);
+	}
+
+	function InputEventKeyRelease(_key)
+	{
+		CallEvent(UI_INPUTEV_KEYUP, [_key]);
+	}
+
+	function InputEventChar(_char)
+	{
+		//DebugMsg("char is end", _char == CHAR_END, _char);
+		//DebugMsg("INPUT_EVENT_CHAR Start", _char);
+		CallEvent(UI_INPUTEV_KEYCHAR, [_char]);
+		//DebugMsg("INPUT_EVENT_CHAR End", _char);
+	}
+}

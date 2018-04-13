@@ -1,0 +1,50 @@
+class Actor implements NPC
+{
+	virtual Init ()
+	{	
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_sea.msh");
+		
+		EndLoadResources ();
+		name = "npc_sea";
+		useAngles = 0;
+	}
+
+	virtual Start()
+	{
+		if (GetState() == 0)
+		{
+			_fish = stage.FindActor("npc_fish");
+			_fish.SetVisible(true);
+		}
+	}
+	
+	function OnDropItem (_itemName)
+	{
+		if (_itemName == "item_vase")
+		{
+			game.hud.OpenPlayerTID ("fish_5_1");
+			game.GetPlayer().AddInventory ("item_vase_with_water");
+			game.GetPlayer().AddTask("deliver_vase_with_water");
+			game.GetPlayer().TaskDone("deliver_vase");
+			return true;
+		}
+		else if (_itemName == "item_vase_with_fish")
+		{
+			game.hud.OpenPlayerTID ("fish_4_1");
+			_fish = stage.FindActor("npc_fish");
+			_fish.SetVisible(true);
+			_fish.SetState(3);
+			SetState(1);
+			game.GetPlayer().TaskDone("deliver_vase_with_fish");
+			return true;
+		}
+		return false;
+	}
+	
+	function OnCursorClick()
+	{
+	}
+}

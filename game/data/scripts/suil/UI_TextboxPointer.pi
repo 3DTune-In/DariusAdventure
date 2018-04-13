@@ -1,0 +1,258 @@
+class UI_TextboxPointer implements UI_Button
+{
+	properties:
+		textbox = null;
+
+		active = false;
+		moving = false;
+
+		virtualPos = [0, 0]; // Guardamos la posición donde debería estar
+		displacement = [0, 0];
+
+		cursorPos = 0;
+		cursorPoint = [0, 0];
+
+		updateVP = true;
+		pointerType = -1;
+
+	function _operator_new(_uisystem, _name)
+	{
+		::_operator_new(_uisystem, _name);
+
+		selectable = false;
+
+		EnableDraw(true, 4);
+	}
+
+	function OnDestroy()
+	{
+		LinkToTextbox(null);
+		::OnDestroy();
+	}
+
+	// function SetVisible(_value)
+	// {
+	// 	DebugMsg("POINTER_SET_VISIBLE", GetName(), _value);
+	// 	::SetVisible(_value);
+	// }
+
+	function Activate()
+	{
+		active = true;
+		Show();
+		Raise();
+	}
+
+	function Deactivate()
+	{
+		active = false;
+		Hide();
+	}
+
+	// function Hide()
+	// {
+	// }
+
+	function IsActive()
+	{
+		return active;
+	}
+
+	function LinkToTextbox(_control)
+	{
+		if (_control == textbox) return;
+
+		// if (textbox)
+		// {
+		// 	textbox.RemoveObserver(UI_EVENT_TEXTBOX_MULTILINE_CHANGED, this);
+		// }
+
+		textbox = _control;
+		if (textbox)
+		{
+			SetOwner(textbox);
+			SetParent(uiSystem.desktop);
+		// 	textbox.AddObserver(UI_EVENT_TEXTBOX_MULTILINE_CHANGED, this, "OnMultilineChanged");
+		}
+	}
+
+	function OnMouseDown(_btnId, _mx, _my)
+	{
+		::OnMouseDown(_btnId, _mx, _my);
+
+		DebugMsg("SELECTABLE", selectable, CanSelect());
+		//if (_btnId == MOUSE_LEFT) moving = true;
+		if (uiSystem.IsMouseLeft(_btnId)) moving = true;
+
+		_p = textbox.Core_GetPointerScreenPoint(this);
+		MoveToPoint(_p[0], _p[1]);
+		// if (!::System_TouchDown(_btnId, _x, _y)) return false;
+		// if (_btnId == MOUSE_LEFT) moving = true;
+
+		// //_pos = textbox.GetCursorPos();
+		// //textbox.MovePointerToCursor(this);
+		// _p = textbox.GetCursorPoint();
+		// MoveToPoint(_p[0], _p[1]);
+		// return true;
+	}
+
+	function OnMouseUp(_btnId, _mx, _my)
+	{
+		::OnMouseUp(_btnId, _mx, _my);
+		moving = false;
+		textbox.StopScrollTimer();
+	}
+
+	function OnMouseMove(_btnId, _mx, _my)
+	{
+		::OnMouseMove(_btnId, _mx, _my);
+
+		if (moving && textbox)
+		{
+			// El textbox controla el posicionamiento
+			_nx = virtualPos[0] + _mx;
+			_ny = virtualPos[1] + _my;
+			// _nx = Cursor_GetX();
+			// _ny = Cursor_GetY();
+
+			//IncVirtualPos(_offx, _offy);
+			//_charIndex = textbox.GetCursorFromScreenPoint(virtualPos[0], virtualPos[1]);
+			//DebugMsg("POINTERPOS", _nx, _ny);
+			_sdp = textbox.ScreenPointToTextDoc(_nx, _ny);
+			_tdp = textbox.TranslatePoint(_sdp[0], _sdp[1]);
+			//_charIndex = textbox.GetCursorFromScreenPoint(_nx, _ny);
+
+			_charIndex = textbox.GetCursorFromPoint(_tdp[0], _tdp[1]);
+			//DebugMsg(virtualPos[0], virtualPos[1], _charIndex);
+			DebugMsg("MOVE", GetName(), "CHAR", _charIndex, "SCREENPOINT", _tdp, "VALIDPOINT", _sdp);
+
+			if (_charIndex != -1 || textbox.Core_GetPointerChar(this) == _charIndex)
+			{
+				textbox.Core_SetPointerChar(this, _charIndex);
+				updateVP = false;
+				textbox.MovePointerToCursor(this);
+				updateVP = true;
+
+				//DebugMsg("CURSOR_POINT", textbox.GetCursorPoint(), "ScrollRequired", );
+				_cp = textbox.Core_GetPointerScreenPoint(this);
+				//_sdp = textbox.ScreenPointToTextDoc(_cp[0], _cp[1]);
+				//_tdp = textbox.TranslatePoint(_sdp[0], _sdp[1]);
+				DebugMsg("CURSOR_POINT", _cp, _sdp, _tdp);
+			}
+/*			if (_charIndex != -1 || textbox.GetCursorPos() == _charIndex)
+			{
+				textbox.Core_SetCursorPos(_charIndex, false);
+				updateVP = false;
+				textbox.MovePointerToCursor(this);
+				updateVP = true;
+
+				//DebugMsg("CURSOR_POINT", textbox.GetCursorPoint(), "ScrollRequired", );
+			}
+*/
+			_scrollType = textbox.IsScrollRequired(_sdp[0], _sdp[1]);
+			DebugMsg("SCROLL REQUIRED", _scrollType);
+			if (_scrollType == UI_LEFT)
+			{
+				DebugMsg("SCROLL LEFT");
+				textbox.StartScrollPointer(this, -1, 300);
+
+				updateVP = false;
+				textbox.MovePointerToCursor(this);
+				updateVP = true;
+			}
+			else if (_scrollType == UI_RIGHT)
+			{
+				DebugMsg("SCROLL RIGHT");
+				textbox.StartScrollPointer(this, 1, 300);
+				//textbox.SnapPointerToSide(this, UI_RIGHT);
+
+				updateVP = false;
+				textbox.MovePointerToCursor(this);
+				updateVP = true;
+
+			}
+			else textbox.StopScrollTimer();
+
+			virtualPos = [_nx, _ny];
+				//MoveToPoint(_nx, _ny);
+			//textbox.MovePointer(this, _offx, _offy);
+		}
+	}
+
+	// function IncVirtualPos(_offx, _offy)
+	// {
+	// 	SetVirtualPos(virtualPos[0] + _offx, virtualPos[1] + _offy);
+	// }
+
+	// function SetVirtualPos(_x, _y)
+	// {
+	// 	virtualPos = [_x, _y];
+
+	// }
+
+	function MoveToPoint(_x, _y)
+	{
+		if (updateVP)
+			virtualPos = [_x, _y];
+		//DebugMsg("MOVE POINTER TO",_x, _y);
+
+//		_yOffset = TextDoc_GetProperty(textbox.textdoc, TEXTDOC_CURSOR_HF) / 2 + displacement[1];
+		_yOffset = displacement[1];
+		_xOffset = displacement[0];
+		_pos = [_x + _xOffset, _y + _yOffset];
+		SetPosition(_pos[0], _pos[1]);
+		// selectionControl.Show();
+		// //selectionControlPosition[0] += selectionControl.GetWidth() / 2 + _cW2;
+		// //selectionControlPosition[1] = _y;
+		// selectionControl.Raise();
+	}
+
+	function GetCursorHeight()
+	{
+		if (!textbox) return 0;
+
+		return TextDoc_GetProperty(textbox.textdoc, TEXTDOC_CURSOR_HF);
+	}
+
+	function RefreshPosition()
+	{
+		if (!textbox) return;
+
+		_p = textbox.Core_GetPointerScreenPoint(this);
+		updateVP = false;
+		MoveToPoint(_p[0], _p[1]);
+		updateVP = true;
+	}
+
+	// function OnMultilineChanged(_sender, _event, _params)
+	// {
+	// 	OnTextboxChanged();
+	// }
+
+	// function OnTextboxChanged()
+	// {
+	// }
+
+	function SetType(_type)
+	{
+		if (pointerType == _type) return;
+
+		pointerType = _type;
+
+		// UpdateRenderer();
+
+		// UpdateDisplacement();
+		// RefreshPosition();
+	}
+
+	function SetOffset(_x, _y)
+	{
+		displacement = [_x, _y];
+	}
+
+	function Draw(_sprite, _x, _y, _w, _h, _overFlag)
+	{
+		Render_DrawBox(virtualPos[0], virtualPos[1], 5, 5, ARGB(255, 255, 255, 0));
+	}
+
+}

@@ -1,0 +1,71 @@
+class AcumulatedTimer
+{
+	properties:
+		counters = [];
+		countersStartTimes = [];
+		counterText = [];
+		registerIndex = 0;
+
+	function _operator_new(_counterSize)
+	{
+		counters += _counterSize;
+		countersStartTimes += _counterSize;
+		counterText += _counterSize;
+		for (i = 0; i < sizeof(counters); i++)
+		{
+			counters[i] = 0;
+			countersStartTimes[i] = 0;
+			counterText[i] = null;
+		}
+	}
+
+	function RegisterCounter(_str)
+	{
+		counterText[registerIndex] = _str;
+		registerIndex++;
+		return registerIndex - 1;
+	}
+
+
+	function Start(_counterId)
+	{
+		countersStartTimes[_counterId] = GetHiResTime();
+	}
+
+	function Stop(_counterId)
+	{
+		counters[_counterId] += GetHiResTime() - countersStartTimes[_counterId];
+		countersStartTimes[_counterId] = 0;
+	}
+
+	function Log(_counterId, _format, _useDebugMsg = true)
+	{
+#ifdebug
+		//_time = double(counters[_counterId]) / 1000;
+		_total = 0;
+		for (i = 0; i < sizeof(counters); i++)
+		{
+			_total += counters[i];
+		}
+
+		_total *= 1000;
+		_time = counters[_counterId] * 1000;
+		//_str = String_Format(_format, _time);
+		_str = String_Replace(_format, "#COUNTER_TIME#", string(_time));
+		_str = String_Replace(_str, "#TOTAL_TIME#", string(_total));
+		_str = String_Replace(_str, "#PCTG_OF_TOTAL#", String_Format("%0.2f", _time / _total * 100));
+		if (_useDebugMsg)	DebugMsg(_str);
+		else DebugLog(_str);
+#endif
+	}
+
+	function LogRegistered(_useDebugMsg = true)
+	{
+		for (i = 0; i < registerIndex; i++)
+		{
+			_item = counterText[i];
+			Log(i, _item, _useDebugMsg);
+		}
+	}
+
+}

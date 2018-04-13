@@ -1,0 +1,9 @@
+class LinkedListItem
+{
+	properties:
+		list = null;
+		nextItem = null;
+		previousItem = null;
+
+		userData = null;
+}

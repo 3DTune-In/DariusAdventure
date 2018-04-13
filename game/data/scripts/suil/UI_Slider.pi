@@ -1,0 +1,391 @@
+class UI_Slider implements UI_Frame
+{
+	properties:
+		value = 0.0f; // ReadOnly. Usar SetValue para modificar esta propiedad.
+		minValue = 0.0f; // ReadOnly. Usar SetMinValue para modificar esta propiedad.
+		maxValue = 100.0f; // ReadOnly. Usar SetMaxValue para modificar esta propiedad.
+		stepValue = 10.0f;
+		doStep = false;
+
+		orientation = UI_HORIZONTAL;
+
+		thumbTexture = null;
+		thumSize = [-1, -1];
+
+		doMove = false;
+		movementOnMouseDown = true;
+
+		lastClickPoint = [0, 0];
+		lastClickThumb = 0;
+
+	function _operator_new(_uisystem, _name)
+	{
+		::_operator_new(_uisystem, _name);
+
+		//selectable = false;
+	}
+
+	function OnInit()
+	{
+		::OnInit();
+
+		//Core_UpdateSUIControlStyle();
+		SetValue(minValue);
+	}
+
+	function SetOrientation(_orientation)
+	{
+		if (orientation == _orientation) return;
+		orientation = _orientation;
+
+		SetValue(value);
+		Core_UpdateVisual();
+		//EventControlStyleChanged.Call();
+	}
+
+	function GetOrientation()
+	{
+		return orientation;
+	}
+
+	// Devuelve el pctg actual entre 0.0f y 1.0f
+	function GetValuePctg()
+	{
+		if (maxValue - minValue == 0) return 0.0f;
+		return double(value - minValue) / double(maxValue - minValue);
+	}
+
+	// _value debe estar entre 0.0f y 1.0f
+	function SetValuePctg(_value)
+	{
+		_total = minValue + double(maxValue - minValue) * _value;
+		SetValue(_total);
+	}
+
+	function SetValue(_value)
+	{
+		if (_value < minValue) _value = minValue;
+		if (_value > maxValue) _value = maxValue;
+
+		if (value == _value) return;
+
+		value = _value;
+		//DebugMsg(value);
+		Core_UpdateVisual();
+		OnValueChanged();
+	}
+
+	function SetMinValue(_value)
+	{
+		_value = double(_value);
+		if (minValue == _value) return;
+		//if (_value >= maxValue) return;
+		if (_value > maxValue) return;
+		minValue = double(_value);
+
+		CallEvent(UI_EVENT_MAXVALUE_CHANGED);
+		if (value < minValue) SetValue(minValue);
+		Core_UpdateVisual();
+	}
+
+	function SetMaxValue(_value)
+	{
+		//DebugMsg(minValue, value, maxValue, "NEWMAX", _value);
+		_value = double(_value);
+		if (maxValue == _value) return;
+		//if (_value <= minValue) return;
+		if (_value < minValue) return;
+		maxValue = double(_value);
+
+		CallEvent(UI_EVENT_MINVALUE_CHANGED);
+		if (value > maxValue) SetValue(maxValue);
+		Core_UpdateVisual();
+	}
+
+	function SetStepValue(_value)
+	{
+		stepValue = _value;
+	}
+
+	function GetValue()
+	{
+		return value;
+	}
+
+	function GetMinValue()
+	{
+		return minValue;
+	}
+
+	function GetMaxValue()
+	{
+		return maxValue;
+	}
+
+	function GetStepValue()
+	{
+		return stepValue;
+	}
+
+	function GetDoStep()
+	{
+		return doStep;
+	}
+
+	function SetDoStep(_value)
+	{
+		doStep = _value;
+	}
+
+	function SetDoMovementOnMouseDown(_value)
+	{
+		movementOnMouseDown = _value;
+	}
+
+
+	function DoStepDown()
+	{
+		if (stepValue != 0)
+			SetValue(GetValue() - stepValue);
+	}
+
+	function DoStepUp()
+	{
+		if (stepValue != 0)
+			SetValue(GetValue() + stepValue);
+	}
+
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Visual
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function SetThumbTexture(_texture, _removePreviousTexture = true)
+	{
+		//Debug_ObsoleteMark("SetThumbTexture", "Usar SetNormalThumbTexture.");
+
+		if (thumbTexture && _removePreviousTexture) delete thumbTexture;
+
+		if (typeof(_texture) == TYPE_STRING)
+		{
+			thumbTexture = CreateTexture();
+			thumbTexture.SetTexture(_texture);
+			_size = GetHeight();
+			if (orientation == UI_VERTICAL) _size = GetWidth();
+			thumbTexture.SetSize(_size, _size);
+			//thumbTexture.PinToBounds();
+		}
+		else thumbTexture = _texture;
+
+		if (thumbTexture) thumbTexture.Show();
+
+		Core_UpdateVisual();
+	}
+
+	function GetThumbSize()
+	{
+		if (!thumbTexture) return 0;
+		_size = thumbTexture.GetWidth();
+		if (orientation == UI_VERTICAL) _size = thumbTexture.GetHeight();
+		// _size = thumbTexture.GetHeight();
+		// if (orientation == UI_VERTICAL) _size = thumbTexture.GetWidth();
+		return _size;
+	}
+
+	function GetThumbTexture()
+	{
+		return thumbTexture;
+	}
+
+	function Core_UpdateVisual()
+	{
+		if (thumbTexture)
+		{
+			_thumbSize = GetThumbSize();
+			_thumbSize2 = _thumbSize / 2;
+			if (orientation == UI_VERTICAL)
+			{
+				_pos = (GetValuePctg() * (GetHeight() - _thumbSize));
+				thumbTexture.SetPosition(GetWidth() / 2 - thumbTexture.GetWidth() / 2, _pos);
+			}
+			else
+			{
+				_pos = (GetValuePctg() * (GetWidth() - _thumbSize));
+				thumbTexture.SetPosition(_pos, GetHeight() / 2 - thumbTexture.GetHeight() / 2);
+			}
+
+			BringToFront(thumbTexture);
+		}
+
+	}
+
+	function SetBounds(_left, _top, _width, _height)
+	{
+		_sizeChanged = GetWidth() != _width || GetHeight() != _height;
+		::SetBounds(_left, _top, _width, _height);
+		if (_sizeChanged)
+			Core_UpdateVisual();
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Eventos
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function OnValueChanged()
+	{
+		CallEvent(UI_EVENT_VALUE_CHANGED);
+	}
+
+	function System_MouseDown(_btnId, _x, _y)
+	{
+		if (!::System_MouseDown(_btnId, _x, _y)) return false;
+
+		Internal_MouseDown();
+	}
+
+	function Internal_MouseDown()
+	{
+		_scale = GetEffectiveScale();
+		//_p = GetCursorPoint();
+		_p = [Cursor_GetX() /_scale, Cursor_GetY() / _scale];
+		lastClickPoint = [_p[0], _p[1]];
+		_p = PointToClient(_p[0], _p[1]);
+
+		_pctgPos = 0;
+		_pctgThumb = 0;
+		_tb2 = GetThumbSize() / 2;
+		if (orientation == UI_HORIZONTAL)
+		{
+			if (GetWidth() - GetThumbSize() != 0)
+			{
+				_pctgPos = (_p[0] - _tb2) / (GetWidth() - GetThumbSize());
+				_pctgThumb = GetThumbSize() / float(GetWidth() - GetThumbSize());
+			}
+		}
+		else if (orientation == UI_VERTICAL)
+		{
+			if (GetHeight() - GetThumbSize() != 0)
+			{
+		 		_pctgPos = (_p[1] - _tb2) / (GetHeight() - GetThumbSize());
+				_pctgThumb = GetThumbSize() / float(GetHeight() - GetThumbSize());
+			}
+		 }
+
+		_currentPos = GetValuePctg();
+		doMove = _pctgPos <= (_currentPos + _pctgThumb / 2.0f) && _pctgPos >= (_currentPos - _pctgThumb / 2.0f);
+
+		if (!doMove)
+		{
+			if (doStep)
+			{
+				_dir = _pctgPos > _currentPos ? 1: -1;
+				SetValue(GetValue() + stepValue * _dir);
+			}
+			else
+			{
+				if (movementOnMouseDown)
+					SetValuePctg(_pctgPos);
+				doMove = true;
+			}
+		}
+		else
+		{
+			// Sacamos el pto en el thumb (pctg)
+			lastClickThumb = (_pctgPos - (_currentPos - _pctgThumb / 2.0f)) / _pctgThumb;
+		}
+
+		//DebugMsg("PCTG:", _pctgPos, "POINT:", GetLeft(), _p, "CURSOR", [Cursor_GetX() / _scale, Cursor_GetY() / _scale], "POS:", _currentPos, "WIDTH:", GetWidth());
+		return true;
+	}
+
+
+	function System_MouseUp(_btnId, _x, _y)
+	{
+		::System_MouseUp(_btnId, _x, _y);
+		Internal_MouseUp();
+	}
+
+	function Internal_MouseUp()
+	{
+		doMove = false;
+	}
+
+
+	function System_MouseMove(_btnId, _offx, _offy)
+	{
+		::System_MouseMove(_btnId, _offx, _offy);
+		Internal_MouseMove();
+	}
+
+	function Internal_MouseMove()
+	{
+		if (doMove)
+		{
+			_p = GetCursorPoint();
+			//_p = [Cursor_GetX(), Cursor_GetY()];
+			_diff = [float(_p[0] - lastClickPoint[0]), float(_p[1] - lastClickPoint[1])];
+
+			_pctgPos = 0;
+			_tb2 = GetThumbSize() / 2;
+			if (orientation == UI_HORIZONTAL)
+			{
+				if (GetWidth() - GetThumbSize() != 0)
+				{
+					_pctgPos = GetValuePctg() + _diff[0] / (GetWidth() - GetThumbSize());
+				}
+			}
+			else if (orientation == UI_VERTICAL)
+			{
+				if (GetHeight() - GetThumbSize() != 0)
+				{
+					_pctgPos = GetValuePctg() + _diff[1] / (GetHeight() - GetThumbSize());
+				}
+			}
+
+			_savePointX = _p[0];
+			_savePointY = _p[1];
+			if (_pctgPos < 0)
+			{
+				// TODO Si se hace un scroll rápido saliendo de rango el raton no se paga al thumb y no se continuará el scroll desde el último pto del thumb
+				if (movementOnMouseDown)
+				{
+					_p = PointToScreen(0, 0);
+					if (orientation == UI_HORIZONTAL) _savePointX = _p[0] + lastClickThumb * GetThumbSize();
+					else if (orientation == UI_VERTICAL) _savePointY = _p[1] + lastClickThumb * GetThumbSize();
+				}
+				_pctgPos = 0;
+			}
+			else if (_pctgPos > 1)
+			{
+				_pctgPos = 1;
+				if (movementOnMouseDown)
+				{
+					_p = PointToScreen(GetWidth(), GetHeight());
+					if (orientation == UI_HORIZONTAL) _savePointX = _p[0] - (1.0f - lastClickThumb) * GetThumbSize();
+					else if (orientation == UI_VERTICAL) _savePointY = _p[1] - (1.0f - lastClickThumb) * GetThumbSize();
+				}
+			}
+			SetValuePctg(_pctgPos);
+
+			//if (_savePoint)
+			lastClickPoint = [_savePointX, _savePointY];
+
+
+			// _p = PointToClient(_p[0], _p[1]);
+			// _pctgPos = 0;
+			// _tb2 = GetThumbSize() / 2;
+			// if (orientation == UI_HORIZONTAL)_pctgPos = (_p[0] - _tb2) / (GetWidth() - GetThumbSize());
+			// else if (orientation == UI_VERTICAL) _pctgPos = (_p[1] - _tb2) / (GetHeight() - GetThumbSize());
+			// if (_pctgPos < 0) _pctgPos = 0;
+			// else if (_pctgPos > 1) _pctgPos = 1;
+			// SetValuePctg(_pctgPos);
+
+			// //DebugMsg(_pctgPos, _p);
+		}
+	}
+
+}

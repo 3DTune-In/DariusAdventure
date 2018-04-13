@@ -1,0 +1,40 @@
+class Actor implements NPC
+{
+	virtual Init ()
+	{	
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_stone.msh");
+		
+		EndLoadResources ();
+		
+		name = "npc_stone";
+		collide = true;
+		Scene_AddStatic (scene, this);
+		useAngles = 0;
+	}
+	
+	virtual Start ()
+	{
+	}
+	
+	function OnDropItem (_itemName)
+	{	
+		if (GetState() == 0 && _itemName == "item_mobile") 
+		{
+            _dlg = ShowAutoDialogue ("stone_1", 1, [this]);
+			_dlg.AddNPCCall (game.GetPlayer(), "AddInventory", ["item_stone_photo"]);
+			_dlg.AddNPCCall (game.GetPlayer(), "SetInventory", ["item_mobile"]);
+			_dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["take_stone_photo"]);
+			_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_stone_photo"]);
+            SetState(1);
+			return true;
+		}
+		return false;
+	}
+
+	function OnCursorClick()
+	{
+	}
+}

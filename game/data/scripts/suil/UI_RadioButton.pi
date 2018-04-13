@@ -1,0 +1,52 @@
+class UI_RadioButton implements UI_Button
+{
+	function OnInit()
+	{
+		::OnInit();
+
+		uiSystem.MarkAsObsolete(Class_Id(this), __LINE__, "OnInit :: Usar el UI_Button con la opcion SetRadioGroup(_group).");
+		// Debug_ObsoleteMark("UI_RadioButton", "Usar el UI_Button con la opcion SetRadioGroup(_group).");
+		// __uisystem__ = suil_system.GetSystem();
+		// if (!__uisystem__.IsObsoleteMarked(Class_Id(this), __LINE__))
+		// {
+		// 	DebugLog(">>>>> WARNING: La función", _func_, "en", Class_Id(this) + ".pi (" + __LINE__ + ") está marcada como obsoleta. Info:", _info_);
+		// }
+
+	}
+
+	function SetChecked(_value)
+	{
+		if (checked == _value) return;
+		_checkedControl = GetGroupboxChecked();
+		if (_checkedControl == this && !_value) return; // No podemos quitarle el checked una vez puesto
+		if (_checkedControl) _checkedControl.Core_ClearChecked();
+		::SetChecked(_value);
+	}
+
+	function GetGroupboxChecked()
+	{
+		if (checked) return this;
+
+		_container = GetParent();
+		if (_container)
+		{
+			_controls = _container.GetChildren();
+			for (i = 0; i < sizeof(_controls); i++)
+			{
+				_child = _controls[i];
+				if (_child._instanceof("UI_RadioButton") &&_child.checked)
+					return _child;
+			}
+		}
+
+		return null;
+	}
+
+	function Core_ClearChecked()
+	{
+		if (checked == false) return;
+
+		checked = false;
+		OnCheckedChanged();
+	}
+}

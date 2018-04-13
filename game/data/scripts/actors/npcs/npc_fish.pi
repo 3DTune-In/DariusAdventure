@@ -1,0 +1,97 @@
+class Actor implements NPC
+{
+	properties:
+		KIN_QUIET = 0;
+		KIN_SPEAK = 0;
+		
+	virtual Init ()
+	{	
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_fish.msh");
+
+		KIN_QUIET = Actor_LoadKinematic (this, "npc_fish_quiet.kin");
+		KIN_SPEAK = Actor_LoadKinematic (this, "npc_fish_speak.kin");                                            
+		
+		EndLoadResources ();
+		name = "npc_fish";
+		useAngles = 0;
+	}
+	
+	virtual Start ()
+	{
+		switch (game.stageID)
+		{
+			case STAGE_SEWER_2:
+			{
+				if (GetState() >= 2)
+				{
+					SetVisible (false);
+				}
+				if (game.GetLandMark("npc_strongoroff_state") < 3)   // The ROCK still is not opened!
+				{
+					_connector = stage.FindActor ("stage_" + string(STAGE_BACK_STREET_2));
+					_connector.SetEnabled (false);
+				}
+			}
+			break;
+			case STAGE_BEACH:
+			{
+				if (GetState() < 3)
+				{
+					SetVisible (false);
+				}
+			}
+			break;
+		}
+	}
+	
+	function Quiet ()
+	{
+		Actor_BlendKin (this, KIN_QUIET, KINMODE_LOOP);
+	}
+	
+	function Speak ()
+	{
+		Actor_BlendKin (this, KIN_SPEAK, KINMODE_LOOP);
+	}
+
+	function OnDropItem (_itemName)
+	{
+		switch (_itemName)
+		{
+			case "item_vase_with_water":
+			{
+				ShowAutoDialogue ("fish_2", 1, [this]);
+				game.GetPlayer().AddInventory ("item_vase_with_fish");
+				game.GetPlayer().TaskDone("deliver_vase_with_water");
+				game.GetPlayer().AddTask("deliver_vase_with_fish");
+				SetVisible (false);
+				SetState(2);
+				return true;
+			}
+			break;
+		}
+		return false;
+	}
+		
+	function OnCursorClick()
+	{
+		switch (GetState())
+		{
+			case 0:
+			{
+				_dlg = ShowAutoDialogue ("fish_1", 5, [game.GetPlayer(), this]);
+				game.GetPlayer().TaskDone("find_fish");
+				SetState(1);
+			}
+			break;
+			case 1:
+			{
+				ShowAutoDialogue ("fish_3", 2, [this, game.GetPlayer()]);
+			}
+			break;
+		}
+	}
+}

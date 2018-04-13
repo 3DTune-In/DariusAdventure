@@ -1,0 +1,69 @@
+class Actor implements NPC
+{
+	properties:    	
+		KIN_QUIET = 0;
+		KIN_SPEAK = 0;
+		mark = null;
+		frisbee = null;
+		ball = null;
+		
+	virtual Init ()
+	{
+		StartLoadResources ();
+		
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_spencer.msh");
+		
+		KIN_QUIET = Actor_LoadKinematic (this, "npc_spencer_quiet.kin");
+		KIN_SPEAK = Actor_LoadKinematic (this, "npc_spencer_speak.kin");                                            
+		
+		EndLoadResources ();
+
+		frisbee = Scene_NewActor (scene, "frisbee", "item_frisbee", 0, 0, 0);
+		Actor_AddChild (this, frisbee, Actor_FindDummy (this, "frisbee"));
+		ball = Scene_NewActor (scene, "red_ball", "item_red_ball", 0, 0, 0);
+		Actor_AddChild (this, ball, Actor_FindDummy (this, "red_ball"));
+		
+		name = "npc_spencer";
+		collide = true;
+		Scene_AddStatic (scene, this);
+		bMoveHead = true;
+		
+		voiceID = VOICE_BOY;
+	}
+
+	virtual Start ()
+	{
+		mark = game.FindActor ("npc_mark");
+		if (mark.GetState() >= 3)
+		{
+			frisbee.SetVisible (true);
+			ball.SetVisible (false);
+		}
+		else
+		{
+			frisbee.SetVisible (false);
+			ball.SetVisible (true);
+		}
+	}
+	
+	function Quiet ()
+	{
+		Actor_BlendKin (this, KIN_QUIET, KINMODE_LOOP);
+	}
+	
+	function Speak ()
+	{
+		Actor_BlendKin (this, KIN_SPEAK, KINMODE_LOOP);
+	}
+
+	function OnDropItem (_itemName)
+	{	
+		return mark.OnDropItem (_itemName);
+	}
+
+	function OnCursorClick()
+	{
+		mark.OnCursorClick();
+	}
+}

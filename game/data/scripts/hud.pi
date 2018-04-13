@@ -1,0 +1,625 @@
+class Service
+{
+	constants:
+		BUTTON_W = 128;
+		BUTTON_H = 128;
+		CURSOR_SIZE = 32;
+		CURSOR_FORBIDDEN = 0;
+		CURSOR_WALKTO;
+		CURSOR_TALKTO;
+		CURSOR_MAX;
+		SCALE_FACTOR = 1.0f;
+		FONT_H = 32;
+		
+	properties:
+		game = null;
+		font = null;
+		font2 = null;
+		mouseOver = null;
+		cursorTex = [];
+		curCursor = null;
+		inventoryButtonTex = null;
+		cardsButtonTex = null;
+		popup = null;
+		dialogue = null;
+		inventory = null;        
+		checkList = null;
+		bShowInventory = false;
+		bShowDivineLight = false;
+		divineLightTex = null;
+		divineLightAlpha = 0;
+		divineLightAlphaTo = 255;
+		lastTextActor = null;
+		lastSndActor = null;
+		sndDivine = null;
+		sndDrag = null;
+		sndDrop = null;
+		sndError = null;
+		sndOpenInventory = null;
+		sndCloseInventory = null;
+		sndOk = null;
+		ibCount = 0;
+		ibMode = 0;
+		ibAlpha = 0;
+		batteryTex = null;
+		bEnableStopButton = false;
+		listener = null;
+		bShowCard = false;
+		showCardTime = 0;
+		showCardText = "";
+		showCardTitle = "";
+		cardTex = null;
+		cardTex2 = null;
+	
+	function Init ()
+	{
+		System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/hud/");
+		System_SetDirectory (DIRECTORY_FONT, "data/textures/hud/"); 
+		System_SetDirectory (DIRECTORY_SOUND, "data/sounds/"); 
+		
+		cursorTex = [];
+		cursorTex += CURSOR_MAX;
+		cursorTex[CURSOR_FORBIDDEN] = Texture_Load ("cursor_forbidden.png");
+		cursorTex[CURSOR_WALKTO] = Texture_Load ("cursor_walkto.png");
+		cursorTex[CURSOR_TALKTO] = Texture_Load ("cursor_talkto.png");
+		
+		divineLightTex = Texture_Load ("divine_light.png");
+		
+		inventoryButtonTex = Texture_Load ("button_inventory.png");
+		cardsButtonTex = Texture_Load("button_cards.png");
+
+		batteryTex = Texture_Load ("battery.png");
+		
+		System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/menus/");
+		cardTex = Texture_Load("angel_notify.png");
+		cardTex2 = Texture_Load("card.png");
+
+		System_SetDirectory (DIRECTORY_FONT, "data/fonts/");
+		font = Font_Load ("ACMO1", 0, FONT_H); 
+		Font_SetProperty (font, FONT_EFFECT, FONT_EFFECT_BORDER);
+		Font_SetProperty (font, FONT_EFFECT_RANGE, 2);
+		Font_SetProperty (font, FONT_EFFECT_COLOR, ARGB(255,0,0,0));
+
+		font2 = Font_Load ("ACMO1", 0, 12); 
+		
+		sndDivine = LoadSound ("divine.ogg");
+		sndDrag = LoadSound ("ui_drag.ogg");
+		sndDrop = LoadSound ("ui_drop.ogg");
+		sndError = LoadSound ("ui_error.ogg");
+		sndOk = LoadSound ("ui_ok.ogg");
+		sndOpenInventory = LoadSound ("ui_open_inventory.ogg");
+		sndCloseInventory = LoadSound ("ui_close_inventory.ogg");
+		
+		checkList = new HUD_CheckList (this);
+		
+		inventory = new HUD_Inventory (this);
+	}
+	
+	function Final ()
+	{
+		Texture_Delete(divineLightTex);
+		Texture_Delete(inventoryButtonTex);
+		Texture_Delete(cardsButtonTex);
+		Texture_Delete(batteryTex);
+		Texture_Delete(cardTex);
+		Texture_Delete(cardTex2);
+		Font_Delete (font);
+		Font_Delete (font2);
+		for (i=0; i<sizeof(cursorTex); i++) Texture_Delete (cursorTex[i]);
+		delete inventory;
+		delete checkList;
+		Sound_Delete (sndDivine);
+		Sound_Delete (sndDrag);
+		Sound_Delete (sndDrop);
+		Sound_Delete (sndError);
+		Sound_Delete (sndOk);
+		Sound_Delete (sndOpenInventory);
+		Sound_Delete (sndCloseInventory);
+		ClosePopup();
+		if (dialogue) delete dialogue;
+	}
+	
+	function LoadSound(_name, _loop = false)
+	{
+		//_snd = Actor_LoadSound(this, _name, _loop);
+		System_SetDirectory (DIRECTORY_SOUND, "data/sounds/");
+		//_snd = Scene_LoadSound3D (game.stage.scene, _name, 0, 0, 0, _loop);
+		//_snd = Sound_Load3D (_name, 0, 0, 0, _loop);
+		_snd = Sound_Load (_name, _loop);
+		if (_snd)
+		{
+			//Sound_SetProperty (_snd, SOUND_API, ["ANECHOIC", false]);
+		}        
+		return  _snd; 
+	}
+
+	function Start ()
+	{
+		ibAlpha = 255;
+		mouseOver = null;
+		lastTextActor = null;
+		lastSndActor = null;
+		SetCursor (CURSOR_WALKTO);
+	}
+	
+	function ShowCard (_key)
+	{
+		bShowCard = true;
+		showCardTime = 150;
+		showCardText = g_language.GetText(_key);
+		showCardTitle = g_language.GetText("card_win");
+		Sound_Play(sndDivine);
+	}
+	
+	function Move ()
+	{
+	}
+	
+	function IsOpened()
+	{
+		return bShowInventory;
+	}
+	
+	function Draw ()
+	{
+		_player = game.GetPlayer();
+		if (_player.HasHearingAid())
+		{
+			Render_DrawTex (batteryTex, 5, 5, 128, 64, 0, -1);
+			_battery = game.GetLandMark ("player_battery");
+			_f = float(_battery)/100;
+			if (_f < 0.25f) _c = ARGB(255,255,0,0);
+			else _c = ARGB(255,0,255,0);
+			Render_DrawBox (68+16/2, 5+48/2, _f * 88/2, 32/2, _c);
+			Render_Print(font2, 100, 30, "L-"+string(game.profile.haQuality), -1, DT_CENTER);
+		}
+	
+		if (bShowCard)
+		{
+			_x = (RESX-421)/2;
+			_y = RESY-411;  
+			Render_DrawTex(cardTex2, _x, _y-250, 256*2, 198*2, 0, -1);
+			//Render_DrawTex(cardTex, _x, _y, 703, 411, 0, -1);
+			Render_DrawTex(cardTex, _x, _y, 421, 411, 0, -1);
+			Font_SetSize(font, 0, FONT_H*0.8f);
+			//Render_PrintRect(font, _x+368, _y+60, 320, 96, showCardText, -1, DT_CENTER | DT_VCENTER);
+			Render_PrintRect(font, _x+50, _y-200, 320, 96, showCardTitle, -1, DT_CENTER | DT_VCENTER);
+			Font_SetSize(font, 0, FONT_H);
+			//Render_Print(font, _x+122, _y, showCardTitle, -1, DT_TOP|DT_LEFT);
+			Render_PrintRect(font, _x+60, _y-150, 300, 200, showCardText, -1, DT_CENTER|DT_VCENTER);
+			showCardTime -= GetFTime();
+			if (showCardTime <= 0)
+			{
+				bShowCard = false;
+				DoNextDialogueItem();
+			}
+			return;
+		}
+	
+		if (bShowInventory && !dialogue && !popup)
+		{
+			inventory.Draw ();
+			//Render_DrawTex (curCursor, Cursor_GetX(), Cursor_GetY(), CURSOR_SIZE, CURSOR_SIZE, 0, -1);
+		}
+		else
+		{
+			inventory.DrawDrag();
+			
+			if (!dialogue && !popup)
+			{
+				checkList.Draw();
+				Render_DrawTex (inventoryButtonTex, RESX-BUTTON_W-5, 5, BUTTON_W, BUTTON_H, 0, ARGB(ibAlpha,255,255,255));
+				Render_DrawTex (cardsButtonTex, RESX-BUTTON_W*2-5*2, 5, BUTTON_W, BUTTON_H, 0, ARGB(ibAlpha,255,255,255));
+				Render_Print(font, RESX-BUTTON_W*2-5*2+BUTTON_W/2, 70, string(_player.numCards) + "/9", -1, DT_CENTER); 
+				if (ibCount)
+				{
+					if (ibMode == 0)
+					{
+						ibAlpha = IncreaseValue (ibAlpha, 255, GetFTime()*16.0f);
+						if (ibAlpha == 255)
+						{
+							ibCount--; 
+							ibMode = 1;
+						}
+					}
+					else
+					{
+						ibAlpha = IncreaseValue (ibAlpha, 128, GetFTime()*16.0f);
+						if (ibAlpha == 128) ibMode = 0;
+					}
+				}
+			}
+			
+			if (mouseOver && strlen(mouseOver.label))
+			{
+				_label = mouseOver.label;
+				_x = Cursor_GetX();
+				_y = Cursor_GetY();
+				_s = Font_GetTextSize (font, _label);
+				Render_DrawBox (_x, _y, _s[0]+10, FONT_H+10, ARGB(100,10,10,10));
+				Render_PrintRect (font, _x, _y, _s[0]+10, FONT_H+10, _label, ARGB(255,255,255,255), DT_CENTER);
+			}
+			else
+			{
+			//	Render_DrawTex (curCursor, Cursor_GetX(), Cursor_GetY(), CURSOR_SIZE, CURSOR_SIZE, 0, -1);
+			}
+			Render_DrawTex (divineLightTex, 0, 0, RESX, RESY, 0, ARGB(divineLightAlpha, 255,255,255));
+			divineLightAlpha = IncreaseValue (divineLightAlpha, divineLightAlphaTo, GetFTime()*4.0f);
+		}
+	}
+	
+	function AddTask (_id)
+	{
+		checkList.AddTask(_id);
+	}
+	
+	function TaskDone (_id)
+	{
+		checkList.TaskDone(_id);
+	}
+	
+	function FindTask(_id)
+	{
+		return checkList.FindTask(_id);
+	}
+	
+	function OpenPopup (_text, _voiceID = 0, _npc = null, _key = "", _responseList = [])
+	{
+		if (popup == null)
+		{
+			//if (_npc) _prefix = "\\4"+g_language.GetText(_npc.name)+"\\0";
+			//else _prefix = "";
+			 		
+		#if SHOW_TEXTS
+			if (_npc) _prefix = "\\4"+g_language.GetText(_npc.name)+"\\0: ";
+			else _prefix = ""; 		
+			if (_key != "") _text = g_language.GetText(_key);
+			else _text = "";
+		#else
+			_prefix = "";
+			_text = "";
+		#endif
+			
+			_key = g_language.GetKeyText(_key);
+		//	DebugMsg ("===============", _prefix, _text, _key);
+
+			popup = Service_Run ("popup", "popup", ["text", _prefix + _text, "voiceID", _voiceID, "actor", _npc, "keyText", _key, "responseTextList", _responseList]);
+			mouseOver = null;
+		}
+	 	SetCursor(CURSOR_FORBIDDEN);
+		return popup;
+	}
+
+	function OpenPopupQuestion (_npc, _questionID, _answerIDList, _okID, _wrongPC, _okPC)
+	{
+		_popup = Openpopup("", _npc.voiceID, _npc, _questionID, _answerIDList);
+		_popup.responseOKID = _okID;
+		_popup.responseWrongPC = _wrongPC;
+		_popup.responseOkPC = _okPC;
+		return _popup;
+	}
+
+	function OpenPopupTID (_textID, _voiceID = 0, _npc = null)
+	{
+		return OpenPopup (g_language.GetText(_textID), _voiceID, _npc, _textID);
+	}
+	
+	function OpenPlayerTID (_textID)
+	{
+		return OpenPopup (g_language.GetText(_textID), game.GetPlayer().voiceID, game.GetPlayer(), _textID);
+	}
+	
+	function ClosePopup()
+	{
+		if (popup)
+		{
+			Service_Delete (popup);
+			popup = null;
+		}
+	}
+	
+	function CloseDialogue(_notify = false)
+	{
+		DebugMsg ("CloseDialogue");
+		ClosePopup();
+		if (dialogue)
+		{
+			if (_notify && listener) listener.OnCloseDialogue();
+			if (lastTextActor) lastTextActor.Quiet();
+			if (lastSndActor) Sound_Delete (lastSndActor);
+			lastTextActor = null;
+			lastSndActor = null;
+			game.GetPlayer().Quiet();
+			delete dialogue;
+			dialogue = null;
+		}		
+	}
+	
+	function AlertNewItemInInventory ()
+	{
+		ibCount = 5;
+		ibAlpha = 255;
+		ibMode = 1;
+	}
+	
+	function OpenInventory ()
+	{
+		ibCount = 0;        
+		ibAlpha = 255;
+		g_main.PlayFX(sndOpenInventory);
+		bShowInventory = true;
+		inventory.Open();
+		SetCursor (CURSOR_WALKTO);
+		//
+		game.SaveProfile();
+	}
+	
+	function CloseInventory ()
+	{
+		g_main.PlayFX(sndCloseInventory);
+		bShowInventory = false;
+		inventory.Close();
+	}
+	
+	function IsInventoryOpen ()
+	{
+		return bShowInventory;
+	}
+	
+	function OnFadeCards ()
+	{
+		game.bShowScene = false;
+		Service_Run ("menu", "menu_cards");
+		Service_Pause (game);
+		Service_SetVisible (this, false);
+		g_fade.Off();
+	} 
+	
+	function OpenCards()
+	{
+		g_main.PlayFX(sndOpenInventory);
+		g_fade.On(this, "OnFadeCards");
+	}
+	
+	function OnMouseLeftPress ()
+	{
+		_player = game.GetPlayer();
+		if (_player == null)
+			return false;
+	
+		if (dialogue || popup)
+		{
+			return true;
+		}
+		
+		if (Service_GetStop(this))
+			return false;
+	
+		if (bShowInventory)
+		{	
+			inventory.OnMouseLeftPress();
+			return true;
+		}
+		else
+		{
+			if (Cursor_IsOverRect (RESX-BUTTON_W-5, 5, BUTTON_W, BUTTON_H))
+			{
+				OpenInventory();
+				return true;
+			}
+			else if (Cursor_IsOverRect (RESX-BUTTON_W*2-5*2, 5, BUTTON_W, BUTTON_H))
+			{
+				OpenCards();
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	function OnMouseMove (_x, _y)
+	{
+		if (bShowInventory)
+		{
+			inventory.OnMouseMove (_x, _y);
+		}
+	}
+	
+	function OnMouseLeftRelease ()
+	{
+		if (bShowInventory)                                                 
+		{
+			inventory.OnMouseLeftRelease();
+			return true;
+		}
+		return false;
+	}
+	
+	function OnPopupSelectAnswerStart()
+	{
+		if (lastTextActor) lastTextActor.Quiet();
+	}
+	
+	function OnPopupEnd ()
+	{
+		Debugmsg ("ONPopupEnd!");
+		ibAlpha = 255;
+		if (lastTextActor) lastTextActor.Quiet();
+		if (lastSndActor) Sound_Delete (lastSndActor);
+		lastTextActor = null;
+		lastSndActor = null;
+		//TODO: Mirar si el popup es de PREGUNTA y en tal caso ver la respuesta y movernos a esta parte del dialogo
+		_nextDItem = -1;
+		if (sizeof(popup.responseTextList))
+		{
+			DebugMsg ("ANSWER:", popup.responseID, popup.responseOKID, popup.responseWrongPC, popup.responseOkPC);
+			if (popup.responseID != popup.responseOKID)
+			{
+				_nextDItem = popup.responseWrongPC;
+			}
+			else
+			{
+				_nextDItem = popup.responseOkPC;
+			}
+			DebugMsg("RESPONSE:", _nextDItem);
+		}
+		Service_Delete (popup);
+		if (dialogue)
+		{
+			if (_nextDItem < 0) dialogue.NextItem();
+			else dialogue.SetItem(_nextDItem);
+			DoDialogueItem ();
+		}
+	}
+	
+	function DoNextDialogueItem()
+	{
+		if (dialogue)
+		{
+			dialogue.NextItem();
+			DoDialogueItem ();
+		}
+	}
+
+	function DoDialogueItem ()
+	{
+		_item = dialogue.GetCurItem();
+		
+		Debugmsg ("DODIALOGUEITEM!", _item);
+		
+		if (sizeof(_item))
+		{
+			switch (_item[0])
+			{
+				case dialogue.ITEM_NEW_CARD:
+				{
+					if (game.GetLandmark(_item[1]) == 0)
+					{
+						game.GetPlayer().AddNewCard(_item[1]);
+						ShowCard(_item[1]);
+					}
+					else
+					{
+						DoNextDialogueItem();
+					}
+				}
+				break;
+				case dialogue.ITEM_NPC_TEXT:
+				{
+					if (_item[3])
+					{
+						lastTextActor = _item[1];
+						lastTextActor.Speak();
+						if (lastTextActor != game.GetPlayer()) 
+							game.GetPlayer().LookTo(lastTextActor, false);
+					} 
+					OpenPopup (_item[2], _item[5], _item[1], _item[4]);
+				}
+				break;
+				case dialogue.ITEM_NPC_QUESTION:
+				{
+					//itemList += [[ITEM_NPC_QUESTION, _npc, _questionID, _answerIDList, _okID, _wrongPC]];
+					_npc = _item[1];
+					_questionID = _item[2];
+					_answerIDList = _item[3];
+					_okID = _item[4];
+					_wrongPC = _item[5];
+					_okPC = _item[6];
+					lastTextActor = _npc;
+					lastTextActor.Speak();
+					OpenPopupQuestion(_npc, _questionID, _answerIDList, _okID, _wrongPC, _okPC);
+				}
+				break;
+				case dialogue.ITEM_NPC_KIN:
+				{
+					_item[1].DoAnimation (_item[2], _item[3], this, "DoNextDialogueItem");
+				}
+				break;
+				case dialogue.ITEM_NPC_CALL:
+				{
+					_item[1]._call (_item[2], _item[3]);
+					dialogue.NextItem();
+					DoDialogueItem();
+				}
+				break;
+				case dialogue.ITEM_NPC_SET:
+				{
+					_item[1]._set(_item[2], _item[3]);
+					dialogue.NextItem();
+					DoDialogueItem();
+				}
+				break;
+				case dialogue.ITEM_NPC_VISIBLE:
+				{
+					_item[1].visible = bool(_item[2]);				
+					dialogue.NextItem();
+					DoDialogueItem();
+				}
+				break;
+				case dialogue.ITEM_FADE_ON:
+				{
+					g_fade.On(this, "DoNextDialogueItem", _item[1]);
+				}
+				break;
+				case dialogue.ITEM_FADE_OFF:
+				{
+					g_fade.Off(this, "DoNextDialogueItem", _item[1]);
+				}
+				break;
+				case dialogue.ITEM_END:
+				{
+					ClosePopup();
+					delete dialogue;
+					dialogue = null;			
+				}
+				break;
+			}
+		}
+		else
+		{
+			DebugMsg("FINIQUITAMOS EL DIALOGO");
+			ClosePopup();
+			delete dialogue;
+			dialogue = null;
+		}
+	}
+
+	function ShowDialogue (_dlg)
+	{
+		dialogue = _dlg;
+		dialogue.FirstItem();
+		DoDialogueItem ();
+	}
+	
+	function SetCursor (_id)
+	{
+		curCursor = cursorTex[_id];
+	}
+	
+	function ShowDivineLight (_v)
+	{
+		if (_v)
+		{	
+			g_main.PlayFX(sndDivine);
+			divineLightAlphaTo = 255;
+		} 
+		else
+			divineLightAlphaTo = 0;
+	}
+	
+	function Reset ()
+	{
+		checkList.Reset();
+		bShowInventory = false;
+		inventory.Close();
+		if (popup)
+		{
+			Service_Delete (popup);
+			popup = null;
+		}
+		if (dialogue)
+		{
+			delete dialogue;
+			dialogue = null;
+		}
+	}
+}

@@ -1,0 +1,139 @@
+class Language
+{
+	properties:
+		language = "es";
+		languagePrefix = "";
+		languageKeys = null;
+	
+	function _operator_new (_lang)
+	{
+		SetLanguage (_lang);	
+	}
+	
+	function _operator_delete ()
+	{
+    	if (languageKeys) 
+			Dictionary_Delete (languageKeys);
+	}
+	
+    function SetLanguage (_lang)
+    {
+    	if (languageKeys) 
+			Dictionary_Delete (languageKeys);
+			
+		language = _lang;
+		languageKeys = Dictionary_New ();
+		switch (language)
+		{
+			case "es": _strFile = "es"; break;
+			case "en":
+			case "gb": _strFile = "en"; break;
+			case "fr": _strFile = "fr"; break;
+			case "it": _strFile = "it"; break;
+			case "de": _strFile = "de"; break;
+		}
+		ReadStrings ("data/localizations/" + _strFile + ".xml");
+
+		switch (language)
+		{
+			case "es": languagePrefix = "es"; break;
+			case "en":
+			case "gb": languagePrefix = "en"; break;
+			case "fr": languagePrefix = "fr"; break;
+			case "it": languagePrefix = "it"; break;
+			case "de": languagePrefix = "de"; break;
+		}	              
+    }
+    
+    function SetPrefix (_prefix)
+    {
+    	SetLanguage (_prefix);
+    }
+    
+    function GetPrefix()
+    {
+    	return language;
+    }
+    
+    function GetKeyText (_key)
+    {
+		_text = String_FromUTF8(Dictionary_GetItem (languageKeys, _key));
+		if (strlen(_text) && _text[0] == '#') // REFERENCE
+		{
+			_text /= 0;
+			_key = _text;
+		}
+		return _key;
+	}
+    
+    function GetText (_key, ...)
+    {
+		if (!Dictionary_IsKey (languageKeys, _key))
+		{
+			return "#" + _key + "#";
+		}
+		
+		_text = String_FromUTF8(Dictionary_GetItem (languageKeys, _key));
+		if (strlen(_text) && _text[0] == '#') // REFERENCE
+		{
+			_text /= 0;
+			_text = String_FromUTF8(Dictionary_GetItem (languageKeys, _text));
+		}
+		
+    	_num_args = _get("@");
+    	for (i=0; i<_num_args; i++)
+    	{
+    		_arg = _get(i);
+    		_text = String_Replace (_text, "%"+(i+1), _get(i));
+		}
+		return _text;
+	}
+
+	function ReadStrings (_filename)
+	{
+		_file = File_Open (_filename, FILE_MODE_READTEXT);
+		if (_file)
+		{
+			_xml = XML_Open (_file);
+			if (_xml)
+			{
+				_e = XML_GetRootElement (_xml);
+				while (_e)
+				{
+					_name = XML_GetElementValue (_e);
+					if (_name == "resources")
+					{
+						_se = XML_FirstElement (_e);
+						while (_se)
+						{
+							_name = XML_GetElementValue (_se);
+							_text = XML_GetElementText (_se);
+							if (_name == "string")
+							{
+								_a = XML_FirstAttribute (_se);
+								while (_a)
+								{
+									_aName = XML_GetAttributeName (_a);
+									if (_aName == "name")
+									{
+										_aValue = XML_GetAttributeValue (_a);
+										Dictionary_InsertItem (languageKeys, _aValue, _text);
+									}
+									_a = XML_NextAttribute (_a);
+								}
+							}
+							_se = XML_NextElement (_se);
+						}
+					}
+					_e = XML_NextElement (_e);
+				}
+				XML_Close (_xml);
+			}
+			File_Close (_file);
+		}
+		else
+		{
+			DebugMsg ("File not found:", _filename);
+		}
+	}
+}

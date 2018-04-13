@@ -1,0 +1,26 @@
+class UI_Alpha implements UI_Animation
+{
+	properties:
+		a = 0.0f;
+
+	// Entre -255 y 255
+	function SetAlpha(_a)
+	{
+		a = _a;
+	}
+
+	// Entre -1 y 1
+	function SetAlphaPctg(_a)
+	{
+		a = _a * 255;
+	}
+
+	function Core_InternalUpdate()
+	{
+		_g = GetParent().GetParent();
+		//DebugMsg(a, GetProgress(), Interpolate(0, a, GetProgress()));
+		if (a != 0)	_g.animationCurrentPoint.alpha += Interpolate(0, a, GetProgress());
+
+		_g.animationCurrentPoint.flags |= UI_ANI_FLAG_ALPHA;
+	}
+}

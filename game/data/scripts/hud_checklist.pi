@@ -1,0 +1,130 @@
+class HUD_CheckList
+{
+	constants:
+		FONT_H = 18;
+		
+	properties:
+		hud = null;
+		font = null;
+		checkList = [];
+		texTask = null;
+	
+	function _operator_new (_hud)	
+	{
+		hud = _hud;
+		
+		System_SetDirectory (DIRECTORY_FONT, "data/fonts/");
+		font = Font_Load ("ACMO1", 0, FONT_H); 
+		Font_SetProperty (font, FONT_EFFECT, FONT_EFFECT_BORDER);
+		Font_SetProperty (font, FONT_EFFECT_RANGE, 2);
+		Font_SetProperty (font, FONT_EFFECT_COLOR, ARGB(255,0,0,0));
+		
+		System_SetDirectory(DIRECTORY_TEXTURE, "data/textures/hud/");
+		texTask = Texture_Load ("check_task.png");
+	}
+
+    function _operator_delete ()
+    {
+    	Font_Delete(font);
+    	Texture_Delete (texTask);
+    }
+	
+	function Reset ()
+	{
+		checkList = [];
+	}
+	
+	function Move ()
+	{
+	}
+	
+	function Draw ()
+	{
+		_len = sizeof(checkList);
+		_x = 5;
+		_y = 100;
+		if (hud.game.GetPlayer().HasHearingAid()) _i = 2;
+		else _i = 1;
+		for (i=0; i<_len; i++)
+		{
+			Render_DrawTex (texTask, _x, _y + i*FONT_H + 2, FONT_H, FONT_H, 0, -1); 
+			Render_Print (font, _x + FONT_H + 5, _y + i*FONT_H, checkList[_len-i-1][_i], -1);
+		}
+	}
+	
+	function AddTask (_id)
+	{
+		_text1 = g_language.GetText("task_" + string(_id));
+		_text2 = _text1;
+
+		/*_len = sizeof(_text1);
+		for (i=0; i<_len; i++)
+		{
+			if (_text1[i] == '$')
+			{
+				i++;
+				_key = "";
+				do
+				{
+					_key += ascii(_text1[i]);
+					i++;
+				}
+				while (i < _len && _text1[i] != '$');
+
+				_repText = "...";
+				_text1 = String_Replace (_text1, "$" + _key + "$", _repText); i-=strlen(_key)+2; i+=strlen(_repText);
+				_len = strlen(_text1);
+			}
+		}*/		 
+
+		_len = sizeof(_text2);
+		for (i=0; i<_len; i++)
+		{
+			if (_text2[i] == '$')
+			{
+				i++;
+				_key = "";
+				do
+				{
+					_key += ascii(_text2[i]);
+					i++;
+				}
+				while (i < _len && _text2[i] != '$');
+
+				_repText = g_language.GetText("item_" + _key);
+				_text2 = String_Replace (_text2, "$" + _key + "$", _repText); i-=strlen(_key)+2; i+=strlen(_repText);
+				_len = strlen(_text2);
+			}
+		}
+		
+		_text1 = _text2;
+			 
+		checkList += [[_id, _text1, _text2]];
+	}
+	
+	function TaskDone (_id)
+	{
+		_len = sizeof(checkList);
+		for (i=0; i<_len; i++)
+		{
+			if (checkList[i][0] == _id)
+			{
+				checkList /= i;
+				break;
+			}
+		}
+	}
+	
+	function FindTask(_id)
+	{
+		_len = sizeof(checkList);
+		for (i=0; i<_len; i++)
+		{
+			if (checkList[i][0] == _id)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+}

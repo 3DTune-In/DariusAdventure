@@ -1,0 +1,169 @@
+class Actor implements NPC
+{
+	properties:    	
+		KIN_QUIET = 0;
+		KIN_SPEAK = 0;
+		
+	virtual Init ()
+	{
+		StartLoadResources ();
+		
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_petra.msh");
+		
+		KIN_QUIET = Actor_LoadKinematic (this, "npc_petra_quiet.kin");
+		KIN_SPEAK = Actor_LoadKinematic (this, "npc_petra_speak.kin");                                            
+		
+		EndLoadResources ();
+		
+		name = "npc_petra";
+		collide = true;
+		Scene_AddStatic (scene, this);
+		useAngles = 0;
+		
+		voiceID = VOICE_GIRL;
+	}
+
+	virtual Start ()
+	{
+		SetMoveHead (GetState() >= 1);
+		switch (game.stageID)
+		{
+			case STAGE_RESTAURANT:
+			{
+				if (GetState() >= 4)
+				{	
+					SetVisible (false); // Esta en el BUSSTOP
+				}
+			}
+			break;
+			case STAGE_BUS_STOP:
+			{
+				_michael = stage.FindActor ("npc_michael");
+				if (GetState() < 4 || _michael.GetState() < 5)
+				{	
+					SetVisible (false); // Esta en el RESTAURANTE
+				}
+			}
+			break;
+		}
+	}
+	
+	function Quiet ()
+	{
+		Actor_BlendKin (this, KIN_QUIET, KINMODE_LOOP);
+	}
+	
+	function Speak ()
+	{
+		Actor_BlendKin (this, KIN_SPEAK, KINMODE_LOOP);
+	}
+
+	function OnDropItem (_itemName)
+	{	
+		switch (_itemName)
+		{
+			case "item_love_letter_1":
+			{
+				//_dlg = ShowAutoDialogue ("petra_1", 21, [game.GetPlayer(), this]);
+				_dlg = game.NewDialogue();
+				
+				AddAutoDialogue (_dlg, "petra_1", 1, 5, [game.GetPlayer(), this]);
+				
+				_dlg.AddNPCQUestion(game.GetPlayer(), "petra_11_1", ["petra_11_1A", "petra_11_1B"], 0, 0, NEXT_DIALOGUE);
+				
+				_dlg.AddNewCard("card_4");
+				
+				AddAutoDialogue (_dlg, "petra_1", 6, 21, [this, game.GetPlayer()]);
+
+				_dlg.AddNPCCall (game.GetPlayer(), "AddInventory", ["item_love_letter_2"]);
+				_dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["deliver_love_letter_1"]);
+				_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_love_letter_2"]);
+				_dlg.AddNPCCall (game.GetPlayer(), "LevelUpHearingAid");
+				_dlg.AddNPCCall (this, "SetState", [1]);
+				_dlg.AddNPCCall (this, "SetMoveHead", [true]);
+
+			    game.ShowDialogue (_dlg);
+
+				return true;
+			}
+			break;
+			case "item_michael_photo":
+			{
+				if (GetState() == 1)
+				{
+					_dlg = ShowAutoDialogue ("petra_3", 8, [this, game.GetPlayer()]);
+					_dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["deliver_michael_photo"]);
+					SetState(2);
+					return true;
+				}
+			}
+			break;
+			case "item_mobile":
+			{
+				if (GetState() == 2)
+				{
+					_dlg = ShowAutoDialogue ("petra_9", 1, [game.GetPlayer()]);
+					_dlg.AddNPCCall (game.GetPlayer(), "SetInventory", ["item_mobile"]);
+					_dlg.AddNPCCall (game.GetPlayer(), "AddInventory", ["item_petra_photo"]);
+					_dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["take_petra_photo"]);
+					_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_petra_photo"]);
+					SetState(3);
+					return true;
+				}
+			}
+			break;
+			case "item_book_gift":
+			{
+				if (GetState() == 3)
+				{
+					_dlg = ShowAutoDialogue ("petra_5", 6, [this, game.GetPlayer()]);
+					_dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["deliver_book_gift"]);
+					SetState(4);
+					return true;
+				}
+			}
+			break;
+		}
+		return false;
+	}
+
+	function OnCursorClick()
+	{
+		switch (GetState())
+		{
+			case 0: // Esperando la love letter de Michael
+			{
+				ShowAutoDialogue ("petra_2", 3, [game.GetPlayer(), this]);
+			}
+			break;
+			case 1: // Ya tiene la love letter, esperando que la foto de michael 
+			{
+				ShowAutoDialogue ("petra_4", 2, [this, game.GetPlayer()]);
+			}
+			break;
+			case 2: // Esperando que le haga una foto para michael
+			{
+				ShowAutoDialogue ("petra_8", 2, [this, game.GetPlayer()]);
+			}
+			break;
+			case 3: // Ya la he hecho la foto, esperando al regalo 
+			{
+				ShowAutoDialogue ("petra_6", 2, [this, game.GetPlayer()]);
+			}
+			break;
+			case 4: // En el restaurante - fin 
+			{
+				if (game.stageID == STAGE_RESTAURANT)
+				{
+					ShowAutoDialogue ("petra_7", 2, [this, game.GetPlayer()]);
+				}
+				else if (game.stageID == STAGE_BUS_STOP)
+				{
+					ShowAutoDialogue ("petra_10", 2, [this, game.GetPlayer()]);
+				}
+			}
+			break;
+		}
+	}
+}

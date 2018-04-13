@@ -1,0 +1,211 @@
+class Actor implements NPC
+{
+	properties:    	
+		KIN_QUIET = 0;
+		KIN_SPEAK = 0;
+		KIN_SIT_QUIET = 0;
+		KIN_SIT_SPEAK = 0;
+		KIN_MOBILE = 0;
+		useMobile = false;
+		
+	virtual Init ()
+	{
+		StartLoadResources ();
+		
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_paul.msh");
+		
+		KIN_QUIET = Actor_LoadKinematic (this, "npc_paul_quiet.kin");
+		KIN_SPEAK = Actor_LoadKinematic (this, "npc_paul_speak.kin");    
+		KIN_SIT_QUIET = Actor_LoadKinematic (this, "npc_paul_sit_quiet.kin");
+		KIN_SIT_SPEAK = Actor_LoadKinematic (this, "npc_paul_sit_speak.kin");    
+		KIN_MOBILE = Actor_LoadKinematic (this, "npc_paul_mobile_speak.kin");                                        
+		
+		EndLoadResources ();
+		
+		name = "npc_paul";
+		collide = true;
+		useAngles = 0;
+		Scene_AddStatic (scene, this);
+		bMoveHead = true;
+		
+		voiceID = VOICE_BOY;
+	}
+
+	virtual Start ()
+	{
+		if (game.stageID == STAGE_GASOIL_STATION)
+		{
+			if (GetState() >= 1)
+			{
+				// Ya nos hemos presentado y hemos pasado el mal trago de la radio
+				_radio = stage.FindActor("npc_radio");
+				_radio.Stop();
+			}
+			
+			if (GetState() >= 2)
+			{
+				// En el caso de que ya le hayamos entregado el móvil y estemos en el restaurante!
+				SetVisible (false);
+			}
+		}
+		else if (game.stageID == STAGE_RESTAURANT)
+		{
+			// En caso de no resolver lo de la GASOIL_STATION
+			// o en caso de que katty no haya completado lo de los libros
+			// o en caso de que katty ya haya completado todo
+			// EL personaje no se ha de ver.
+			_katty = stage.FindActor("npc_katty");
+		 	if (GetState() < 2 || _katty.GetState() < 2 || _katty.GetState() == 5)
+				SetVisible (false);
+		}
+	}
+	
+	function Quiet ()
+	{
+		if (useMobile)
+		{
+			Actor_BlendKin (this, KIN_MOBILE, KINMODE_LOOP);
+		}
+		else
+		{
+			if (game.stageID == STAGE_RESTAURANT)
+				Actor_BlendKin (this, KIN_SIT_QUIET, KINMODE_LOOP);
+			else
+				Actor_BlendKin (this, KIN_QUIET, KINMODE_LOOP);
+		}
+	}
+	
+	function Speak ()
+	{
+		if (useMobile)
+		{
+			Actor_BlendKin (this, KIN_MOBILE, KINMODE_LOOP);
+		}
+		else
+		{
+			if (game.stageID == STAGE_RESTAURANT)
+				Actor_BlendKin (this, KIN_SIT_SPEAK, KINMODE_LOOP);
+			else
+				Actor_BlendKin (this, KIN_SPEAK, KINMODE_LOOP);
+		}
+	}
+
+	function OnDropItem (_itemName)
+	{	
+		if (_itemName == "item_mobile")
+		{
+			if (GetState() < 2)
+			{
+				SetState(2);
+				game.GetPlayer().SpeakWith (this);
+				_dlg = ShowAutoDialogue ("paul_2", 19, [game.GetPlayer(), this]);
+				_dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["deliver_mobile"]);
+				_dlg.AddNPCSet (this, "useMobile", true);
+				_dlg.AddNPCCall (this, "Quiet", []);
+				_dlg.AddNPCSet (this, "useMobile", false);
+				_dlg.AddNPCCall (this, "Quiet", []);
+				_dlg.AddNPCCall (game.GetPlayer(), "SetInventory", ["item_mobile"]);
+				_dlg.AddNPCCall (game.GetPlayer(), "AddInventory", ["item_feather"]);
+				_dlg.AddNPCCall (game.GetPlayer(), "LevelUpHearingAid");
+				return true;
+			}
+		}
+		else if (_itemName == "item_potatoe")
+		{
+			if (GetState() >= 3)
+			{
+				if (game.GetItemQuantity (_itemName) >= TOTAL_POTATOES)
+				{
+					SetState(4);
+					_dlg = ShowAutoDialogue ("paul_6", 9, [this, game.GetPlayer()]);
+					_dlg.AddNPCCall (game.GetPlayer(), "SetInventory", ["item_pliers"]);
+					_dlg.AddNPCCall (game.GetPlayer(), "TaskDone", ["deliver_potatoes"]);
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	function OnCursorClick()
+	{
+		switch (GetState())
+		{
+			case 0: // Presentacion 
+			{
+				_dlg = game.NewDialogue();
+				_dlg.AddNPCSpeak (game.GetPlayer(), "paul_1_1");
+				
+				_dlg.AddNPCQUestion(game.GetPlayer(), "paul_10_1", ["paul_10_1A", "paul_10_1B"], 0, 0, NEXT_DIALOGUE); 
+				
+				_dlg.AddNPCCall (game.GetPlayer(), "AddNewCard", ["card_3"]);
+				
+				_radio = stage.FindActor("npc_radio");
+				_dlg.AddNPCCall(_radio, "Stop");
+				
+				_dlg.AddNPCSpeak (this, "paul_1_2");
+				_dlg.AddNPCSpeak (game.GetPlayer(), "paul_1_3");
+				_dlg.AddNPCSpeak (this, "paul_1_4");
+				_dlg.AddNPCSpeak (game.GetPlayer(), "paul_1_5");
+				_dlg.AddNPCSpeak (this, "paul_1_6");
+				_dlg.AddNPCSpeak (game.GetPlayer(), "paul_1_7");
+			
+				//_dlg = ShowAutoDialogue ("paul_1", 7, [game.GetPlayer(), this]);
+				_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_mobile"]);
+				_dlg.AddNPCCall (this, "SetState", [1]);
+				
+			    game.ShowDialogue (_dlg);
+			}
+			break;
+			case 1: // Esperando mobile
+			{
+				ShowAutoDialogue ("paul_3", 2, [this, game.GetPlayer()]);
+			}
+			break;
+			case 2: // Esperando a Katty
+			{
+				if (game.stageID == STAGE_RESTAURANT)
+				{
+					_katty = stage.FindActor("npc_katty");
+					_francoise = stage.FindActor("npc_francoise");
+					
+					if (_katty.visible == false) 
+						ShowAutoDialogue ("paul_4", 2, [this, game.GetPlayer()]);
+					else if (_francoise.GetState() < 2)
+						ShowAutoDialogue ("paul_9", 1, [this, game.GetPlayer()]);
+					else
+					{
+						_dlg = ShowAutoDialogue ("paul_5", 5, [game.GetPlayer(), this]);
+						_dlg.AddNPCCall (game.GetPlayer(), "AddTask", ["deliver_potatoes"]);
+						SetState(3);
+					}
+				}
+			}
+			break;
+			case 3: // Esperando patatas 
+			{
+				ShowAutoDialogue ("paul_8", 2, [this, game.GetPlayer()]);
+			}
+			break;
+			case 4: // 
+			{
+				_katty = stage.FindActor ("npc_katty");
+				//if KATTY NO ha tuneado su plato
+				if (_katty.GetState() < 5)
+					ShowAutoDialogue ("paul_7", 2, [this, game.GetPlayer()]);
+				else
+				{
+					ShowAutoDialogue ("paul_7", 1, [this, game.GetPlayer()]);
+					SetState(5);
+				}
+			}
+			break;
+			case 5:
+			{
+				ShowAutoDialogue ("paul_7", 1, [this, game.GetPlayer()]);
+			}
+			break;
+		}
+	}
+}

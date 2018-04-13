@@ -1,0 +1,119 @@
+class Actor implements NPC
+{
+	properties:
+		KIN_QUIET = 0;
+		KIN_WALK = 0;
+		snd = null;
+		
+	virtual Init ()
+	{	
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "item_dog.msh");
+
+		KIN_QUIET = Actor_LoadKinematic (this, "item_dog_quiet.kin");
+		KIN_WALK = Actor_LoadKinematic (this, "item_dog_walk.kin");
+		
+		snd = LoadSound3D ("dog.ogg", true);                                            
+		Sound_SetProperty (snd, SOUND_3D_RADIUS, 1000);                                            
+		
+		EndLoadResources ();
+		name = "item_dog";
+	}
+	
+	virtual Start ()
+	{
+		if (GetState() == 0)
+		{
+			if (game.stageID == STAGE_BACK_STREET_2)
+			{
+				SetVisible (false);
+				SetEnabled (false);
+			}
+			else
+			{
+				if (game.IsItemUsed(name) || game.IsItemInInventory(name))
+				{
+					SetVisible (false);
+					SetEnabled (false);
+				}
+				else
+				{
+					Quiet();
+					_change ("waiting");
+				}
+			}
+		}
+		else
+		{
+			if (game.stageID == STAGE_BACK_STREET_2)
+			{
+				SetEnabled (false);
+				SetVisible (true);
+			}
+			else
+			{
+				SetVisible (false);
+				SetEnabled (false);
+			}
+		}
+		
+		if (GetVisible() && game.stageID != STAGE_BACK_STREET_2)
+		{
+			main.PlayFX(snd);
+		}
+	}
+	
+	function Quiet ()
+	{
+		Actor_BlendKin (this, KIN_QUIET, KINMODE_LOOP);
+	}
+	
+	function Speak ()
+	{
+		Actor_BlendKin (this, KIN_QUIET, KINMODE_LOOP);
+	}
+	
+	function PlayerCanNotify ()
+	{
+		return false;
+	}
+	
+	function OnDropItem (_itemName)
+	{	
+		if (_itemName == "item_spare_dish")
+		{
+			Quiet();
+			game.hud.OpenPlayerTID ("player_item_dog");
+			game.GetPlayer().TaskDone("deliver_dish");
+			game.GetPlayer().AddTask("deliver_dog");
+			game.GetPlayer().AddInventory (this);
+			return true;
+		}
+		return false;
+	}
+	
+	function OnCursorClick()
+	{
+	}
+	
+	state "waiting"
+	{
+		if (Actor_Distance (this, game.GetPlayer()) < 500)
+		{
+			Actor_SetKin (this, KIN_WALK, KINMODE_LOOP);
+			Actor_RouteTo (this, posX - 2000, posY, posZ, 3.0f, 0.25f); 
+			_change ("escaping"); 
+		}
+	}
+	
+	state "escaping"
+	{
+		Actor_RouteMove (this);	
+	}
+	
+	virtual Move ()
+	{
+	}
+}

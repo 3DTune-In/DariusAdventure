@@ -1,0 +1,617 @@
+class Service
+{
+	constants:
+		SCROLL_SPEED = 32.0f;
+		POPUP_W = RESX-200;
+		TEXT_SPEED = 1.0f;
+		FONT_H = 30;
+		ANSWER_W = 350;
+		ANSWER_H = 200;
+		ANSWER_SEP = 30;
+		
+	properties:
+		POPUP_H = 200;
+		hud = null; 
+		stage = null;         
+		game = null;
+		actor = null;
+		texBg = null;
+		texArrow = null;
+		text = "";
+		responseTextList = [];
+		responseID = 0;
+		responseOKID = 0;
+		responseOkPC = 0;
+		responseWrongPC = 0;
+		index = 0.0f;
+		font = null;
+		arrowBlinkVisible = true;
+		arrowBlinkTime = 0.0f;
+		yPos = 0.0f;
+		EVENT_ACTOR = "";
+		EVENT_NAME = "";
+		voiceID = 0;
+		textSpeed = TEXT_SPEED;
+		//
+		fadeOffVoice = false;
+		fxVoice = 255;
+		sndAppear = null;
+		sndVoice = null;
+		sndTextList = [];
+		sndResponse = null;
+		curSndTextIx = 0;
+		curSndText =  null;
+		//
+		nextTex = null;
+		repeatTex = null;
+		stopTex = null;
+		keyText = "";
+		responseButtonTex = null;
+		//
+	
+	function Init ()
+	{
+		hud = Service_Get ("hud");
+		stage = Service_Get ("stage");
+		game = Service_Get ("game");
+		
+		System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/hud/");
+		nextTex = Texture_Load ("next.png");
+		stopTex = Texture_Load ("stop.png");
+		repeatTex = Texture_Load ("repeat.png");
+		responseButtonTex = Texture_Load("inventory_window.png");
+		
+		System_SetDirectory (DIRECTORY_FONT, "data/fonts/");
+		//font = Font_Load ("wst_span", 0, 32);
+		font = Font_Load (DEFAULT_FONT, 0, FONT_H, FONT_NOCACHE);
+		Font_SetProperty (font, FONT_EFFECT, FONT_EFFECT_BORDER);
+		Font_SetProperty (font, FONT_EFFECT_RANGE, 2);
+		Font_SetProperty (font, FONT_EFFECT_COLOR, ARGB(255,0,0,0));
+		Font_SetColorEntry (font, 0, ARGB(255,255,255,255));
+		Font_SetColorEntry (font, 1, ARGB(255,255,0,0));
+		Font_SetColorEntry (font, 2, ARGB(255,0,255,0));
+		Font_SetColorEntry (font, 3, ARGB(255,0,0,255));
+		Font_SetColorEntry (font, 4, ARGB(255,255,0,255));
+		Font_SetColorEntry (font, 5, ARGB(255,255,255,0));
+		
+		System_SetDirectory (DIRECTORY_SOUND, "data/sounds/");
+		//sndResponse = Sound_Load("ui_menu_back.ogg");
+		sndResponse = Scene_LoadSound3D(game.stage.scene, "ui_menu_back.ogg", 0, 0, 0);
+		if (sndResponse) Sound_SetProperty(sndResponse, SOUND_API, ["ANECHOIC", false]);
+
+		SetVoice (voiceID);
+		
+		Service_SetPriority (this, 100);
+	}
+	
+	function Final ()
+	{
+		Texture_Delete (nextTex);
+		Texture_Delete (stopTex);
+		Texture_Delete (repeatTex);
+		Texture_Delete (responseButtonTex);
+		
+		Sound_Delete (sndResponse);
+		
+		if (hud.popup == this) hud.popup = null;
+		Font_Delete (font);
+		FreeSndTexts();
+		if (sndVoice) Sound_SetProperty (sndVoice, SOUND_VOLUME, 0);
+		//Sound_Stop (sndVoice);
+		//Sound_Delete (sndAppear);
+		//Texture_Delete (texBg);
+		//Texture_Delete (texArrow);
+	}
+	
+	function FreeSndTexts ()
+	{
+		if (actor)
+			for (i=0; i<sizeof(sndTextList); i++) Actor_DeleteSound (actor, sndTextList[i]);
+		else
+			for (i=0; i<sizeof(sndTextList); i++) Sound_Delete (sndTextList[i]);
+			
+		sndTextList = [];
+		curSndTextIx = 0;
+		curSndText =  null;
+	}
+	
+	function Start ()
+	{
+		FreeSndTexts();
+		
+		_locuted = false;
+		
+		if (sizeof(responseTextList))
+		{
+			for (i=0; i<sizeof(responseTextList); i++)
+			{
+				responseTextList[i] = g_language.GetText(responseTextList[i]);
+			}
+		}
+		
+		DebugMsg("LOADSOUNDTEXT - KEYTEXT:", keyText, "TEXT:", text);
+		_ret = LoadSoundText(keyText, text);
+		text = _ret[0];
+		_snd = _ret[1];
+		curSndText = _snd;
+	
+		index = 0;
+		yPos = RESY;
+		_size = Font_GetTextSize (font, text, POPUP_W);
+		POPUP_H = max([_size[1] + 80, 200]);
+		_change ("waiting_enter_screen");
+	}
+
+	function LoadSoundText(_keyText, _text)
+	{
+		_locuted = false;
+		_snd = null;
+		//Mirar en "_text" si tenemos algun tipo de voz inline
+		_len = sizeof(_text);
+		for (i=0; i<_len; i++)
+		{
+			_startCh = _text[i];
+			if (_startCh == '$' || _startCh == '%')
+			{
+				i++;
+				_key = "";
+				do
+				{
+					_key += ascii(_text[i]);
+					i++;
+				}
+				while (i < _len && _text[i] != '$' && _text[i] != '%');
+				DebugMsg (">>>>>>> SND TEXT KEY FOUND:", _key, "POS_I:", i);
+	
+				_locuted = true;
+				
+				if (game.GetPlayer().CanHearingAid()) 
+				{
+					/*if (_startCh == '$')
+						_repText = "\\5[" + g_language.GetText("item_" + _key) + "]\\0 ";
+					else
+						_repText = "\\5[" + _key + "]\\0 ";*/
+			#if SHOW_TEXTS
+					_repText = _key;
+			#else 
+					_repText = "";
+			#endif 
+					_folder = "";
+				} 
+				else
+				{
+			#if SHOW_TEXTS
+					_repText = "\\5[...]\\0 ";
+			#else
+					_repText = "";
+			#endif
+					_folder = "";
+				} 
+				
+				if (_startCh == '$')
+					_text = String_Replace (_text, "$" + _key + "$", _repText);
+				else
+					_text = String_Replace (_text, "%" + _key + "%", _repText);
+					
+ 				i-=strlen(_key)+2; 
+				i+=strlen(_repText);					
+					
+				//if (voiceID == VOICE_PLAYER) _vid = VOICE_BOY;
+				//else _vid = voiceID;
+				
+				_key = String_Replace(_key, " ", "_");
+				System_SetDirectory(DIRECTORY_SOUND, "data/sounds/");
+				
+			#if FIXED_VOICE_LOCALIZATION
+				_sndPath = "voices/" + FIXED_VOICE_LOCALIZATION + "/" + _keyText + ".ogg";
+			#else
+				_sndPath = "voices/" + g_language.GetPrefix() + "/" + _keyText + ".ogg";
+			#endif
+			
+				DebugMsg ("Loading sound...", _sndPath);
+				if (actor)
+				{
+					if (game.bNOAnechoic || voiceID == VOICE_PLAYER)
+						_snd = Actor_LoadSound(actor, _sndPath);
+					else
+						_snd = actor.LoadSound3D(_sndPath);
+				}
+				else
+				{
+					if (game.bNOAnechoic || voiceID == VOICE_PLAYER)
+						_snd = Scene_LoadSound(game.stage.scene, _sndPath);
+					else
+						_snd = Scene_LoadSound3D(game.stage.scene, _sndPath, 0, 0, 0);
+					if (_snd) Sound_SetProperty(_snd, SOUND_API, ["ANECHOIC", false]);
+				}
+				if (!_snd) 
+				{
+					_snd = Sound_Load ("voices/beep.ogg");
+					DebugMsg ("ERROR!! voice not found:", _sndPath);
+				}
+				sndTextList += [_snd];
+				_len = strlen(_text);
+				DebugMsg ("TEXT[i]=", ascii(_text[i]), "LENTEXT:", _len, "I:", i);
+				//g_main.PlayVoice(_snd); // Lo hace en el startmessage
+			}
+		}
+	
+		if (!_locuted && _keyText != "")
+		{
+		#if FIXED_VOICE_LOCALIZATION
+			_sndPath = "voices/" + FIXED_VOICE_LOCALIZATION + "/" + _keyText + ".ogg";
+		#else
+			_sndPath = "voices/" + g_language.GetPrefix() + "/" + _keyText + ".ogg";
+		#endif
+			DebugMsg ("Loading actor sound...", _sndPath, "Actor:", actor);
+			if (File_Exists("data/sounds/" + _sndPath))
+			{
+				if (actor)
+				{
+					if (game.bNOAnechoic || voiceID == VOICE_PLAYER)
+						_snd = Actor_LoadSound(actor, _sndPath);
+					else
+						_snd = actor.LoadSound3D(_sndPath);
+				}
+				else
+				{
+					_snd = Scene_LoadSound (game.stage.scene, _sndPath);
+				}
+				if (!_snd)
+				{
+					_snd = Scene_LoadSound (game.stage.scene, "voices/beep.ogg");
+					DebugMsg ("ERROR!! voice not found:", _sndPath);
+				}
+				DebugMsg ("Handle:", _snd);
+				sndTextList += [_snd];
+				//g_main.PlayVoice(_snd); // Lo hace en el startmessage
+			}
+			else
+			{
+				DebugMsg ("Error sound not found!!");
+			}
+		} 
+		
+		return [_text, _snd];
+	}
+	
+	function Pause ()
+	{
+	}
+	
+	function Resume ()
+	{
+	}
+	
+	function SetVisible (_v)
+	{
+		if (_v) hud.popup = this;
+		else hud.popup = null;
+		Service_SetVisible (this, _v);
+		if (!Service_GetStop (stage))
+		{
+			if (_v)
+				Service_Resume (this);
+			else
+			{
+				Service_Pause (this);
+				bPaused = false;
+			}
+		}
+	}
+	
+	state "waiting_enter_screen"
+	{
+		Appear();
+	}
+	
+	function SetVoice (_id)
+	{
+		sndVoice = null;
+		/*if (_id >= 1)
+			sndVoice = game.sndVoiceList[_id-1];
+		else
+			sndVoice = null;*/
+	}
+	
+	function Appear ()
+	{
+		yPos = RESY;
+		//Sound_Play (sndAppear);
+		_change ("appearing");
+	}
+	
+	state "appearing"
+	{
+		yPos = IncreaseValue (yPos, RESY-POPUP_H-10, GetFTime()*SCROLL_SPEED);
+		if (yPos == RESY-POPUP_H-10)
+		{
+			_change ("show_message_and_release_key");
+		}
+	}
+	
+	function Disappear ()
+	{
+		if (sizeof(responseTextList))
+		{
+			hud.OnPopupSelectAnswerStart();
+			_change("select_answer");
+		}
+		else
+		{
+			//Sound_Play (sndAppear);
+			_change ("disappearing");
+		}
+	}
+	
+	state "select_answer"
+	{
+		_w = ANSWER_W;
+		_h = ANSWER_H;
+		_space = ANSWER_SEP;
+		_x = RESX/2 - (_w + _space) * sizeof(responseTextList) / 2;
+		_y = 100;
+		for (i=0; i<sizeof(responseTextList); i++)
+		{ 
+			if (Cursor_IsOverRect(_x, _y, _w, _h) && Input_IsMouseButton(MOUSE_LEFT)) 
+			{
+				Sound_Play(sndResponse);
+				break;
+			}
+			_x += (_w + _space);
+		}
+		if (i < sizeof(responseTextList))
+		{
+			responseID = i;
+			_change ("disappearing");
+		} 
+		//DebugMsg("SELECT_ANSWER - TODO!!!");
+	}
+
+	state "disappearing"
+	{
+		yPos = IncreaseValue (yPos, RESY, GetFTime()*SCROLL_SPEED);
+		if (yPos == RESY)
+		{
+			hud.OnPopupEnd();
+			if (EVENT_ACTOR != "")
+			{
+				_obj = Scene_GetObject (stage.scene, EVENT_ACTOR, OBJECT_CLASSID_ACTOR);
+				if (_obj)
+					_obj._call (EVENT_NAME);
+			}
+		}
+	}
+
+	function IsPlaying()
+	{
+		if (!curSndText) return false;
+		return Sound_IsPlaying(curSndText);
+	}
+
+	function StartMessage ()
+	{
+		index = 0;
+		fadeOffVoice = false;
+		fxVoice = Registry_GetValueInt(DEFAULT_FX_KEY, DEFAULT_FX_VOLUME);
+		curSndTextIx = 0;
+		curSndText = null;
+		if (sndVoice) Sound_SetProperty (sndVoice, SOUND_VOLUME, fxVoice);
+		if (sndVoice && !Sound_IsPlaying(sndVoice)) g_main.PlayVoice(sndVoice);
+		if (sizeof(sndTextList)) 
+		{
+			curSndText = sndTextList[0];
+			g_main.PlayVoice(sndTextList[0]);
+		}
+		DebugMsg ("VOICEPLAY:", sndVoice, "CURSNDTEXT:", curSndTExt);
+		_change ("show_message");
+	}
+	
+	function UpdateMessage ()
+	{
+		if (IsPlaying())//curSndText && Sound_IsPlaying(curSndText))
+		{
+			return;
+		}
+		else if (sndVoice)
+		{
+			Sound_SetProperty (sndVoice, SOUND_VOLUME, fxVoice);
+		}
+	
+//		DebugMsg (index, text, typeof(text), strlen(text));
+
+		if ((int(index) < strlen(text)))
+		{
+			if (text[int(index)] == '\\') index+=2;
+			else if (text[int(index)] == '[')
+			{
+				_key = "";
+				do
+				{
+					index++;
+					//_key += ascii(text[int(index)]);
+				}
+				while (text[int(index)] != ']');
+				curSndText = sndTextList[curSndTextIx]; 
+				if (sndVoice) Sound_SetProperty (sndVoice, SOUND_VOLUME, 0);
+				DebugMsg ("PLAYVOICE:", sndTextList[curSndTextIx]); 
+				if (!Sound_IsPlaying(sndTextList[curSndTextIx])) g_main.PlayVoice(sndTextList[curSndTextIx]);
+				curSndTextIx++;
+			}       
+		} 
+
+		index = IncreaseValue (index, strlen(text), GetFTime()*textSpeed);
+
+		/*if ((int(index+2) < strlen(text)) && (text[int(index)] == '$' && text[int(index+1)] == '$')) 
+		{
+			_id = text[int(index)] - '0';
+			game.PlaySound(_id);
+			index+=3;
+		}*/
+
+		index = clamp (index, 0, strlen(text));
+	}
+
+	state "show_message_and_release_key"
+	{
+		UpdateMessage ();
+		
+		if (!IsAnyKeyPressed ())
+		{
+			if (sndVoice) Sound_SetProperty (sndVoice, SOUND_FREQUENCY, Rand(40000,44000));
+			StartMessage ();
+		}
+	}
+	
+	state "show_message"
+	{
+		UpdateMessage ();
+				
+		if (IsAnyKeyPressed() && CheckOverButton() < 0)
+		{
+			index = strlen(text);
+			//textSpeed = 1.0f;
+		}
+		else
+		{
+			textSpeed = TEXT_SPEED;
+		}
+				
+		if (index >= strlen(text))
+		{
+			if (sndVoice) 
+			{
+				fadeOffVoice = true;
+			}
+			index = strlen(text);
+			_change ("release_key");
+		}
+	}
+	
+	state "release_key"
+	{
+		if (!IsAnyKeyPressed())
+		{
+			_change ("wait");
+		}
+	}
+	
+	function CheckOverButton ()
+	{
+		if (game.hud.dialogue && game.hud.bEnableStopButton && Cursor_IsOverRect (RESX-64*3-5, 5, 64, 64)) // STOP
+		{
+			return 0;
+		}
+		else if (Cursor_IsOverRect (RESX-64*2-5, 5, 64, 64)) // REPEAT
+		{
+			return 1;
+		}
+		else if (Cursor_IsOverRect (RESX-64, 5, 64, 64)) // NEXT
+		{
+			return 2;
+		}
+		return -1;
+	}
+	
+	state "wait"
+	{
+		_soundfinish = !IsPlaying(); //(!curSndText || !Sound_IsPlaying(curSndText));
+		if (IsAnyKeyPressed()) _id = CheckOverButton ();
+		else _id = -1;
+		if (_id >= 0 || /*IsAnyKeyPressed () ||*/ _soundfinish)
+		{
+			//_id = CheckOverButton ();
+			if (_id == 0) // STOP
+			{
+				game.hud.CloseDialogue(true);
+				Disappear();
+			}
+			else if (_id == 1) // REPEAT
+			{
+				StartMessage();
+			}
+			else// if (_id == 2) // NEXT
+			{
+				Disappear ();
+			}
+		}
+		if (arrowBlinkTime <= 0.0f)
+		{
+			arrowBlinkVisible = !arrowBlinkVisible;
+			arrowBlinkTime = 10.0f;
+		}
+		else
+		{
+			arrowBlinkTime -= GetFTime();
+		}
+	}
+	
+	function IsAnyKeyPressed ()
+	{
+		return (Input_IsAnyKeyPressed () >= 0 || Input_IsMouseButton (MOUSE_LEFT));
+	}
+
+	function Move ()
+	{
+		if (fadeOffVoice)
+		{
+			if (sndVoice) Sound_SetProperty (sndVoice, SOUND_VOLUME, fxVoice);
+			fxVoice = IncreaseValue (fxVoice, 0, GetFTime() * 8.0f);
+			if (fxVoice == 0)
+			{
+				DebugMsg ("VOICE OFF!");
+				//Sound_Stop (sndVoice);
+				fadeOffVoice = false;
+			}
+		}
+	}
+	
+	function Draw ()
+	{
+		//Render_DrawBox (0, 0, RESX, RESY, ARGB(100, 0, 0,0));
+		_x = (RESX-POPUP_W)/2;
+		_y = yPos;
+		//Render_DrawTex (texBg, _x, _y, POPUP_W, POPUP_H, 0, -1);
+	
+	#if SHOW_TEXTS
+		_text = text;//String_SubStr (text, 0, index);
+		Render_PrintRect (font, _x+20, _y+15, POPUP_W-40, POPUP_H-30, _text, -1);
+	#endif  
+
+		if (_state() == "wait")
+		{
+			if (game.hud.dialogue && game.hud.bEnableStopButton) Render_DrawTex (stopTex, RESX-64*3-5, 5, 64, 64, 0, -1);
+			Render_DrawTex (repeatTex, RESX-64*2-5, 5, 64, 64, 0, -1);
+	
+			if (arrowBlinkVisible)
+			{
+				Render_DrawTex (nextTex, RESX-64-5, 5, 64, 64, 0, -1);
+			}
+		}
+		
+		if (_state() == "select_answer")
+		{
+			_w = ANSWER_W;
+			_h = ANSWER_H;
+			_space = ANSWER_SEP;
+			_x = RESX/2 - (_w + _space) * sizeof(responseTextList) / 2;
+			_y = 100;
+			Font_SetSize(font, 0, 25);
+			for (i=0; i<sizeof(responseTextList); i++)
+			{ 
+				if (Cursor_IsOverRect(_x, _y, _w, _h)) 
+				{
+					_c = ARGB(255,255,0,255);
+				}
+				else
+				{
+					_c = ARGB(255,255,255,255);
+				} 
+				Render_DrawTex(responseButtonTex, _x, _y, _w, _h, 0, _c);
+				Render_PrintRect(font, _x+5, _y+5, _w-10, _h-10, responseTextList[i], _c, DT_CENTER | DT_VCENTER);
+				_x += (_w + _space);
+			}
+			Font_SetSize(font, 0, FONT_H); 
+		} 
+	}
+}

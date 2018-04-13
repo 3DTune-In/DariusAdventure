@@ -1,0 +1,299 @@
+class List
+{
+	properties:
+		items = [];
+
+	function _operator_new()
+	{
+
+	}
+
+	function _operator_new(_array)
+	{
+		items = _array;
+	}
+
+	function Allocate(_value)
+	{
+		_tmp = [];
+		_tmp += _value;
+		for (i = 0; i < sizeof(items); i++)
+		{
+			if (i >= sizeof(_tmp)) break;
+			_tmp[i] = items[i];
+		}
+
+		items = _tmp;
+	}
+
+	function Add(_value)
+	{
+		items += [_value];
+	}
+
+	function AddRange(_values)
+	{
+		for (i = 0; i < sizeof(_values); i++)
+		{
+			items += [_values[i]];
+		}
+	}
+
+	function Set(_index, _value)
+	{
+		items[_index] = _value;
+	}
+
+	function Count()
+	{
+		return sizeof(items);
+	}
+
+	function Get(_index)
+	{
+		return items[_index];
+	}
+
+	function GetFirst()
+	{
+		return items[0];
+	}
+
+	function GetLast()
+	{
+		return items[sizeof(items) - 1];
+	}
+
+	function GetLastIndex()
+	{
+		return sizeof(items) - 1;
+	}
+
+	// _atIndex == -1 inserta al incio
+	// _atIndex != -1 inserta despues del item[_atIndex]
+	function Insert(_value, _atIndex)
+	{
+		//DebugMsg("DMARK 1", _value, _atIndex);
+		if (_atIndex >= sizeof(items)) _atIndex = sizeof(items) - 1;
+		if (_atIndex < 0) _atIndex = -1;
+
+		//DebugMsg("DMARK 2", items);
+		_tmp = [];
+		for (i = 0; i <= _atIndex; i++)
+			_tmp += [items[i]];
+
+		//DebugMsg("DMARK 3", _tmp);
+
+		_tmp += [_value];
+		//DebugMsg("DMARK 4", _tmp);
+		for (i = _atIndex + 1; i < sizeof(items); i++)
+			_tmp += [items[i]];
+		//DebugMsg("DMARK 5", _tmp);
+		items = _tmp;
+	}
+
+	function InsertAfter(_value, _afterValue)
+	{
+		_index = IndexOf(_afterValue);
+		Insert(_value, _index);
+//		if (_index == -1) Add(_value);
+//		else Insert(_value, _index);
+	}
+
+	// _atIndex == -1 inserta al incio
+	// _atIndex != -1 inserta despues del item[_atIndex]
+	function Move(_value, _atIndex)
+	{
+		Remove(_value);
+		Insert(_value, _atIndex);
+	}
+
+	function MoveUp(_index)
+	{
+		//DebugMsg("1", _index, sizeof(items));
+		if (_index == 0 || sizeof(items) < _index) return false;
+		//DebugMsg("2");
+		_temp = Get(_index);
+		//DebugMsg("3");
+		RemoveIndex(_index);
+		//DebugMsg("4");
+		Insert(_temp, _index - 2);
+		//DebugMsg("5");
+		return true;
+	}
+
+	function MoveDown(_index)
+	{
+		if (_index >= sizeof(items) - 1 || _index < 0) return false;
+
+		_temp = Get(_index);
+		RemoveIndex(_index);
+		Insert(_temp, _index);
+		return true;
+	}
+
+	function Remove(_value)
+	{
+		items -= [_value];
+	}
+
+	function RemoveIndex(_value)
+	{
+		_tmp = items[_value];
+		items /= _value;
+		return _tmp;
+	}
+
+	function RemoveLast()
+	{
+		if (sizeof(items))
+		{
+			_item = items[sizeof(items) - 1];
+			items /= sizeof(items) - 1;
+			return _item;
+		}
+		return null;
+	}
+
+	function Clear()
+	{
+		items = [];
+	}
+
+	function IndexOf(_value)
+	{
+		for (i = 0; i < sizeof(items); i++)
+		{
+			if (_value == items[i]) return i;
+		}
+		return -1;
+	}
+
+	function Contains(_value)
+	{
+		return IndexOf(_value) != -1;
+	}
+
+	// NO utilizar. Usar GetNextIndex
+//	function GetNext(_value)
+//	{
+//		for (i = 0; i < sizeof(items); i++)
+//		{
+//			if (_value == items[i])
+//			{
+//				if (i < sizeof(items) - 1)
+//				{
+//					_result = items[i + 1];
+//					return [_result];
+//				}
+//				else return [];
+//			}
+//		}
+//		return [];
+//	}
+
+	function GetNextIndex(_value)
+	{
+		for (i = 0; i < sizeof(items); i++)
+		{
+			if (_value == items[i])
+			{
+				if (i < sizeof(items) - 1) return i + 1;
+				else return -1;
+			}
+		}
+		return -1;
+	}
+
+	function GetPreviousIndex(_value)
+	{
+		for (i = 0; i < sizeof(items); i++)
+		{
+			if (_value == items[i])
+			{
+				if (i > 0) return i - 1;
+				else return -1;
+			}
+		}
+		return -1;
+	}
+
+	function AsList()
+	{
+		//_list = items;
+		//return _list;
+		return items;
+	}
+
+	/* Prototipo de comparerFunc es:
+		function SUI_ListComparer(_a, _b)
+
+		Para ordenar de menor a mayor:
+		Devuelve 1 si _a es mayor que _b;
+		Devuelve 0 si _a es igual que _b;
+		Devuelve -1 si _b es mayor que _a;
+
+		Si _comparerFunc es null, es llama a la funcion SUI_ListComparer.
+		Con _comparerFunc = null se gana un 34% de velocidad.
+	*/
+	function Sort(_comparerObject, _comparerFunc = null)
+	{
+		//Sort(_comparerObject, _comparerFunc, 0, Count());
+		if (_comparerFunc == null)
+			_comparerFunc = "UI_ListComparer";
+		items = qsort(items, _comparerObject, _comparerFunc);
+	}
+
+	// function Sort(_comparerObject, _comparerFunc, _index, _length)
+	// {
+	// 	if (sizeof(items) < 2) return;
+
+	// 	Core_QuickSort(_index, _index + (_length - 1), _comparerObject, _comparerFunc);
+	// }
+
+	// Si hay problemas de recursividad implementaré http://stackoverflow.com/questions/12553238/quicksort-iterative-or-recursive
+	// function Core_QuickSort(_left, _right, _comparerObject, _comparerFunc)
+	// {
+	// 	_pivote = items[_left];
+	// 	i = _left;
+	// 	j = _right;
+
+	// 	while (i < j)
+	// 	{
+	// 		// mientras no se crucen las búsquedas
+	// 		while ((Core_CompareItems(_comparerObject, _comparerFunc, items[i], _pivote) <= 0) && i < j) i++;
+	// 		while (Core_CompareItems(_comparerObject, _comparerFunc, items[j], _pivote) == 1) j--;
+
+	// 		if (i<j)
+	// 		{
+	// 			// si no se han cruzado
+	// 			_tmp = items[i];
+	// 			items[i] = items[j];
+	// 			items[j] = _tmp;
+	// 		}
+	// 	}
+
+	// 	items[_left] = items[j];
+	// 	items[j] = _pivote;
+
+	// 	if (_left < j - 1)
+	// 		Core_QuickSort(_left, j - 1, _comparerObject, _comparerFunc);
+
+	// 	if (j + 1 < _right)
+	// 		Core_QuickSort(j + 1, _right, _comparerObject, _comparerFunc);
+
+	// }
+
+	// function Core_CompareItems(_comparerObject, _comparerFunc, _a, _b)
+	// {
+	// 	if (_comparerFunc != null) return _comparerObject._call(_comparerFunc, [_a, _b]);
+	// 	return _comparerObject.UI_ListComparer(_a, _b);
+	// }
+
+	function Clone()
+	{
+		_tmp = new SUI_List;
+		_tmp.items = items;
+		return _tmp;
+	}
+}

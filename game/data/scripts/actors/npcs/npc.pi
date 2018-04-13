@@ -1,0 +1,120 @@
+class NPC<Actor> implements Stage_Actor
+{
+	properties:
+		bMoveHead = false;
+		bMoveHeadAngle = 0.0f;
+		headSkin = null;
+		headAngle = 0.0f;
+		maxq = 0;
+		
+ 	virtual Init()
+ 	{
+		subClassID = CLASS_TYPE_NPC | CLASS_TYPE_COLLISIONABLE;
+		priority = PRIORITY_NPC;
+		drawPriority = ACTOR_PRIORITY_NPC;
+		collide = true;
+		shadow = true;
+		gravity = true;
+		useAngles = 2;
+		collisionFlags = COLLISION_FLAGS_NPC;
+ 	}
+ 	
+ 	virtual Start ()
+ 	{
+		SetMoveHead(bMoveHead);
+ 		angleX = 0;
+ 		angleY = 0;
+ 		//angleZ = 0;
+ 		Quiet();
+ 	}
+ 	
+ 	function SetMoveHead(_v, _angle = 0)
+ 	{
+ 		bMoveHeadAngle = _angle;
+ 		bMoveHead = _v;
+		if (bMoveHead)
+			headSkin = Actor_FindSkin(this, "Bip001 Head");
+ 	}
+ 	
+ 	function SetCollisionable (_v)
+ 	{
+ 		collide = _v;
+ 		if (_v)
+ 		{
+ 			subClassID |= CLASS_TYPE_COLLISIONABLE;
+ 		}
+ 		else
+ 		{
+ 			subClassID &= ~CLASS_TYPE_COLLISIONABLE;
+		}
+ 	}
+ 	
+ 	function SetVisible (_v)
+ 	{
+ 		Actor_SetVisible (this, _v);
+ 		SetCollisionable (_v);
+ 		Actor_SetCollide (this, _v);
+ 	}
+ 	
+ 	function CanLook ()
+ 	{
+ 		return true;
+ 	}
+
+	function GetState()
+	{
+		return int(game.GetLandmark (name + "_state"));
+	}
+	
+	function SetState(_id)
+	{
+		// SI NO TENEMOS EL AUDIFONO, NO AVANZAMOS NI AGREGAMOS CHECKLIST (mirar AddTask en player.pi)
+		if (!game.GetPlayer().HasHearingAid())
+			return;
+		game.AddLandmark (name + "_state", int(_id));
+	}
+
+	function ShowAutoDialogue (_prefix, _num, _actorList)
+	{
+		_dlg = game.NewDialogue();
+		
+		j = 0;
+		for (i=0; i<_num; i++)
+		{                                                       
+			_dlg.AddNPCSpeak (_actorList[j], _prefix + "_" + string(i+1));
+			j = (j+1) % sizeof(_actorList);
+		}
+	    game.ShowDialogue (_dlg);
+		return _dlg;		
+	}
+
+	function AddAutoDialogue (_dlg, _prefix, _start, _end, _actorList)
+	{
+		j = 0;
+		for (i=_start; i<=_end; i++)
+		{
+			_dlg.AddNPCSpeak (_actorList[j], _prefix + "_" + string(i));
+			j = (j+1) % sizeof(_actorList);
+		}
+	}
+	
+	function Quiet ()
+	{
+	}
+	
+	function Speak ()
+	{
+	}
+	
+	virtual Move ()
+	{
+		if (bMoveHead)
+		{
+			_angle = Actor_GetZAngle (this, game.GetPlayer());
+			_angle = clamp(_angle, DEGTORAD(-45), DEGTORAD(45));
+			headAngle = IncreaseValue (headAngle, -_angle + bMoveHeadAngle, GetFTime() * 0.25f);
+			//DebugMsg (RADTODEG(_angle), _angle);
+			Actor_ApplySkinMatrixRotation (this, headSkin, 0, 0, headAngle);
+		}
+	}
+}

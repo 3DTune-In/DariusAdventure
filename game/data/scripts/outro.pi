@@ -1,0 +1,109 @@
+class Service
+{
+	properties:
+		scene = null;
+		actor = null;
+		font = null;
+		ANI_1 = null;
+		ANI_2 = null;
+		timer = 0.0f;
+	
+	function Init ()
+	{
+		_game = Service_Get("game");
+		_game.currentMusicVol = 0;   // Para evitar que suene la musica del stage
+		Service_Pause(_game);
+		Service_SetVisible(_game, false);
+		Service_Pause(_game.hud);
+		Service_SetVisible(_game.hud, false);
+	
+		scene = Scene_New ("", 50, 50, 50, 0,0,0, 0,0);
+		Scene_SetSize (scene, -10000, -10000, -10000, 10000, 10000, 10000);
+		
+		System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/outro/");
+		
+		actor = Scene_NewActor (scene, "intro", "sprite3D", 0, 0, 0);
+		actor.scene3D = new Scene3D(actor);
+		actor.scene3D.LoadXML ("data/textures/outro/outro.xml");
+		actor.scene3D.SetScale(1);
+		
+		//actor.AddAnimationRange (actor.scene3D.ani_start, actor.scene3D.ani_end);
+		ANI_1 = actor.AddAnimationRange (0, 140, -2);
+		ANI_2 = actor.AddAnimationRange (142, 242, -1);  
+		
+		camera = Scene_CreateCamera (scene, "camera");
+		camera.toSrcX = 0;
+		camera.toSrcY = -1600;
+		camera.toSrcZ = 0;
+		camera.toDstX = 0;
+		camera.toDstY = 0;
+		camera.toDstZ = 0;
+		camera.Fix();
+		
+		//font = Font_Load ("Arial", 0, 30);
+	}
+	
+	function Final ()
+	{
+		Scene_Delete (scene);
+	}
+	
+	function Start ()
+	{
+		actor.SetAnimation (ANI_1);
+		_change ("ani1");
+	}
+
+	state "ani1"
+	{
+		if (actor.GetNumLoops() >= 1)
+		{
+			actor.SetAnimation (ANI_2);
+
+			_game = Service_Get("game");
+			_player = _game.GetPlayer();
+			_game.hud.CloseDialogue();
+			
+			_dlg1 = _game.NewDialogue();
+			_dlg1.AddNPCText (null, "outro_1", "", 1);
+			_dlg1.AddNPCText (_player, "outro_2", "", -1);
+			_dlg1.AddNPCText (null, "outro_3", "", 1);
+			_dlg1.AddNPCText (_player, "outro_4", "", -1);
+			_dlg1.AddNPCCall (this, "OnCredits");
+			_game.ShowDialogue (_dlg1);
+			
+			_change ("ani2");
+		}
+	}
+	
+	state "ani2"
+	{
+	}
+
+	function OnFadeEnd()
+	{
+		Service_Delete(this);
+		_game = Service_Get("game");
+		_game.GotoMenu();
+		g_fade.Off();
+	}
+
+	function OnCredits ()
+	{
+		g_fade.On(this, "OnFadeEnd");
+	}
+
+	function Move ()
+	{
+		Scene_Move (scene);
+	}
+	
+	function Draw ()
+	{
+		Render_SetProperty (RP_ZENABLE, false);
+		Scene_Draw (scene);
+		Render_SetProperty (RP_ZENABLE, true);
+		
+		//Render_Print (font, 10, 10, actor.GetABSFrame(), ARGB(255,255,255,255));
+	}
+}

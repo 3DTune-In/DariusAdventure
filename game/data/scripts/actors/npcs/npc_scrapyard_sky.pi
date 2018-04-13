@@ -1,0 +1,36 @@
+class Actor implements NPC
+{
+	properties:
+		u = 0.0f;
+		
+	virtual Init ()
+	{	
+		StartLoadResources ();
+			
+		Render_SetProperty (RP_TEXADDRU, TA_WRAP);
+		Render_SetProperty (RP_TEXADDRV, TA_WRAP);
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_scrapyard_sky.msh");
+		Render_SetProperty (RP_TEXADDRU, TA_CLAMP);
+		Render_SetProperty (RP_TEXADDRV, TA_CLAMP);
+		                                        
+		EndLoadResources ();
+		
+		name = "npc_scrapyard_sky";
+		useAngles = 0;
+		shadow = false;
+		lighting = false;
+		fogging = false;
+		gravity = false;
+		SetCollisionable (false);
+		priority = PRIORITY_BACKGROUND;
+		
+		Scene_AddStatic (scene, this);
+	}
+	
+	function Move ()
+	{
+		SceneObj_SetMaterialDiffuseTransform (this, 0, 0, u, 0, 0, 0, 0, 0, 1, 1, 1);
+		u += GetFTime() * 0.0001f; 
+	}
+}

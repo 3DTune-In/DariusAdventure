@@ -1,0 +1,102 @@
+class Service
+{
+	properties:
+		frame = null;
+		sndOk = null;
+		sndBack = null;
+		bg = null;
+		bgX = 0.0f;
+		curLangButton = null;
+		haLabel = null;
+	
+	function Init ()
+	{
+		System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/menus/");
+	
+		_frame = UI_CreateFrame("GUI_Frame");
+		_frame.SetBounds (0, 0, RESX, RESY);
+		bg = _frame.CreateImage ("menu_background.jpg", true);
+		_frame.CreateImage ("menu_background_fixed.png");
+		frame = _frame;
+		
+		_button = frame.CreateButton (5, 5, 104, 107);
+		_button.SetNormalTexture ("back_button.png");
+		_button.SetOnClick (this, "OnBack");
+		
+		//_window = _frame.CreateFrame (0, 0, 868, 457);
+		//_window.Center();
+		//_window.CreateImage ("option_window.png");
+		_game = Service_Get("game");
+
+		_player = _game.GetPlayer(); 
+		_w = 528/2;
+		_h = 408/2;
+		for (j=0; j<3; j++)
+		{
+			for (i=0; i<3; i++)
+			{
+    			_card = _frame.CreateButton (110+i*(_w+10), 85+j*(_h+10), _w, _h);
+    			_card.SetFontSize(16);
+    			_cardName = "card_" + string(j*3+i+1);
+				_card.SetNormalTexture ("card.png");
+    			if (!_player.IsCard(_cardName))
+    			{
+    				_card.SetAlpha(100);
+				}
+				else
+				{
+	    			_card.SetText(g_language.GetText(_cardName));
+					_fs = _card.GetFontString();
+	    			_fs.SetBounds(40, 50, _w-150, _h-30);
+	    			_fs.SetTextAlign(DT_LEFT|DT_TOP);
+				}
+			}
+		}
+
+	    _label = _frame.CreateLabel (30, 20, _frame.GetWidth()-60, 100);
+		_label.SetFont (DEFAULT_MENU_FONT, 40);
+		_label.SetTextAlign (DT_CENTER);
+		_font = _label.GetFontObject();
+		_font.EnableEffect(FONT_EFFECT_SHADOW, 2, ARGB(255,0,0,0));
+
+		_label.SetText (g_language.GetText("menu_cards"));
+	
+		System_SetDirectory (DIRECTORY_SOUND, "data/sounds/");
+		sndOk = Sound_Load ("ui_menu_ok.ogg");
+		sndBack = Sound_Load ("ui_menu_back.ogg");
+	}
+	
+	function Final ()
+	{
+		Sound_Delete (sndOk);
+		Sound_Delete (sndBack);
+		delete frame;
+	}
+	
+	function Start ()
+	{
+	}
+
+	function Move ()
+	{
+		bg.SetTexCoordAll (bgX, 0, 1, 1);
+		bgX += GetFTime()*0.001f;
+	}
+	
+	function OnFadeBack()
+	{
+		_game = Service_Get ("game"); 
+		_game.bShowScene = true;
+		Service_Delete (this);
+		Service_Resume(_game);
+		Service_SetVisible(_game.hud, true);
+		g_fade.Off ();
+	}
+	
+	function OnBack (_button)
+	{
+		g_main.PlayFX(sndBack);
+		frame.SetEnabled (false);
+		g_fade.On (this, "OnFadeBack");
+	}
+}

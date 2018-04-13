@@ -1,0 +1,13 @@
+// Abstracta.
+class UI_ParentedObject implements UI_Object
+{
+	function _operator_new(_uisystem)
+	{
+		::_operator_new(_uisystem);
+	}
+
+	function GetParent()
+	{
+		return null;
+	}
+}

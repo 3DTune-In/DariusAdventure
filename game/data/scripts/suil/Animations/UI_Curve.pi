@@ -1,0 +1,115 @@
+class SUI_CurveInterpolation
+{
+	properties:
+		points = []; // DEBEN ESTAR OBLIGATORIAMENTE ORDENADOS EN X
+
+	function _operator_new()
+	{
+		Init();
+	}
+
+	function Init()
+	{
+	}
+
+	function GetXY(_time)
+	{
+		_points = GetPointsInTime(_time);
+		//DebugMsg(_time, _points, sizeof(points));
+		if (sizeof(_points) == 0) return [0, 0];
+
+		_p0 = _points[0];
+		_p1 = _points[1];
+		_p2 = _points[2];
+		_p3 = _points[3];
+		_startX = _p0[0];
+		//_t = _time - _startX;
+		_t = (_time - _p0[0]) / (_p3[0] - _p0[0]);
+
+		_x = BezierPoint(_t, _p0[0], _p1[0], _p2[0], _p3[0]);
+		_y = BezierPoint(_t, _p0[1], _p1[1], _p2[1], _p3[1]);
+		//DebugMsg("time", _time, "t", _t, "y", _y, "x", _x, _p0, _p1, _p2, _p3);
+		return [_x, _y];
+	}
+
+	function BezierPoint(_t, _p1, _p2, _p3, _p4)
+	{
+		return pow(1.0f - _t, 3) * _p1 +
+					 3 * pow(1.0f - _t, 2) * _t * _p2 +
+					 3 * (1.0f - _t) * pow(_t, 2) * _p3 +
+					 pow(_t, 3) * _p4;
+	}
+
+	function GetPointsInTime(_time)
+	{
+		if (_time < 0.0f || _time > 1.0f) return [];
+		for (i = 0; i < sizeof(points); i++)
+		{
+			_p = points[i];
+			if (_time > _p[0]) continue;
+
+			_nextPoint = _p;
+			_prevPoint = _p;
+			if (_time == _p[0] && _time != 1.0f)
+				_nextPoint = points[i + 1];
+			else
+				_prevPoint = points[i - 1];
+			return [[_prevPoint[0], _prevPoint[1]], // Punto anterior
+							 [_prevPoint[3], _prevPoint[4]], // Punto anterior Control StartPoint
+							 [_nextPoint[6], _nextPoint[7]], // Punto siguiente Control EndPoint
+							 [_nextPoint[0], _nextPoint[1]] //  Punto siguiente
+							];
+		}
+		return [];
+	}
+
+	// function LoadFromFile(_fileName)
+	// {
+	// 	_file = File_Open (_fileName, FILE_MODE_READ);
+	// 	if (!_file) return false;
+
+	// 	_buffer = Buffer_New (File_Size(_file));
+	// 	File_Read (_file, _buffer, 0, File_Size(_file));
+	// 	File_Close (_file);
+	// 	_str = Buffer_GetString (_buffer, 0);
+	// 	Buffer_Delete (_buffer);
+
+	// 	_xmlDoc = XML_Open (_str);
+	// 	if (!_xmlDoc) return false;
+
+	// 	// Obtengo el elemento raiz del XML
+	// 	_root = XML_GetRootElement (_xmlDoc);
+
+	// 	_userElement = XML_FirstElement (_root);
+	// 	while (_userElement)
+	// 	{
+	// 		_point = [0, 0];
+	// 		_startPoint = [0, 0];
+	// 		_endPoint = [0, 0];
+	// 		_hasSP = false;
+	// 		_hasEP = false;
+	// 		_attr = XML_FirstAttribute (_userElement);
+	// 		while (_attr)
+	// 		{
+	// 			_aName = XML_GetAttributeName (_attr);
+	// 			_aValue = XML_GetAttributeValue (_attr);
+	// 			switch (_aName)
+	// 			{
+	// 				case "x": _point[0] = float(_aValue); break;
+	// 				case "y": _point[1] = float(_aValue); break;
+	// 				case "hasStartPoint": _hasSP = bool(_aValue); break;
+	// 				case "hasEndPoint": _hasEP = bool(_aValue); break;
+	// 				case "startPointX": _startPoint[0] = float(_aValue); break;
+	// 				case "startPointY": _startPoint[1] = float(_aValue); break;
+	// 				case "endPointX": _endPoint[0] = float(_aValue); break;
+	// 				case "endPointY": _endPoint[1] = float(_aValue); break;
+	// 			}
+	// 			_attr = XML_NextAttribute (_attr);
+	// 		}
+
+	// 		points += [[_point[0], _point[1], _hasSP, _startPoint[0], _startPoint[1], _hasEP, _endPoint[0], _endPoint[1]]];
+	// 		_userElement = XML_NextElement(_userElement);
+	// 	}
+	// 	return true;
+	// }
+}

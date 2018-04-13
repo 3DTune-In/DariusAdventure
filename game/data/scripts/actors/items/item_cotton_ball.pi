@@ -1,0 +1,14 @@
+class Actor implements Item_Unique_Interface
+{
+	virtual Init ()
+	{	
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "item_cotton_ball.msh");
+		
+		EndLoadResources ();
+		
+		name = "item_cotton_ball";
+	}
+}

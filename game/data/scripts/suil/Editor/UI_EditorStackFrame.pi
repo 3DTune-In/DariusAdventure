@@ -1,0 +1,168 @@
+class UI_EditorStackFrame implements UI_Frame
+{
+	properties:
+		editor = null;
+		maxLines = 0;
+		currentLines = 0;
+		lines = [];
+
+		lastFrame = null;
+
+		font = null;
+
+		regionMode = false;
+		showRelativePoint = true;
+
+	function OnInit()
+	{
+		::OnInit();
+
+		uiSystem.HookEvent(UI_SYS_MOUSE_MOVE, this, "OnMouseMove");
+		SetClickThrough(true);
+		DisableDebugRect();
+
+		_tex = CreateTexture("tex2");
+		_tex.DisableDebugRect();
+		_tex.SetTexture(128, 255, 0, 0);
+		_tex.SetPin(UI_PIN_ALL);
+		//tex.SetVertexColor(255, 255, 255);
+		//tex.SetTexture("1.png");
+		_tex.Show();
+
+		editor = GetParent();
+	}
+
+	function OnDestroy()
+	{
+		uiSystem.RemoveEvent(UI_SYS_MOUSE_MOVE, this);
+	}
+
+	function Show()
+	{
+		::Show();
+
+		//_frame = uiSystem.GetFrameOnCursor();
+		_frame = GetFrameOnTop();
+		if (lastFrame == _frame) return;
+		UpdateFrameStack(_frame);
+	}
+
+	function OnMouseMove(_sender, _event, _params)
+	{
+		_frame = GetFrameOnTop();
+		if (lastFrame == _frame) return;
+		UpdateFrameStack(_frame);
+	}
+
+	function GetFrameOnTop()
+	{
+		_frame = null;
+		if (regionMode)
+			_frame = editor.GetRegionOnPoint(Cursor_GetX(), Cursor_GetY());
+		else
+			_frame = uiSystem.GetFrameOnCursor();
+
+		return _frame;
+	}
+
+
+	function UpdateFrameStack(_frame)
+	{
+		lastFrame = _frame;
+		clearLines();
+
+		if (_frame)
+		{
+			do
+			{
+				//if (_frame != editor && !editor.ContainsRegion(_frame))
+				{
+					_txt = "FM: ";
+					if (regionMode) _txt = "RM: ";
+
+					_txt += "(" + _frame + ") " + _frame.GetName();
+					if (regionMode && !_frame._instanceof("UI_Frame")) _txt += " *R*";
+
+					if (showRelativePoint)
+					{
+						lastFrame = null;
+
+						_p = GetCursorPoint();
+						_rp = _frame.PointToClient(_p[0], _p[1]);
+						_txt += "  PT: " + int(_rp[0] + 0.5f) + ", " + int(_rp[1] + 0.5f);
+					}
+
+					addLine(_txt);
+				}
+				_frame = _frame.GetParent();
+			} while (_frame != null);
+		}
+
+		Core_UpdateSizes();
+	}
+
+
+	function addLine(_txt)
+	{
+		//DebugMsg(_txt, currentLines < sizeof(lines), currentLines, sizeof(lines));
+		if (currentLines < sizeof(lines))
+		{
+			lines[currentLines].SetText(_txt);
+			lines[currentLines].SetFontObject(suil_system.GetObject("UI_EditorFont"));
+		}
+		else
+		{
+			_fs = CreateFontString();
+			_fs.DisableDebugRect();
+			_h = 30;
+			_fs.SetSize(uiSystem.GetDesktop().GetWidth(), _h);
+			_fs.SetPosition(0, _h * currentLines);
+			_fs.SetFontObject(suil_system.GetObject("UI_EditorFont"));
+			_fs.SetVertexColor(255, 255, 255);
+			_fs.SetText(_txt);
+			_fs.Show();
+			lines += [_fs];
+		}
+
+		//DebugMsg(_txt);
+
+		currentLines++;
+		maxLines = currentLines;
+	}
+
+	function Core_UpdateSizes()
+	{
+		_h = maxLines * 30;
+		SetBounds(0, 0, uiSystem.GetDesktop().GetWidth(), _h);
+	}
+
+
+	function clearLines()
+	{
+		for (i = 0; i < sizeof(lines); i++)
+		{
+			lines[i].SetText("");
+		}
+
+		maxLines = 0;
+		currentLines = 0;
+		// if (sizeof(lines) > 0)	currentLines = 0;
+		// else currentLines = -1;
+	}
+
+	function SetRegionMode(_mode)
+	{
+		regionMode = _mode;
+		_f = lastFrame;
+		lastFrame = null;
+		UpdateFrameStack(_f);
+	}
+
+	function SetShowRelativePoint(_value)
+	{
+		showRelativePoint = _value;
+		_frame = GetFrameOnTop();
+		UpdateFrameStack(_frame);
+	}
+
+}

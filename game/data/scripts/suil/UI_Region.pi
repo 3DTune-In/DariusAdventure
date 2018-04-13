@@ -1,0 +1,1781 @@
+// Abstracta
+class UI_Region implements UI_ParentedObject//, UI_ILayerElement
+{
+	properties:
+		sprite = null;
+		destroyed = false;
+		userData = null; // Dato que puede asignar el usuario
+
+		owner = null;
+		owned = [];
+		//bounds = [0, 0, 0, 0];
+		pin = UI_PIN_LEFT | UI_PIN_TOP;
+		topMost = false;
+
+		clampedToScreen = false;
+
+		anchors = [];
+		anchoredRegions = [];
+
+		// enabled = true;
+		// selectable = true;
+
+		alpha = 255.0f; // Usamos este alfa para hacer el alfa en herencia
+		parentAlpha = 255.0f; // Memorizamos el parentAlpha para los futuros cambios
+		suil_CanCollide = true;
+
+		//lastScale = 1.0; //
+		//scale = 1.0; // Usamos este alfa para hacer el alfa en herencia
+		//parentScale = 1.0; // Memorizamos el parentAlpha para los futuros cambios
+
+		// Animaciones
+		animations = null;
+		pendingRemovedAnimations = [];
+		processingAnimations = false;
+		animationServiceId = null; // Guardaremos el id que nos de el UI_AnimationService
+      animationStartPoint = null;
+      animationCurrentPoint = null;
+      playingAnimations = [];
+
+
+		// Drag & Drop
+		dragging = false;
+
+// Layers
+		layerId = UI_LAYER_FRAMES;
+		// layer = null;
+		// layerPrevious = null;
+		// layerNext = null;
+
+// Variables de control (No utilizar)
+		//destroyedBySystem = false;
+
+		// RenderTarget
+		rt_validated = false;
+		rt_enabled = false; // Si tenemos el Render Target activo
+		rt_ct = null; // Color Target
+		//rt_dt = null; // Depth Target
+		rt_tex = null; // Textura para el RT
+		rt_extraTexWidth = 0;
+		rt_extraTexHeight = 0;
+		rt_inRenderDraw = false; // Para saber si se ha hecho correctamente el Render_BeginDraw;
+		rt_level1Offset = [0, 0]; // Para guardar los valores de level 1 en la textura
+
+
+	function _operator_new(_uisystem, _name)
+	{
+		::_operator_new(_uisystem);
+
+		sprite = Sprite_New("", uisystem.spriteManager);
+		Sprite_SetProperty(sprite, SPRITE_SETPROPERTY_LOCK, true);
+		Sprite_SetProperty(sprite, SPRITE_NAME, _name);
+		Sprite_SetProperty(sprite, SPRITE_CONTEXT, this);
+		Sprite_SetProperty(sprite, SPRITE_VISIBLE, false);
+		Sprite_SetProperty(sprite, SPRITE_STOP, true);
+		Sprite_SetProperty(sprite, SPRITE_COLLIDE, false);
+		Sprite_SetProperty(sprite, SPRITE_SCALEPOS, true);
+		Sprite_SetProperty(sprite, SPRITE_IGNORE_CAMERA, true);
+
+		Sprite_SetProperty(sprite, SPRITE_DEBUG, true);
+		Sprite_SetProperty(sprite, SPRITE_SETPROPERTY_LOCK, false);
+		//Sprite_SetProperty(sprite, SPRITE_CLIP_CHILDREN, true);
+
+		// animations = new LinkedList();
+		// animationStartPoint = new UI_AnimationPoint();
+		// animationCurrentPoint = new UI_AnimationPoint();
+	}
+
+	function _operator_delete()
+	{
+		destroyed = true;
+		//if (!destroyed) exitMsg("Los controles se deben borrar con la función Destroy()");
+
+		//DebugMsg("SUIL:: Deleting region:", this, " NAME:", GetName());
+		Hide(); // Si es un modal se borra del desktop
+		//StopAnimating();
+		Core_ClearAnimations();
+
+		_children = GetChildren();
+		for (i = sizeof(_children) - 1; i >= 0; i--)
+		{
+			_item = _children[i];
+			if (_item.owner != null && _item.owner != this)
+			{
+				//DebugMsg("ITEM ", NameOrNull(_item), "OWNED BY", NameOrNull(_item.owner), "SIZE", sizeof(_children));
+				_children /= i;
+			}
+		}
+
+		for (i = 0; i < sizeof(_children); i++)
+		{
+			_item = _children[i];
+			//DebugMsg("CHILD ", NameOrNull(_item), "OWNER", _item.owner != null, "CLASS", Class_Id(_item));
+			//if (_item.owner != null) continue;
+			//DebugMsg("DELETING", NameOrNull(_item));
+			if (_item.destroyed)
+				continue;
+
+			delete _item;
+			//DebugMsg("DELETED");
+		}
+
+		_children = owned;
+		for (i = 0; i < sizeof(_children); i++)
+		{
+			_item = _children[i];
+			//DebugMsg("OWNED", NameOrNull(_item));
+			if (_item.destroyed)
+				continue;
+
+			delete _item;
+			//DebugMsg("DELETED OWNED");
+		}
+
+		uiSystem.UnRegisterObject(this);
+
+		// Borramos la mascará
+		SetMask(null);
+
+		SetParent(null);// <-- NO HACER ESTO
+		SetOwner(null);
+
+		if (rt_enabled)
+			ClearRenderTarget();
+
+		Sprite_Delete(sprite);
+		//sprite = null; // Aunque se borre, se debe poder acceder en este frame, ya que si se hace un delete control, en un mouseUp debe poder consultar datos del region (o chechear siempre si sprite == null antes de usarlo)
+
+		Core_DestroyAnimationsVars();
+		//::_operator_delete();
+
+		//DebugMsg("UI_Control Deleted control:", this, " NAME:", GetName());
+	}
+
+	function GetDestroyed()
+	{
+		return destroyed;
+	}
+
+	function SetDebugRectColor(_color)
+	{
+		Sprite_SetProperty(sprite, SPRITE_DEBUG_COLOR, _color);
+	}
+
+	function DisableDebugRect()
+	{
+		Sprite_SetProperty(sprite, SPRITE_DEBUG, false);
+	}
+
+	function EnableDebugRect()
+	{
+		Sprite_SetProperty(sprite, SPRITE_DEBUG, true);
+	}
+
+	function SetName(_name)
+	{
+		Sprite_SetProperty(sprite, SPRITE_NAME, _name);
+	}
+
+	function Show()
+	{
+		Core_SetVisible(true);
+		InvalidateRT();
+	}
+
+	function Hide()
+	{
+		Core_SetVisible(false);
+		InvalidateRT();
+	}
+
+	function EnableClipping(_value)
+	{
+		Sprite_SetProperty(sprite, SPRITE_CLIP_CHILDREN, _value);
+	}
+
+	function Core_SetVisible(_value)
+	{
+		if (sprite == null || _value == Sprite_GetProperty(sprite, SPRITE_VISIBLE)) return;
+		// DebugMsg("VISIBLE", GetName(), _value);
+		// DebugStackTrace();
+
+		Sprite_SetProperty(sprite, SPRITE_VISIBLE, _value);
+		Sprite_SetProperty(sprite, SPRITE_STOP, !_value);
+		//Sprite_SetProperty(sprite, SPRITE_STOP, true);
+		if (suil_CanCollide)
+		{
+			//DebugMsg("COLLIDE true", GetName());
+			Sprite_SetProperty(sprite, SPRITE_COLLIDE, _value);
+		}
+
+		// _top = GetTopParent();
+		// if (_top == this && modal)
+		// {
+		// 	if (_value)
+		// 		desktop.AddModal(this);
+		// 	else
+		// 		desktop.RemoveModal(this);
+		// }
+
+		// Notificamos a los hijos que el padre se ha hecho invisible
+		if (!_value)
+		{
+			Core_ParentVisibleChanged(_value);
+		}
+	}
+
+	function Core_ParentVisibleChanged(_value)
+	{
+		_count = Sprite_GetProperty(sprite, SPRITE_NUM_CHILDS);
+		for (i = 0; i < _count; i++)
+		{
+			_childSprite = Sprite_GetChild(sprite, i);
+			_child = Sprite_GetProperty(_childSprite, SPRITE_CONTEXT);
+			if (_child && _child._instanceof("UI_Region")) _child.Core_ParentVisibleChanged(_value);
+		}
+	}
+
+	// function GetVisible()
+	// {
+	// 	return Sprite_GetProperty(sprite, SPRITE_VISIBLE);
+	// }
+
+	function GetVisible()
+	{
+		_visible = Sprite_GetProperty(sprite, SPRITE_VISIBLE);
+		//DebugMsg("VISIBLE", getName(), _visible);
+		if (!_visible) return false;
+
+		_parent = GetParent();
+		return _parent == null || _parent.GetVisible();
+	}
+
+	function GetVisibleInternal()
+	{
+		return Sprite_GetProperty(sprite, SPRITE_VISIBLE);
+	}
+
+	// Retorna true si está fuera de pantalla o oculto detrás de otro sprite.
+	function IsHidden()
+	{
+		//DebugMsg("Sprite visible", Sprite_CheckVisibility(sprite));
+		return !Sprite_CheckVisibility(sprite);
+	}
+
+	// function SetSelectable(_value)
+	// {
+	// 	selectable = _value;
+	// }
+
+	// function GetSelectable()
+	// {
+	// 	return selectable;
+	// }
+
+	// function GetEnabled()
+	// {
+	// 	if (!enabled) return false;
+
+	// 	_parent = GetParent();
+	// 	return _parent == null || _parent.GetEnabled();
+	// }
+
+	// function CanSelect()
+	// {
+	// 	if (!selectable) return false;
+	// 	return GetVisible() && GetEnabled();
+	// }
+
+	// function SetEnabled(_value)
+	// {
+	// 	if (enabled == _value) return;
+	// 	enabled = _value;
+	// 	Core_CallObservers(UI_EVENT_ENABLE_CHANGED);
+	// }
+
+
+	function GetName()
+	{
+		return Sprite_GetProperty(sprite, SPRITE_NAME);
+	}
+
+	// En caso de que hayan dialogos, esta función debe devolver true en caso de ser seleccionable
+	function Core_CheckDialog()
+	{
+		return false;
+	}
+
+	function IsDragging()
+	{
+		if (dragging) return true;
+		_p = GetParent();
+		if (_p) return _p.IsDragging();
+		return false;
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Points
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function ClampToScreen()
+	{
+		_scale = GetEffectiveScale();
+
+		_x = Sprite_GetProperty (sprite, SPRITE_XF) / _scale;
+ 		_y = Sprite_GetProperty (sprite, SPRITE_YF) / _scale;
+		_w = GetWidth();
+		_h = GetHeight();
+		if (_w > uisystem.desktop.GetWidth()) _w = uisystem.desktop.GetWidth();
+		if (_h > uisystem.desktop.GetHeight()) _h = uisystem.desktop.GetHeight();
+		if (_x < 0) _x = 0;
+		if (_y < 0) _y = 0;
+		if (_x + _w > uisystem.desktop.GetWidth()) _x -= (_x + _w) - uisystem.desktop.GetWidth();
+		if (_y + _h > uisystem.desktop.GetHeight()) _y -= (_y + _h) - uisystem.desktop.GetHeight();
+
+		// DebugMsg(uisystem.desktop.GetWidth(), uisystem.desktop.GetHeight());
+		// DebugMsg(_x, _y, _w, _h);
+		_x -= Sprite_GetProperty (sprite, SPRITE_XF) / _scale;
+		_y -= Sprite_GetProperty (sprite, SPRITE_YF) / _scale;
+		SetBounds(GetLeft() + _x, GetTop() + _y, _w, _h);
+	}
+
+	function SetClampedToScreen(_enable)
+	{
+		clampedToScreen = _enable;
+
+		if (clampedToScreen && GetParent() == uiSystem.desktop)
+		{
+			_x = GetLeft();
+			_y = GetTop();
+			_w = GetWidth();
+			_h = GetHeight();
+			if (_w > uisystem.desktop.GetWidth()) _w = uisystem.desktop.GetWidth();
+			if (_h > uisystem.desktop.GetHeight()) _h = uisystem.desktop.GetHeight();
+			if (_x < 0) _x = 0;
+			if (_y < 0) _y = 0;
+			if (_x + _w > uisystem.desktop.GetWidth()) _x -= (_x + _w) - uisystem.desktop.GetWidth();
+			if (_y + _h > uisystem.desktop.GetHeight()) _y -= (_y + _h) - uisystem.desktop.GetHeight();
+
+			// DebugMsg(uisystem.desktop.GetWidth(), uisystem.desktop.GetHeight());
+			// DebugMsg(_x, _y, _w, _h);
+			SetBounds(_x, _y, _w, _h);
+		}
+	}
+
+	function GetLeft()
+	{
+		return Sprite_GetProperty(sprite, SPRITE_X);
+		//return bounds[0];
+	}
+
+	function GetTop()
+	{
+		return Sprite_GetProperty(sprite, SPRITE_Y);
+		//return bounds[1];
+	}
+
+	function GetWidth()
+	{
+		return Sprite_GetProperty(sprite, SPRITE_W);
+		//return bounds[2];
+	}
+
+	function GetHeight()
+	{
+		return Sprite_GetProperty(sprite, SPRITE_H);
+		//return bounds[3];
+	}
+
+	function GetRight()
+	{
+		return Sprite_GetProperty(sprite, SPRITE_X) + Sprite_GetProperty(sprite, SPRITE_W);
+		//return bounds[0] + bounds[2];
+	}
+
+	function GetBottom()
+	{
+		return Sprite_GetProperty(sprite, SPRITE_Y) + Sprite_GetProperty(sprite, SPRITE_H);
+		//return bounds[1] + bounds[3];
+	}
+
+	function GetBounds()
+	{
+		return [Sprite_GetProperty(sprite, SPRITE_X), Sprite_GetProperty(sprite, SPRITE_Y),
+		 	Sprite_GetProperty(sprite, SPRITE_W), Sprite_GetProperty(sprite, SPRITE_H)];
+		//return [bounds[0], bounds[1], bounds[2], bounds[3]];
+	}
+
+	function GetPosition()
+	{
+		return [Sprite_GetProperty(sprite, SPRITE_X), Sprite_GetProperty(sprite, SPRITE_Y)];
+		//return [bounds[0], bounds[1]];
+	}
+
+	function GetSize()
+	{
+		return [Sprite_GetProperty(sprite, SPRITE_W), Sprite_GetProperty(sprite, SPRITE_H)];
+		//return [bounds[2], bounds[3]];
+	}
+
+	function GetCenter()
+	{
+		return [Sprite_GetProperty(sprite, SPRITE_X) + Sprite_GetProperty(sprite, SPRITE_W) / 2.0f, Sprite_GetProperty(sprite, SPRITE_Y) + Sprite_GetProperty(sprite, SPRITE_H) / 2.0f];
+		//return [bounds[0] + bounds[2] / 2.0f, bounds[1] + bounds[3] / 2.0f];
+	}
+
+	function GetVCenter()
+	{
+		return Sprite_GetProperty(sprite, SPRITE_Y) + Sprite_GetProperty(sprite, SPRITE_H) / 2.0f;
+	}
+
+	function GetHCenter()
+	{
+		return Sprite_GetProperty(sprite, SPRITE_X) + Sprite_GetProperty(sprite, SPRITE_W) / 2.0f;
+	}
+
+	function GetWidth2()
+	{
+		return Sprite_GetProperty(sprite, SPRITE_W) / 2.0f;
+	}
+
+	function GetHeight2()
+	{
+		return Sprite_GetProperty(sprite, SPRITE_H) / 2.0f;
+	}
+
+	function SetLeft(_left)
+	{
+		SetBounds(_left, GetTop(), GetWidth(), GetHeight());
+	}
+
+	function IncLeft(_value, _cutWidth = false)
+	{
+		if (_cutWidth)
+			SetBounds(GetLeft() + _value, GetTop(), GetWidth() - _value, GetHeight());
+		else
+			SetBounds(GetLeft() + _value, GetTop(), GetWidth(), GetHeight());
+	}
+
+	function SetTop(_top)
+	{
+		SetBounds(GetLeft(), _top, GetWidth(), GetHeight());
+	}
+
+	function IncTop(_value, _cutHeight = false)
+	{
+		if (_cutHeight)
+			SetBounds(GetLeft(), GetTop() + _value, GetWidth(), GetHeight() - _value);
+		else
+			SetBounds(GetLeft(), GetTop() + _value, GetWidth(), GetHeight());
+	}
+
+	function IncPosition(_offx, _offy, _cutSize = false)
+	{
+		if (_cutSize)
+			SetBounds(GetLeft() + _offx, GetTop() + _offy, GetWidth() - _offx, GetHeight() - _offy);
+		else
+			SetBounds(GetLeft() + _offx, GetTop() + _offy, GetWidth(), GetHeight());
+	}
+
+	function IncSize(_offx, _offy, _cutPosition = false)
+	{
+		if (_cutPosition)
+			SetBounds(GetLeft() - _offx, GetTop() - _offy, GetWidth() + _offx, GetHeight() + _offy);
+		else
+			SetBounds(GetLeft(), GetTop(), GetWidth() + _offx, GetHeight() + _offy);
+	}
+
+	function IncWidth(_value, _cutLeft = false)
+	{
+		if (_cutLeft)
+			SetBounds(GetLeft() + _value, GetTop(), GetWidth() + _value, GetHeight());
+		else
+			SetBounds(GetLeft(), GetTop(), GetWidth() + _value, GetHeight());
+	}
+
+	function IncHeight(_value, _cutTop = false)
+	{
+		if (_cutTop)
+			SetBounds(GetLeft(), GetTop() + _value, GetWidth(), GetHeight() + _value);
+		else
+			SetBounds(GetLeft(), GetTop(), GetWidth(), GetHeight() + _value);
+	}
+
+	function IncBounds(_offx, _offy, _offw, _offh)
+	{
+		SetBounds(GetLeft() + _offx, GetTop() + _offy, GetWidth() + _offw, GetHeight() + _offh);
+	}
+
+	function SetWidth(_width)
+	{
+		SetBounds(GetLeft(), GetTop(), _width, GetHeight());
+	}
+
+	function SetHeight(_height)
+	{
+		SetBounds(GetLeft(), GetTop(), GetWidth(), _height);
+	}
+
+	function SetPosition(_left, _top)
+	{
+		SetBounds(_left, _top, GetWidth(), GetHeight());
+	}
+
+	function SetSize(_width, _height)
+	{
+		SetBounds(GetLeft(), GetTop(), _width, _height);
+	}
+
+	function CenterToParent()
+	{
+		_parent = GetParent();
+		if (_parent == null) return;
+		SetPosition(_parent.GetWidth2() - GetWidth2(), _parent.GetHeight2() - GetHeight2());
+	}
+
+
+	function SetBounds(_left, _top, _width, _height)
+	{
+		if (clampedToScreen && GetParent() == uiSystem.desktop)
+		{
+			if (_width > uisystem.desktop.GetWidth()) _width = uisystem.desktop.GetWidth();
+			if (_height > uisystem.desktop.GetHeight()) _height = uisystem.desktop.GetHeight();
+			if (_left < 0) _left = 0;
+			if (_top < 0) _top = 0;
+			if (_left + _width > uisystem.desktop.GetWidth()) _left -= _left + _width - uisystem.desktop.GetWidth();
+			if (_top + _height > uisystem.desktop.GetHeight()) _top -= _top + _height - uisystem.desktop.GetHeight();
+		}
+
+		// _posChanged = !(_top == bounds[1] && _left == bounds[0]);
+		//_sizeChanged = !(_width == bounds[2] && _height == bounds[3]);
+		_sizeChanged = !(_width == Sprite_GetProperty(sprite, SPRITE_W) && _height == Sprite_GetProperty(sprite, SPRITE_H));
+		//DebugMsg("CONTROL", GetName(), "SetBounds", _left, _top, _width, _height, "_sizeChanged", _sizeChanged);
+
+#if _UISYS_ALLOW_NEGATIVE_SIZES_
+#else
+		if (_width < 0) _width = 0;
+		if (_height < 0) _height = 0;
+#endif
+
+
+		Sprite_SetProperty(sprite, SPRITE_SETPROPERTY_LOCK, true); // Bloquea la actualización del sprite
+
+		Sprite_SetProperty(sprite, SPRITE_X, _left);
+		Sprite_SetProperty(sprite, SPRITE_Y, _top);
+
+		_oW = _width - Sprite_GetProperty(sprite, SPRITE_W);
+		_oH = _height - Sprite_GetProperty(sprite, SPRITE_H);
+
+		Sprite_SetProperty(sprite, SPRITE_W, _width);
+		Sprite_SetProperty(sprite, SPRITE_H, _height);
+		Sprite_SetProperty(sprite, SPRITE_CW, _width);
+		Sprite_SetProperty(sprite, SPRITE_CH, _height);
+
+		Sprite_SetProperty(sprite, SPRITE_SETPROPERTY_LOCK, false); // Desbloquea la actualización del sprite
+
+		if (rt_enabled)
+		{
+			ClearRenderTarget();
+			CreateRenderTarget();
+		}
+
+
+		if (_sizeChanged)
+		{
+			_count = Sprite_GetProperty(sprite, SPRITE_NUM_CHILDS);
+			for (i = 0; i < _count; i++)
+			{
+				_childSprite = Sprite_GetChild(sprite, i);
+				_child = Sprite_GetProperty(_childSprite, SPRITE_CONTEXT);
+				if (_child && _child._instanceof("UI_Region")) _child.Core_ParentBoundsChanged(0, 0, _oW, _oH);
+			}
+		}
+	}
+
+	function SetBounds(_bounds)
+	{
+		SetBounds(_bounds[0], _bounds[1], _bounds[2], _bounds[3]);
+
+		// Sprite_SetProperty(sprite, SPRITE_X, _bounds[0]);
+		// Sprite_SetProperty(sprite, SPRITE_Y, _bounds[1]);
+		// Sprite_SetProperty(sprite, SPRITE_W, _bounds[2]);
+		// Sprite_SetProperty(sprite, SPRITE_H, _bounds[3]);
+		// Sprite_SetProperty(sprite, SPRITE_CW, _bounds[2]);
+		// Sprite_SetProperty(sprite, SPRITE_CH, _bounds[3]);
+	}
+
+	function UpdateBounds()
+	{
+		//SetBounds(bounds[0], bounds[1], bounds[2], bounds[3]);
+		SetBounds(Sprite_GetProperty(sprite, SPRITE_X), Sprite_GetProperty(sprite, SPRITE_Y), Sprite_GetProperty(sprite, SPRITE_W), Sprite_GetProperty(sprite, SPRITE_H));
+	}
+
+	function Core_ParentBoundsChanged(_xOffset, _yOffset, _wOffset, _hOffset)
+	{
+		//DebugMsg("Core_ParentBoundsChanged", pin, _xOffset, _yOffset, _wOffset, _hOffset);
+		// if (GetName() == "image")
+		// {
+		// 	DebugMsg("Core_ParentBoundsChanged", pin, _xOffset, _yOffset, _wOffset, _hOffset);
+		// }
+		_x = 0;
+		_y = 0;
+		_w = 0;
+		_h = 0;
+
+		if ((pin & UI_PIN_RIGHT) != 0)
+		{
+			if (GetScalePosition())
+				_x = (pin & UI_PIN_LEFT) != 0 ? 0 : _wOffset;
+			_w = (pin & UI_PIN_LEFT) != 0 ? _wOffset : 0;
+		}
+		else if ((pin & UI_PIN_LEFT) == 0)
+		{
+			if (GetScalePosition())
+				_x = _wOffset / 2;
+		}
+
+		if ((pin & UI_PIN_BOTTOM) != 0)
+		{
+			if (GetScalePosition())
+				_y = (pin & UI_PIN_TOP) != 0 ? 0 : _hOffset;
+			_h = (pin & UI_PIN_TOP) != 0 ? _hOffset : 0;
+		}
+		else if ((pin & UI_PIN_TOP) == 0)
+		{
+			if (GetScalePosition())
+				_y = _hOffset / 2;
+		}
+
+		if (_x != 0 || _y != 0 || _w != 0 || _h != 0)
+		{
+			_lastX = Sprite_GetProperty(sprite, SPRITE_X);
+			_lastY = Sprite_GetProperty(sprite, SPRITE_Y);
+			_lastW = Sprite_GetProperty(sprite, SPRITE_W);
+			_lastH = Sprite_GetProperty(sprite, SPRITE_H);
+			// _lastX = Sprite_GetProperty(sprite, SPRITE_X);
+			// _lastY = Sprite_GetProperty(sprite, SPRITE_Y);
+			// _lastW = Sprite_GetProperty(sprite, SPRITE_W);
+			// _lastH = Sprite_GetProperty(sprite, SPRITE_H);
+			SetBounds(_lastX + _x, _lastY + _y, _lastW + _w, _lastH + _h);
+		}
+	}
+
+	function PointToClient(_x, _y)
+	{
+		_scale = GetEffectiveScale();
+		_xf = Sprite_GetProperty (sprite, SPRITE_XF) / _scale;
+ 		_yf = Sprite_GetProperty (sprite, SPRITE_YF) / _scale;
+		return [_x - _xf, _y - _yf];
+	}
+
+	function PointToScreen(_x, _y)
+	{
+		_scale = GetEffectiveScale();
+		_xf = Sprite_GetProperty (sprite, SPRITE_XF) / _scale;
+ 		_yf = Sprite_GetProperty (sprite, SPRITE_YF) / _scale;
+		return [_x + _xf, _y + _yf];
+	}
+
+	// las posiciones _x, _y son relativas al frame
+	function CursorInRect(_x, _y, _w, _h)
+	{
+		_p = PointToClient(Cursor_GetX(), Cursor_GetY());
+		return PointInRect(_p[0], _p[1], _x, _y, _w, _h);
+	}
+
+	function GetCursorPoint()
+	{
+		_scale = GetEffectiveScale();
+		return [Cursor_GetX() / _scale, Cursor_GetY() / _scale];
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Anchors
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function SetPin(_pinId)
+	{
+		pin = _pinId;
+	}
+
+	function AddPin(_pinId)
+	{
+		pin = pin | _pinId;
+	}
+
+	function RemovePin(_pinId)
+	{
+		pin = pin & ~(_pinId);
+	}
+
+	function HasPin(_pinId)
+	{
+		return (pin & _pinId) == _pinId;
+	}
+
+	function PinToBounds()
+	{
+		_p = GetParent();
+		if (!_p) return;
+
+		SetBounds(0, 0, _p.GetWidth(), _p.GetHeight());
+		SetPin(UI_PIN_ALL);
+	}
+
+	function ClearPin()
+	{
+		pin = 0;
+	}
+
+
+
+	// function ClearAllPoints()
+	// {
+	// 	anchors = [];
+	// }
+
+	// function GetNumPoints()
+	// {
+	// 	return sizeof(anchors);
+	// }
+
+	// function SetAllPoints(_region = null)
+	// {
+	// 	if (_region == null)	_region = GetParent();
+
+	// 	_region = Core_ObjectReq(_region);
+	// 	if (!_region) exitMsg("No se encuentra el objeto.");
+
+	// 	ClearAllPoints();
+	// 	SetPoint(UI_POINT_LEFTTOP, _region, UI_POINT_LEFTTOP, 0, 0);
+	// 	SetPoint(UI_POINT_RIGHTBOTTOM, _region, UI_POINT_RIGHTBOTTOM, 0, 0);
+	// }
+
+	// function GetPoint(_index)
+	// {
+	// 	return anchors[_index];
+	// }
+
+	// function SetPoint(_pointId, _relativeTo = null, _relativePointId = UI_POINT_LEFTTOP, _xOffSet = 0, _yOffset = 0)
+	// {
+	// 	_relRegion = null;
+	// 	_parent = GetParent();
+	// 	if (!_parent) exitMsg("No se encuentra el objeto padre.");
+
+	// 	if (_relativeTo == null) _relRegion = _parent;
+	// 	else _relRegion = Core_ObjectReq(_relativeTo);
+	// 	if (!_relRegion) exitMsg("No se encuentra el objeto.");
+
+	// 	_ptl = _parent.PointToScreen(0, 0);
+	// 	_pbr = _parent.PointToScreen(_parent.GetWidth(), _parent.GetHeight());
+	// 	_parentPoint = [_ptl[0], _ptl[1], _pbr[0], _pbr[1]];
+	// 	// _ptl = _relRegion.PointToScreen(0, 0);
+	// 	// _pbr = _relRegion.PointToScreen(_relRegion.GetWidth(), _relRegion.GetHeight());
+	// 	// _relPoint = [_ptl[0], _ptl[1], _pbr[0], _pbr[1]];
+	// 	// _dp = [_relPoint[0] - _parentPoint[0], _relPoint[1] - _parentPoint[1]];
+	// 	_relPoint = _relativeTo.Core_GetScreenPoint(_relativePointId, _xOffset, _yOffset);
+	// 	if ((_pointId & UI_POINT_LEFT) == UI_POINT_LEFT)
+	// 	{
+	// 		//SetLeft(_dp[0] - _xOffset);
+	// 		//AddPin(UI_PIN_LEFT, _relRegion);
+	// 	}
+	// 	if ((_pointId & UI_POINT_TOP) == UI_POINT_TOP)
+	// 	{
+
+	// 	}
+	// 	if ((_pointId & UI_POINT_RIGHT) == UI_POINT_RIGHT)
+	// 	{
+
+	// 	}
+	// 	if ((_pointId & UI_POINT_BOTTOM) == UI_POINT_BOTTOM)
+	// 	{
+
+	// 	}
+	// 	if ((_pointId & UI_POINT_CENTER) == UI_POINT_CENTER)
+	// 	{
+	// 		//AddPin(UI_PIN_ALL, _relRegion);
+	// 	}
+	// 	//anchors += [[_anchorId, _relativeTo, _relativeAnchorId, _xOffSet, _yOffset]];
+	// }
+
+	// function Core_GetScreenPoint(_pointId, _xOffset = 0, _yOffset = 0)
+	// {
+	// 	_ptl = PointToScreen(0, 0);
+	// 	// _x = 0;
+	// 	// _y = 0;
+	// 	_x = _pbl[0] + GetWidth() / 2.0f;
+	// 	_y = _pbl[1] + GetHeight() / 2.0f;
+	// 	if ((_pointId & UI_POINT_LEFT) == UI_POINT_LEFT)
+	// 	{
+	// 		_x = _ptl[0];
+	// 	}
+	// 	if ((_pointId & UI_POINT_TOP) == UI_POINT_TOP)
+	// 	{
+	// 		_y = _ptl[1];
+	// 	}
+	// 	if ((_pointId & UI_POINT_RIGHT) == UI_POINT_RIGHT)
+	// 	{
+	// 		_x = _pbl[0] + GetWidth();
+	// 	}
+	// 	if ((_pointId & UI_POINT_BOTTOM) == UI_POINT_BOTTOM)
+	// 	{
+	// 		_y = _pbl[1] + GetHeight();
+	// 	}
+	// 	// if ((_pointId & UI_POINT_CENTER) == UI_POINT_CENTER)
+	// 	// {
+	// 	// }
+	// 	return [_x + _xOffset, _y + _yOffset];
+	// }
+
+	// function Core_GetFinalPoints(_xOffset, _yOffset, _wOffset, _hOffset)
+	// {
+	// 	_x = 0;
+	// 	_y = 0;
+	// 	_w = 0;
+	// 	_h = 0;
+
+	// 	if ((pin & UI_PIN_RIGHT) == UI_PIN_RIGHT)
+	// 	{
+	// 		_x = (pin & UI_PIN_LEFT) != 0 ? 0 : _wOffset;
+	// 		_w = (pin & UI_PIN_LEFT) != 0 ? _wOffset : 0;
+	// 	}
+	// 	else if ((pin & UI_PIN_LEFT) != UI_PIN_LEFT)
+	// 	{
+	// 		_x = _wOffset / 2;
+	// 	}
+
+	// 	if ((pin & UI_PIN_BOTTOM) == UI_PIN_BOTTOM)
+	// 	{
+	// 		_y = (pin & UI_PIN_TOP) != 0 ? 0 : _hOffset;
+	// 		_h = (pin & UI_PIN_TOP) != 0 ? _hOffset : 0;
+	// 	}
+	// 	else if ((pin & UI_PIN_TOP) != UI_PIN_TOP)
+	// 	{
+	// 		_y = _hOffset / 2;
+	// 	}
+
+	// 	return [_x, _y, _w, _h];
+	// }
+
+// isDragging = Region:IsDragging() - Returns whether the region is currently being dragged
+// isOver = Region:IsMouseOver([topOffset [, leftOffset [, bottomOffset [, rightOffset]]]]) - Returns whether the mouse cursor is over the given region
+// Region:SetParent(frame) or Region:SetParent("name") - Makes another frame the parent of this region
+
+	function GetAlpha()
+	{
+		return alpha;
+	}
+
+	function GetEffectiveAlpha()
+	{
+		_pctg = parentAlpha / 255.0f;
+		return alpha * _pctg;
+	}
+
+	function SetAlpha(_value)
+	{
+		//DebugMsg("SET ALPHA", _value);
+		//DebugStackTrace();
+		alpha = _value;
+		Core_SetAlphaAndNotify(parentAlpha);
+
+		InvalidateRT();
+
+		// Test
+		//Sprite_SetProperty(sprite, SPRITE_COLOR, Color_SetA(Sprite_GetProperty(sprite, SPRITE_COLOR), alpha));
+	}
+
+	function Core_SetAlphaAndNotify(_parentAlpha)
+	{
+		_pctg = _parentAlpha / 255.0f;
+		_realAlpha = alpha * _pctg;
+		_colorAlpha = _pctg * _realAlpha;
+
+		Sprite_SetProperty(sprite, SPRITE_COLOR, Color_SetA(Sprite_GetProperty(sprite, SPRITE_COLOR), _colorAlpha));
+
+		parentAlpha = _parentAlpha;
+
+		_count = Sprite_GetProperty(sprite, SPRITE_NUM_CHILDS);
+		for (i = 0; i < _count; i++)
+		{
+			_childSprite = Sprite_GetChild(sprite, i);
+			_child = Sprite_GetProperty(_childSprite, SPRITE_CONTEXT);
+			if (_child && _child._instanceof("UI_Region"))  _child.Core_SetAlphaAndNotify(_realAlpha);
+		}
+	}
+
+	function EnableDraw(_value, _flag = 1)
+	{
+		if (_value) Sprite_SetDrawFunction (sprite, this, "Draw", _flag);
+		else Sprite_SetDrawFunction (sprite, null, null, 0);
+	}
+
+	function EnableMove(_value)
+	{
+		if (_value) Sprite_SetMoveFunction (sprite, this, "Move");
+		else Sprite_SetMoveFunction (sprite, null, null);
+	}
+
+	function EnableExternalMove(_context, _func)
+	{
+		Sprite_SetMoveFunction (sprite, _context, _func);
+	}
+
+	function EnableExternalDraw(_context, _func, _flags = 1)
+	{
+		Sprite_SetDrawFunction (sprite, _context, _func, _flags);
+	}
+
+	function GetScale()
+	{
+		//return scale;
+		return Sprite_GetProperty(sprite, SPRITE_SCALE);
+	}
+
+	function GetEffectiveScale()
+	{
+		//return scale * parentScale;
+		return Sprite_GetProperty(sprite, SPRITE_SXF);
+	}
+
+	function SetScale(_value)
+	{
+		// scale = _value;
+		// Core_SetScaleAndNotify(parentScale);
+		Sprite_SetProperty(sprite, SPRITE_SCALE, _value);
+		Core_ParentScaleChanged();
+	}
+
+	function SetRawScale(_value)
+	{
+		Sprite_SetProperty(sprite, SPRITE_SCALE, _value);
+	}
+
+	function EnableScalePosition()
+	{
+		Sprite_SetProperty(sprite, SPRITE_SCALEPOS, true);
+	}
+
+	function DisableScalePosition()
+	{
+		Sprite_SetProperty(sprite, SPRITE_SCALEPOS, false);
+	}
+
+	function GetScalePosition()
+	{
+		return Sprite_GetProperty(sprite, SPRITE_SCALEPOS);
+	}
+
+	function Core_ParentScaleChanged()
+	{
+		_count = Sprite_GetProperty(sprite, SPRITE_NUM_CHILDS);
+		for (i = 0; i < _count; i++)
+		{
+			_childSprite = Sprite_GetChild(sprite, i);
+			_child = Sprite_GetProperty(_childSprite, SPRITE_CONTEXT);
+			if (_child && _child._instanceof("UI_Region"))  _child.Core_ParentScaleChanged();
+		}
+	}
+
+	function SetScalePivot(_x, _y)
+	{
+		Sprite_SetProperty(sprite, SPRITE_SCALEPX, _x);
+		Sprite_SetProperty(sprite, SPRITE_SCALEPY, _y);
+	}
+
+	function SetScalePivotX(_x)
+	{
+		Sprite_SetProperty(sprite, SPRITE_SCALEPX, _x);
+	}
+
+	function SetScalePivotY(_y)
+	{
+		Sprite_SetProperty(sprite, SPRITE_SCALEPY, _y);
+	}
+
+	function GetScalePivot()
+	{
+		return [Sprite_GetProperty(sprite, SPRITE_SCALEPX), Sprite_GetProperty(sprite, SPRITE_SCALEPY)];
+	}
+
+	function GetScalePivotX()
+	{
+		return Sprite_GetProperty(sprite, SPRITE_SCALEPX);
+	}
+
+	function GetScalePivotY()
+	{
+		return Sprite_GetProperty(sprite, SPRITE_SCALEPY);
+	}
+
+	function SetUserData(_data)
+	{
+		userData = _data;
+	}
+
+	function GetUserData()
+	{
+		return userData;
+	}
+
+
+
+	// function UpdateScale()
+	// {
+	// 	Core_SetScaleAndNotify(parentScale);
+	// }
+
+	// function Core_SetScaleAndNotify(_parentScale)
+	// {
+	// 	_realScale = scale * _parentScale;
+	// 	parentScale = _parentScale;
+
+	// 	// _pivot = Core_GetPivotPointFromPin();
+	// 	// _b = Core_ScaleRect(bounds, _realScale, _pivot[0], _pivot[1]);
+	// 	// SetBounds(_b);
+	// 	UpdateBounds();
+
+	// 	_count = Sprite_GetProperty(sprite, SPRITE_NUM_CHILDS);
+	// 	for (i = 0; i < _count; i++)
+	// 	{
+	// 		_childSprite = Sprite_GetChild(sprite, i);
+	// 		_child = Sprite_GetProperty(_childSprite, SPRITE_CONTEXT);
+	// 		if (_child && _child._instanceof("UI_Region"))  _child.Core_SetScaleAndNotify(_realScale);
+	// 	}
+	// }
+
+	// function Core_ScalePoint(_x, _y, _scaleX, _scaleY, _pivotX = 0, _pivotY = 0)
+	// {
+	// 	return [((_x - _pivotX) * _scaleX) + _pivotX, ((_y - _pivotY) * _scaleY) + _pivotY];
+	// }
+
+	// function Core_ScalePoint(_p, _scale, _pivot)
+	// {
+	// 	return ((_p - _pivot) * _scale) + _pivot;
+	// }
+
+	// function Core_ScaleRect(_b, _scale, _pivotX, _pivotY)
+	// {
+	// 	return Core_ScaleRect(_b[0], _b[1], _b[2], _b[3], _scale, _pivotX, _pivotY);
+	// }
+
+	// function Core_ScaleRect(_x, _y, _w, _h, _scale, _pivotX, _pivotY)
+	// {
+	// 	_xs = Core_ScalePoint(_x, _scale, _pivotX);
+	// 	_ys = Core_ScalePoint(_y, _scale, _pivotY);
+	// 	_ws = Core_ScalePoint(_x + _w, _scale, _pivotX);
+	// 	_hs = Core_ScalePoint(_y + _h, _scale, _pivotY);
+	// 	return [_xs, _ys, _ws - _xs, _hs - _ys];
+	// }
+
+	// function Core_GetPivotPointFromPin()
+	// {
+	// 	_x = bounds[0] + bounds[2] / 2.0;
+	// 	_y = bounds[1] + bounds[3] / 2.0;
+	// 	if ((pin & UI_PIN_LEFT) == UI_PIN_LEFT && (pin & UI_PIN_RIGHT) != UI_PIN_RIGHT) _x = bounds[0];
+	// 	else if ((pin & UI_PIN_LEFT) != UI_PIN_LEFT && (pin & UI_PIN_RIGHT) == UI_PIN_RIGHT) _x = bounds[0] + bounds[2];
+
+	// 	if ((pin & UI_PIN_TOP) == UI_PIN_TOP && (pin & UI_PIN_BOTTOM) != UI_PIN_BOTTOM) _y = bounds[1];
+	// 	else if ((pin & UI_PIN_TOP) != UI_PIN_TOP && (pin & UI_PIN_BOTTOM) == UI_PIN_BOTTOM) _y = bounds[1] + bounds[3];
+
+	// 	DebugMsg(GetName(), bounds, "PIVOT", _x, _y, "PIN", pin, "TOPLEFT", UI_PIN_LEFTTOP);
+	// 	return [_x, _y];
+	// }
+
+	// function Core_CalculateBoundsForScale(_scale)
+	// {
+	// 	_nb = [bounds[0] * _scale, bounds[1] * _scale, bounds[2] * _scale, bounds[3] * _scale];
+	// 	//_diff = [_nb[0] - bounds[0], _nb[1] - bounds[1], _nb[2] - bounds[2], _nb[3] - bounds[3]];
+
+	// 	_x = 0;
+	// 	_y = 0;
+	// 	_w = 0;
+	// 	_h = 0;
+	// 	if ((pin & UI_POINT_BOTTOM))
+	// 	{
+	// 		//_x
+	// 	}
+
+	// 	return [bounds[0] + _x, bounds[1] + _y, bounds[2] + _w, bounds[3] + _h];
+	// }
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Visual
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function SetMask(_texture)
+	{
+		// DebugMSg("SPRITE_AUTORELEASE_TEXTURES", Sprite_GetProperty(sprite, SPRITE_AUTORELEASE_TEXTURES), Sprite_GetProperty(sprite, SPRITE_TEXTURE_MASK), _texture);
+		if (!Sprite_GetProperty(sprite, SPRITE_AUTORELEASE_TEXTURES))
+		{
+			_oldTex = Sprite_GetProperty(sprite, SPRITE_TEXTURE_MASK);
+			if (_oldTex)
+				Texture_Delete(_oldTex);
+		}
+
+		_tex = null;
+		if (typeof(_texture) == TYPE_STRING)
+		{
+			_lastMipMap = Render_GetProperty (RP_MIPMAPPING);
+			Render_SetProperty (RP_MIPMAPPING, false);
+			_tex = Texture_Load(_texture);
+			Render_SetProperty (RP_MIPMAPPING, _lastMipMap);
+			//DebugMsg("1", _texture);
+		}
+		else _tex = _texture;
+
+		Sprite_SetProperty (sprite, SPRITE_TEXTURE_MASK, _tex);
+//		EnableMask(_tex == true);
+	}
+
+	function EnableMask(_value, _broadcastChildren = false)
+	{
+		Sprite_SetProperty (sprite, SPRITE_ENABLE_TEXTURE_MASK, _value);
+
+		if (_broadcastChildren)
+		{
+			_count = Sprite_GetProperty(sprite, SPRITE_NUM_CHILDS);
+			for (i = 0; i < _count; i++)
+			{
+				_childSprite = Sprite_GetChild(sprite, i);
+				_child = Sprite_GetProperty(_childSprite, SPRITE_CONTEXT);
+				if (_child && _child._instanceof("UI_Region"))
+					_child.EnableMask(_value, _broadcastChildren);
+			}
+		}
+	}
+
+	function AreAllTexturesLoaded(_askToChildren = true)
+	{
+		if (!Core_AreAllTexturesLoaded())
+			return false;
+
+		if (_askToChildren)
+		{
+			_count = Sprite_GetProperty(sprite, SPRITE_NUM_CHILDS);
+			for (i = 0; i < _count; i++)
+			{
+				_childSprite = Sprite_GetChild(sprite, i);
+				_child = Sprite_GetProperty(_childSprite, SPRITE_CONTEXT);
+				if (_child && _child._instanceof("UI_Region"))
+				{
+					_res = _child.AreAllTexturesLoaded();
+					if (!_res)
+						return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
+	function Core_AreAllTexturesLoaded()
+	{
+		for (i = 0; i < Sprite_GetProperty(sprite, SPRITE_NUM_FRAMES); i++)
+		{
+			_tex = Sprite_GetFrameProperty(sprite, i, SPRITE_TEX);
+			if (_tex && !Texture_IsLoaded(_tex))
+				return false;
+		}
+		return true;
+	}
+
+
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Controles
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function SetParent(_parent)
+	{
+		_oldParent = GetParent();
+		if (_oldParent) _oldParent.Core_RemoveChild(this);
+
+		if (!destroyed)
+		{
+			if (_parent == null) _parent = uisystem.desktop;
+			_parent.Core_AddChild(this);
+		}
+	}
+
+	function Core_AddChild(_region)
+	{
+		Sprite_AddChild(sprite, _region.sprite);
+		InvalidateRT(true);
+
+		// _scale = GetEffectiveScale();
+		// if (_scale != 1)
+		// {
+		// 	//DebugMsg(GetName(), "AddChild", _region.GetName());
+		// 	_region.Core_SetScaleAndNotify(_scale);
+		// }
+	}
+
+	function Core_RemoveChild(_region)
+	{
+		Sprite_RemoveChild(sprite, _region.sprite);
+		InvalidateRT(true);
+		//if (_region.owner == this) _region.SetOwner(null);
+	}
+
+	function SetOwner(_owner)
+	{
+		if (owner)
+		{
+			owner.owned -= [this];
+			owner = null;
+		}
+
+		//DebugMsg("SETOWNER", GetName(), " OWNER:", NameOrNull(_owner));
+		owner = _owner;
+		if (owner)
+			owner.owned += [this];
+	}
+
+	function GetChildren()
+	{
+		_list = [];
+		_count = Sprite_GetProperty(sprite, SPRITE_NUM_CHILDS);
+		for (i = 0; i < _count; i++)
+		{
+			_childSprite = Sprite_GetChild(sprite, i);
+			_child = Sprite_GetProperty(_childSprite, SPRITE_CONTEXT);
+			if (_child && _child._instanceof("UI_Region")) _list += [_child];
+		}
+		return _list;
+	}
+
+	function GetControlByName(_name)
+	{
+		_count = Sprite_GetProperty(sprite, SPRITE_NUM_CHILDS);
+		for (i = 0; i < _count; i++)
+		{
+			_childSprite = Sprite_GetChild(sprite, i);
+			_child = Sprite_GetProperty(_childSprite, SPRITE_CONTEXT);
+			if (_child && _child._instanceof("UI_Region") && _child.GetName() == _name) return _child;
+		}
+		return null;
+	}
+
+	function GetChildrenCount(_onlyUIControl = false)
+	{
+		if (_onlyUIControl)
+		{
+			_valid = 0;
+			_count = Sprite_GetProperty(sprite, SPRITE_NUM_CHILDS);
+			for (i = 0; i < _count; i++)
+			{
+				_childSprite = Sprite_GetChild(sprite, i);
+				_child = Sprite_GetProperty(_childSprite, SPRITE_CONTEXT);
+				if (_child && _child._instanceof("UI_Region")) _valid++;
+			}
+
+			return _valid;
+		}
+		return Sprite_GetProperty(sprite, SPRITE_NUM_CHILDS);
+	}
+
+	function GetParent()
+	{
+		if (!sprite) return null;
+
+		_parentSprite = Sprite_GetProperty(sprite, SPRITE_PARENT);
+		if (!_parentSprite) return null;
+		return Sprite_GetProperty(_parentSprite, SPRITE_CONTEXT);
+	}
+
+	function SetTopMost(_value)
+	{
+		if (topMost == _value) return;
+		topMost = _value;
+
+		_p = GetParent();
+		if (_p)
+		{
+			_p.BringToFront(this);
+		}
+	}
+
+	function GetTopMost()
+	{
+		return topMost;
+	}
+
+	function GetRegionIndex()
+	{
+		_p = GetParent();
+		if (!_p) return -1;
+
+		_count = Sprite_GetProperty(_p.sprite, SPRITE_NUM_CHILDS);
+		for (i = 0; i < _count; i++)
+		{
+			_childSprite = Sprite_GetChild(_p.sprite, i);
+			if (_childSprite == sprite) return i;
+		}
+		return -1;
+	}
+
+	function GetPreviousRegion()
+	{
+		_ix = GetRegionIndex();
+		if (_ix < 0) return null;
+
+		_ix--;
+		if (_ix < 0) return null;
+		_p = GetParent();
+		_childSprite = Sprite_GetChild(_p.sprite, _ix);
+		return Sprite_GetProperty(_childSprite, SPRITE_CONTEXT);
+	}
+
+	function GetNextRegion()
+	{
+		_ix = GetRegionIndex();
+		if (_ix < 0) return null;
+
+		_ix++;
+		_p = GetParent();
+		_count = Sprite_GetProperty(_p.sprite, SPRITE_NUM_CHILDS);
+		if (_ix >= _count) return null;
+		_childSprite = Sprite_GetChild(_p.sprite, _ix);
+		return Sprite_GetProperty(_childSprite, SPRITE_CONTEXT);
+	}
+
+	function ContainsRegion(_ctl)
+	{
+		while (_ctl != null)
+		{
+	    _ctl = _ctl.GetParent();
+	    if (_ctl == null) return false;
+	    if (_ctl == this) return true;
+		}
+		return false;
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Animaciones
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	// function GetAnimationGroups()
+	// {
+	// 	_animationGroups = [];
+	// 	_animationId = animations.firstItem;
+	// 	while (_animationId)
+	// 	{
+	// 		_animationGroup = _animationId.userData;
+	// 		if (_animationGroup) _animationGroups += [_animationGroup];
+	// 		_animationId = _animationId.nextItem;
+	// 	}
+	// 	return _animationGroups;
+	// }
+
+
+	function Core_CreateAnimationsVars()
+	{
+		if (animations == null)
+		{
+			animations = new LinkedList();
+			animationStartPoint = new UI_AnimationPoint();
+			animationCurrentPoint = new UI_AnimationPoint();
+		}
+	}
+
+	function Core_DestroyAnimationsVars()
+	{
+		if (animations)
+		{
+			delete animations;
+			delete animationStartPoint;
+			delete animationCurrentPoint;
+			animations = null;
+			animationStartPoint = null;
+			animationCurrentPoint = null;
+		}
+	}
+
+
+	function CreateAnimationGroup(_name = null)
+	{
+		Core_CreateAnimationsVars();
+
+		_ag = new UI_AnimationGroup(uisystem, this, _name);
+		uiSystem.RegisterObject(_ag);
+
+		_animationId = new LinkedListItem();
+		_ag.animationId = _animationId;
+		_animationId.userData = _ag;
+		animations.Add(_animationId);
+
+		return _ag;
+	}
+
+	function GetAnimationGroupCount()
+	{
+		if (animations == null)
+			return 0;
+
+		return animations.Count();
+	}
+
+	function GetAnimationGroupIndex(_ix)
+	{
+		if (animations == null)
+			return null;
+
+		i = 0;
+		_animationId = animations.firstItem;
+		while (i < _ix)
+		{
+			i++;
+			_animationId = _animationId.nextItem;
+			if (_animationId == null) return null;
+		}
+		if (_animationId)	return _animationId.userData;
+		return null;
+	}
+
+	function Core_RemoveAnimationGroup(_animation)
+	{
+		//animationGroups -= [_animation];
+		_animationId = _animation.animationId;
+		_animation.animationId = null;
+		if (processingAnimations)
+		{
+			// Durante el update no borramos las linkItem, simplemente borramos la animacion del item
+			//DebugMsg("IS PROCESSING ANIM");
+			pendingRemovedAnimations += [_animationId];
+			_animationId.userData = null;
+		}
+		else
+		{
+			//DebugMsg("NOT PROCESSING ANIM");
+			// Si no estamos haciendo el update podemos borrar sin problemas
+			animations.Remove(_animationId);
+			delete _animationId;
+		}
+
+		if (GetAnimationGroupCount() == 0)
+			Core_DestroyAnimationsVars();
+	}
+
+	function StopAnimating()
+	{
+		if (animations == null)
+			return;
+
+		_animationId = animations.firstItem;
+		while (_animationId)
+		{
+			_nextAnimationId = _animationId.nextItem;
+
+			_animationGroup = _animationId.userData;
+			if (_animationGroup) _animationGroup.Stop();
+			//delete _animationId;
+			_animationId = _nextAnimationId;
+		}
+
+		Core_RemovePendingAnimations();
+	}
+
+	function Core_DoAnimationUpdate()
+	{
+		if (animations == null)
+			return;
+
+		animationCurrentPoint.Clear();
+
+		processingAnimations = true;
+		_animationId = animations.firstItem;
+		_agFinished = [];
+		while (_animationId)
+		{
+			_animationGroup = _animationId.userData;
+			if (_animationGroup)
+			{
+			   animationCurrentPoint.x += _animationGroup.initialOffset[0];
+			   animationCurrentPoint.y += _animationGroup.initialOffset[1];
+				if (_animationGroup.Core_DoUpdate())
+					_agFinished += [_animationGroup];
+				//DebugMsg("animationCurrentPoint", animationCurrentPoint.x);
+				//animationCurrentPoint.Apply(this, animationStartPoint);
+			}
+
+			_animationId = _animationId.nextItem;
+		}
+		processingAnimations = false;
+
+		animationCurrentPoint.Apply(this, animationStartPoint);
+		for (i = 0; i < sizeof(_agFinished); i++)
+		{
+			_agFinished[i].Core_FinishAnimation(false);
+		}
+
+		//DebugMsg("animationStartPoint", animationStartPoint.x, animationCurrentPoint.x);
+
+		Core_RemovePendingAnimations();
+	}
+
+	// function Core_ApplyAnimation()
+	// {
+	// 	animationCurrentPoint.Apply(this, animationStartPoint);
+	// }
+
+	function Core_RemovePendingAnimations()
+	{
+		if (animations == null)
+			return;
+
+		for (i = 0; i < sizeof(pendingRemovedAnimations); i++)
+		{
+			_animationId = pendingRemovedAnimations[i];
+			animations.Remove(_animationId);
+			delete _animationId;
+		}
+
+		pendingRemovedAnimations = [];
+	}
+
+	function Core_PlayAnimation(_animation)
+	{
+		if (!sizeof(playingAnimations))
+		{
+			uisystem.animationService.Register(this);
+			animationStartPoint.Init(this);
+			animationCurrentPoint.Clear();
+		}
+
+		playingAnimations += [_animation];
+	}
+
+	function Core_StopAnimation(_animation)
+	{
+		playingAnimations -= [_animation];
+
+		if (!sizeof(playingAnimations))
+		{
+			//animationCurrentPoint.Clear();
+			uisystem.animationService.Unregister(this);
+		}
+	}
+
+	function Core_ClearAnimations()
+	{
+		if (animations == null)
+			return;
+
+		_animationId = animations.firstItem;
+		while (_animationId)
+		{
+			_nextAnimationId = _animationId.nextItem;
+
+			_animationGroup = _animationId.userData;
+			if (_animationGroup) delete _animationGroup;
+			//delete _animationId;
+			_animationId = _nextAnimationId;
+		}
+	}
+
+// // *******************************************************************************************************************************************************
+// // *******************************************************************************************************************************************************
+// // SECTION: UI_ILayeredElement
+// // *******************************************************************************************************************************************************
+// // *******************************************************************************************************************************************************
+
+// 	function GetLayer(_layerManager)
+// 	{
+// 		return null;
+// 	}
+
+// 	function GetLayerPrevious(_layerManager)
+// 	{
+// 		return null;
+// 	}
+
+// 	function GetLayerNext(_layerManager)
+// 	{
+// 		return null;
+// 	}
+
+// 	function SetLayer(_layerManager, _layer)
+// 	{
+// 	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: XML
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function Core_LoadFromTemplate(_xmlElement)
+	{
+		return true;
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Depuración
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function Debug_PrintParentRegions()
+	{
+		Core_Debug_PrintParentRegions(this, "");
+	}
+
+	function Core_Debug_PrintParentRegions(_region, _tabs)
+	{
+		if (_region == null) return;
+
+		_name = _region.GetName();
+		DebugLog(_tabs, "Ptr:", _region, "Name", _name == null || _name == "" || _name == "0" ? "-null-": _name);
+		if (_region._instanceof("UI_Region"))
+		{
+			_parent = _region.GetParent();
+			Core_Debug_PrintParentRegions(_parent, _tabs + "   ");
+		}
+	}
+
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Render Target
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function InvalidateRT(_forceParentInvalidate = false)
+	{
+		if (destroyed)
+			return;
+
+		if (rt_enabled)
+		{
+			if (rt_validated)
+				rt_validated = false; // Se invalida y se avisa al padre
+			else if (!_forceParentInvalidate) // Si ya estaba invalidado no se llama a los padres a menos que lo forcemos
+				return;
+		}
+
+		_parent = GetParent();
+		if (_parent)
+			_parent.InvalidateRT(_forceParentInvalidate);
+	}
+
+	function EnableRenderTarget(_value, _extraTexW = 0, _extraTexH = 0)
+	{
+		if (rt_enabled == _value)
+			return;
+
+		rt_enabled = _value;
+
+		ClearRenderTarget();
+		if (_value)
+		{
+			rt_validated = false;
+			rt_extraTexWidth = _extraTexW;
+			rt_extraTexHeight = _extraTexH;
+			CreateRenderTarget();
+
+			Sprite_SetDrawFunction (sprite, this, "DrawRT", 1 | 4);
+			Sprite_SetProperty (sprite, SPRITE_DRAW_CHILDREN, false);
+		}
+		else
+		{
+			Sprite_SetProperty (sprite, SPRITE_DRAW_CHILDREN, true);
+			Sprite_SetDrawFunction (sprite, null, null, 0);
+		}
+	}
+
+	function CreateRenderTarget()
+	{
+		InvalidateRT();
+		_w = GetWidth() + rt_extraTexWidth;
+		_h = GetHeight() + rt_extraTexHeight;
+		if (_w == 0 || _h == 0)
+			return false;
+
+		rt_ct = Render_NewColorTarget(_w, _h, RF_ARGB);
+		rt_tex = Render_GetTargetTex(rt_ct);
+		return true;
+	}
+
+	function ClearRenderTarget()
+	{
+		if (rt_ct)
+		{
+			Render_DeleteTarget(rt_ct);
+			rt_ct = null;
+			rt_tex = null;
+		}
+	}
+
+	function DrawRT(_sprite, _x, _y, _w, _h, _level)
+	{
+		if (!rt_tex)
+			return;
+
+		if (rt_validated)
+		{
+			if (_level == 2)
+				return;
+
+			// Pintamos la textura cacheada
+			Render_DrawTex(rt_tex, _x - rt_extraTexWidth / 2, _y - rt_extraTexHeight / 2, GetWidth() + rt_extraTexWidth, GetHeight() + rt_extraTexHeight, 0, ARGB(255,255,255,255));
+		}
+		else
+		{
+			// Pintamos los hijos a la textura
+			if (_level == 0)
+			{
+			 	Render_Flush(false, false, true);
+				Sprite_SetProperty (sprite, SPRITE_DRAW_CHILDREN, true);
+			 	Render_SetTarget(rt_ct, null);//rt_dt);
+		     	_color = Render_GetProperty(RP_CLEAR_COLOR);
+     			Render_ClearBuffers (true, false/*true DEPTH*/, false, Color_SetA(_color, 0), 1, 0);
+				SpriteManager_SetProperty(uiSystem.spriteManager, SPRITEMANAGER_DRAW_X, -((Sprite_GetProperty(sprite, SPRITE_XF) - rt_extraTexWidth / 2)));
+				SpriteManager_SetProperty(uiSystem.spriteManager, SPRITEMANAGER_DRAW_Y, -((Sprite_GetProperty(sprite, SPRITE_YF) - rt_extraTexHeight / 2)));
+			 	rt_level1Offset = [SpriteManager_GetProperty(uiSystem.spriteManager, SPRITEMANAGER_DRAW_X), SpriteManager_GetProperty(uiSystem.spriteManager, SPRITEMANAGER_DRAW_Y)];
+			}
+			else if (_level == 2)
+			{
+				Render_Flush(false, false, true);
+				Render_RestoreTarget();
+				SpriteManager_SetProperty(uiSystem.spriteManager, SPRITEMANAGER_DRAW_X, SpriteManager_GetProperty(uiSystem.spriteManager, SPRITEMANAGER_DRAW_X) - rt_level1Offset[0]);
+				SpriteManager_SetProperty(uiSystem.spriteManager, SPRITEMANAGER_DRAW_Y, SpriteManager_GetProperty(uiSystem.spriteManager, SPRITEMANAGER_DRAW_Y) - rt_level1Offset[1]);
+				Sprite_SetProperty(sprite, SPRITE_DRAW_CHILDREN, false);
+				rt_validated = true;
+
+				Render_DrawTex(rt_tex, _x - rt_extraTexWidth / 2 - rt_level1Offset[0], _y - rt_extraTexHeight / 2 - rt_level1Offset[1], GetWidth() + rt_extraTexWidth, GetHeight() + rt_extraTexHeight, 0, ARGB(255,255,255,255));
+			}
+		}
+	}
+
+
+	// Para trabajar en texturas con rendertargets y poder asignar a sprite el rt_tex. Mirar SetRenderTargetTexture() en UI_Texture
+	function BeginRenderTarget()
+	{
+		if (rt_ct)
+		{
+			Render_SetTarget(rt_ct, null);
+			Render_BeginDraw();
+			Render_ClearBuffers (true, true, false, 0, 1, 0);
+		}
+	}
+
+	function EndRenderTarget()
+	{
+		if (rt_ct)
+		{
+			Render_EndDraw();
+			Render_RestoreTarget();
+		}
+	}
+}

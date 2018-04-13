@@ -1,0 +1,262 @@
+class UI_Desktop implements UI_Frame
+{
+	properties:
+		//dialogsCount = 0;
+		dialogsNeedUpdate = true;
+		hasDialogCache = false;
+		dialogStrataLevel = UI_STRATA_DIALOG; // Solo entre UI_STRATA_DIALOG y UI_STRATA_FULLSCREEN_DIALOG (incluidos)
+
+	function _operator_new(_uisystem, _name)
+	{
+		::_operator_new(_uisystem, _name);
+	}
+
+	function _operator_delete()
+	{
+		::_operator_delete();
+	}
+
+
+	function OnInit()
+	{
+		::OnInit();
+		SetBounds(0, 0, Render_GetResX(), Render_GetResY());
+	}
+
+	function SetSelectable(_value)
+	{
+		// Si activamos el forceValidInputTarget siempre tendremos el foco en el desktop si no está en otra parte
+		if (uiSystem.forceValidInputTarget) _value = true;
+		::SetSelectable(_value);
+	}
+
+
+	function Core_AddChild(_region)
+	{
+		::Core_AddChild(_region);
+
+		dialogsNeedUpdate = true;
+		// if (_region.IsObjectType("UI_Frame"))
+		// {
+		// 	if (_region.GetVisible() && _region.strataId == UI_STRATA_DIALOG) dialogsCount++;
+		// }
+		//DebugMsg("ADD", _region.strataId, dialogsCount);
+	}
+
+	function Core_RemoveChild(_region)
+	{
+		dialogsNeedUpdate = true;
+		//if (_region.IsObjectType("UI_Frame") && _region.GetVisible() && _region.strataId == UI_STRATA_DIALOG) dialogsCount--;
+		//DebugMsg("REMOVE", _region.strataId, dialogsCount);
+		::Core_RemoveChild(_region);
+	}
+
+	function Core_ForceDialogUpdate()
+	{
+		dialogsNeedUpdate = true;
+	}
+
+	function Core_ChangeStrata(_frame, _oldStrata)
+	{
+		dialogsNeedUpdate = true;
+		// if (_frame.GetVisible())
+		// {
+		// 	if (_oldStrata == UI_STRATA_DIALOG) dialogsCount--;
+		// 	if (_frame.strataId == UI_STRATA_DIALOG) dialogsCount++;
+		// 	//DebugMsg("CHANGE", _frame.strataId, dialogsCount);
+		// }
+		BringToFront(_frame);
+	}
+
+	function HasDialogs()
+	{
+		if (dialogsNeedUpdate)
+		{
+			dialogsNeedUpdate = false;
+			hasDialogCache = false;
+			dialogStrataLevel = UI_STRATA_DIALOG;
+			_count = Sprite_GetProperty(sprite, SPRITE_NUM_CHILDS);
+			for (i = 0; i < _count; i++)
+			{
+				_childSprite = Sprite_GetChild(sprite, i);
+				_child = Sprite_GetProperty(_childSprite, SPRITE_CONTEXT);
+				if (_child && _child._instanceof("UI_Frame") && (_child.strataId >= UI_STRATA_DIALOG && _child.strataId <= UI_STRATA_FULLSCREEN_DIALOG) && _child.GetVisibleInternal())
+				{
+					//DebugMsg("DIALOG VISIBLE", _child);
+					hasDialogCache = true;
+					//break;
+					if (_child.strataId > dialogStrataLevel)
+						dialogStrataLevel = _child.strataId;
+				}
+			}
+		}
+		return hasDialogCache;
+		//return dialogsCount > 0;
+	}
+
+	function SendToBack(_region)
+	{
+		if (_region.IsObjectType("UI_Frame"))
+		{
+			if (_region.GetParent() != this) return;
+
+			Core_ResetMultiAddOptimization(_region);
+			/*
+			_other = Core_GetBottomFrameInLayer(_region.layerId, _region.strataId, _region.topMost, _region);
+			Core_MoveChild(_region, _other, false);
+			*/
+			Core_MoveBottomFrameInLayer(_region);
+		}
+		else ::SendToBack(_region);
+	}
+
+	function BringToFront(_region)
+	{
+		if (_region.IsObjectType("UI_Frame"))
+		{
+			if (_region.GetParent() != this) return;
+
+			Core_ResetMultiAddOptimization(_region);
+			_other = Core_GetTopFrameInLayer(_region.layerId, _region.strataId, _region.topMost, _region);
+			Core_MoveChild(_region, _other, _other != null);
+		}
+		else ::BringToFront(_region);
+	}
+
+	function OptimizedBringToFront(_region)
+	{
+		if (_region.IsObjectType("UI_Frame"))
+		{
+			if (_region.GetParent() != this) return;
+
+			_other = null;
+			_ix = _region.topMost ? 1 : 0;
+
+			_above = true;
+			_findOther = true;
+			if (useMultiAddOptimization)
+			{
+				if (_region.topMost == 0 && optLastAddedByLayer[_region.layerId][1] != null)
+				{
+					_other = optLastAddedByLayer[_region.layerId][1];
+					_above = false;
+					_findOther = false;
+				}
+				else if (optLastAddedByLayer[_region.layerId][_ix] != null)
+				{
+					_other = optLastAddedByLayer[_region.layerId][_ix];
+					_above = _other != null;
+					_findOther = false;
+				}
+			}
+
+			if (_findOther)
+			{
+				_other = Core_GetTopFrameInLayer(_region.layerId, _region.strataId, _region.topMost, _region);
+				_above = _other != null;
+			}
+
+
+			if (useMultiAddOptimization)
+			{
+				optLastAddedByLayer[_region.layerId][_ix] = _region;
+			}
+			Core_MoveChild(_region, _other, _above);
+		}
+		else ::OptimizedBringToFront(_region);
+	}
+
+	function Core_GetTopFrameInLayer(_layerId, _strataId, _includeTopMost = false, _exclude = null)
+	{
+		//DebugMsg("Core_GetTopFrameInLayer layer:", _layerId, "strata", _strataId, "_includeTopMost", _includeTopMost, "_exclude", _exclude);
+		_lastRegion = null;
+		_count = Sprite_GetProperty(sprite, SPRITE_NUM_CHILDS);
+		for (i = 0; i < _count; i++)
+		{
+			_child = Sprite_GetProperty(Sprite_GetChild(sprite, i), SPRITE_CONTEXT);
+			if (_child == _exclude) continue;
+			if (_child.layerId > _layerId) break;
+			if (_child.layerId == _layerId && _child.strataId > _strataId) break;
+			if (_child.layerId == _layerId && _child.strataId == _strataId && !_includeTopMost && _child.topMost) break;
+			//if (_child.layerId == _layerId && !_includeTopMost && _child.topMost) break;
+			_lastRegion = _child;
+		}
+		//DebugMsg(_lastRegion != null ? _lastRegion.GetName() : "NULL");
+		return _lastRegion;
+	}
+
+	function Core_MoveBottomFrameInLayer(_region)
+	{
+		_layerId = _region.layerId;
+		_strataId = _region.strataId;
+		_includeTopMost = _region.topMost;
+
+		_lastRegion = null;
+		_count = Sprite_GetProperty(sprite, SPRITE_NUM_CHILDS);
+		for (i = _count - 1; i >= 0; i--)
+		{
+			_child = Sprite_GetProperty(Sprite_GetChild(sprite, i), SPRITE_CONTEXT);
+			if (!_child || !_child._instanceof("UI_Region")) continue;
+			if (!_child._instanceof("UI_Frame"))
+			{
+				// Ya no tenemos más frames
+				if (_lastRegion)
+					Core_MoveChild(_region, _lastRegion, false);
+
+				return;
+			}
+
+			if (_child == _region) continue;
+
+			//DebugMsg("CHILD", _child.GetObjectType(), "(" + _child.GetName() + ")",  _child.layerId, _child.topMost);
+			if (_child.layerId > _layerId || _child.strataId > _strataId)
+			{
+				_lastRegion = _child;
+				continue;
+			}
+
+			if (_includeTopMost && !_child.topMost)
+			{
+				// Si no hay ninguno NO lo podemos mover porque tiene que ser el primero
+				if (_lastRegion != null)
+					Core_MoveChild(_region, _lastRegion, false);
+				return;
+			}
+			else
+			{
+				if (_child.layerId < _layerId || _child.strataId < _strataId)
+				{
+					// Si no hay ninguno NO lo podemos mover porque tiene que ser el primero
+					if (_lastRegion)
+						Core_MoveChild(_region, _lastRegion, false);
+
+					return;
+				}
+			}
+
+			_lastRegion = _child;
+		}
+
+		Core_MoveChild(_region, _lastRegion, false);
+	}
+
+/*
+	function Core_GetBottomFrameInLayer(_layerId, _strataId, _includeTopMost = false, _exclude = null)
+	{
+		_lastRegion = null;
+		_count = Sprite_GetProperty(sprite, SPRITE_NUM_CHILDS);
+		for (i = _count - 1; i >= 0; i--)
+		{
+			_child = Sprite_GetProperty(Sprite_GetChild(sprite, i), SPRITE_CONTEXT);
+			if (_child.layerId > _layerId) continue;
+			if (_child.strataId > _strataId) continue;
+			if (_includeTopMost && !_child.topMost) break;
+			_lastRegion = _child;
+			if (_child.layerId < _layerId) break;
+			if (_child.strataId < _strataId) break;
+		}
+		return _lastRegion;
+	}
+*/
+}
+

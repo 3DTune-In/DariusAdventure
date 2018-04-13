@@ -1,0 +1,75 @@
+class Actor implements Item
+{
+	properties:
+		tutoTex = null;
+		tutoAngle = 0.0f;
+		
+	virtual Init ()
+	{	
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "item_hearing_aid.msh");
+		
+		EndLoadResources ();
+
+		name = "item_hearing_aid";
+		shadow = true;
+
+		tutoTex = Scene_LoadTexture (scene, "tutorial/tutorial03.png");
+		
+		sclX = 0.5f;
+		sclY = sclX;
+		sclZ = sclX;
+	}
+
+	virtual Final ()
+	{
+	}
+	
+	virtual Start ()
+	{
+		_player = game.GetPlayer();
+		if (!_player.HasHearingAid() && !game.IsItemInInventory(name))  // En el inventario o puesto en la oreja
+		{
+			SetVisible(true);
+			SetEnabled (true);
+		}
+		else
+		{
+			SetEnabled(false);
+			SetVisible(false);
+		}	
+	}	
+	
+	virtual Draw ()
+	{
+		if (!game.IsItemUsed("npc_scrapyard_door") && !game.hud.IsInventoryOpen())
+		{
+			_d = Actor_Distance(this, game.GetPlayer());
+			if (_d > 1000.0f)
+				return;
+			_pos = Convert3DTo2D(posX, posY, posZ);
+			_d = ((1000.0f - _d) / 1000.0f);
+			_w = 442 * _d;
+			_h = 150 * _d;
+			Render_DrawTex(tutoTex, _pos[0]-_w/2, _pos[1]-_h*2 + cos(tutoAngle)*20.0f, _w, _h, 0, -1);
+			tutoAngle += GetFTIme() * 0.2f;
+		}
+	}
+	
+	virtual OnCursorClick()
+	{
+		if (enabled)
+		{
+			_player = game.GetPlayer();
+			_player.TaskDone("pickup_hearing_aid");
+			if (_player.GetState() < 1)
+			{
+				_player.AddTask("put_hearing_aid");
+			}
+			game.hud.OpenPlayerTID ("player_item_hearing_aid_1");
+			_player.AddInventory (this);
+		}
+	}
+}

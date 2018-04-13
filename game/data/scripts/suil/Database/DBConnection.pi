@@ -1,0 +1,291 @@
+/*
+-- Listar todas las tablas de una bdd
+SELECT * FROM main.sqlite_master where type = 'table' and name not like ("sqlite_%");
+-- Listar todas las columnas de una tabla
+pragma table_info(clientes);
+
+-- Pasar de fecha 27/01/2013 a fecha válida 2013-01-27 en sql
+update App_EFECTO_CLI set fecha = substr(Fecha,7,4) || '-' || substr(Fecha,4,2) || '-' || substr(Fecha,1,2)
+y para pasar a timestamp una vez en fecha válida
+update App_EFECTO_CLI set fecha = strftime("%s", Fecha, 'localtime')
+
+-- Duplicar tablas
+http://stackoverflow.com/questions/12730390/copy-table-structure-to-new-table-in-sqlite3
+http://stackoverflow.com/questions/426495/how-do-you-rename-a-table-in-sqlite-3-0
+http://stackoverflow.com/questions/4291165/sqlite-copy-data-from-one-table-to-another
+http://www.techonthenet.com/sql/tables/create_table2.php
+
+-- Truncar tablas
+delete from table_name;
+delete from sqlite_sequence where name='table_name' COLLATE NOCASE;
+*/
+
+class DBConnection
+{
+	properties:
+		sqlite = null;
+		statement = null;
+		database = ""; //database.sqlite";
+
+		currentRowPtr = -1;
+		cacheRowCount = -1;
+
+	function _operator_new()
+	{
+	}
+
+	function _operator_delete()
+	{
+		CloseStatement();
+		if (sqlite) SQLite_Close(sqlite);
+	}
+
+	function Init(_database)
+	{
+		database = _database;
+		sqlite = SQLite_Open(database);
+		return sqlite != null;
+	}
+
+	function CloseStatement()
+	{
+		if (!sqlite) return;
+
+		//DebugMsg("THIS", this, "Close statement");
+		if (statement) SQLITE_EndQuery(statement);
+		statement = null;
+	}
+
+	function Load(_SQL)
+	{
+		if (!sqlite) return false;
+
+		if (statement) CloseStatement();
+		DebugMsg("Load SQL:", _SQL);
+		statement = SQLITE_StartQuery(sqlite, _SQL);
+		if (statement)
+		{
+			currentRowPtr = -1;
+			cacheRowCount = -1;
+		}
+		//DebugMsg("Load SQLITE:", sqlite, "Statement:", statement, "ERROR", GetLastError(), "SQL:", _SQL);
+		return statement != null;
+	}
+
+	function MoveNextRow()
+	{
+		if (!sqlite) return false;
+		if (!statement) return false;
+		_res = SQLITE_NextQuery(statement);
+		if (_res) currentRowPtr++;
+		return _res;
+	}
+
+	function ResetPointer()
+	{
+		if (!sqlite) return;
+
+		SQLite_ResetQuery(statement);
+		currentRowPtr = -1;
+	}
+
+	function MovePointer(_toRowIndex)
+	{
+		if (!sqlite) return;
+		if (!statement) return;
+		if (currentRowPtr == _toRowIndex) return;
+		else if (currentRowPtr > _toRowIndex) ResetPointer();
+
+		for (i = currentRowPtr; i < _toRowIndex; i++)
+		{
+			if (!MoveNextRow()) return;
+		}
+	}
+
+	function Get(_rowIndex, _columnName)
+	{
+		if (!sqlite) return null;
+		if (!statement) return null;
+
+		MovePointer(_rowIndex);
+
+		_ix = FindColumn(_columnName);
+
+		DebugAssert(_ix != -1);
+		// if (_ix == -1)
+		// {
+		// 	exitMsg("Column Name: " + _columnName + " not found");
+		// 	return null;
+		// }
+
+		return SQLITE_GetColValue(statement, _ix);
+	}
+
+	function GetCol(_columnIndex)
+	{
+		if (!sqlite) return null;
+		if (!statement) return null;
+		//DebugMSg("index", _columnIndex, "ptr", currentRowPtr);
+		return SQLITE_GetColValue(statement, _columnIndex);
+	}
+
+	function FindColumn(_columnName)
+	{
+		if (!sqlite) return -1;
+
+		for (i = 0; i < SQLITE_GetNumCols(statement); i++)
+		{
+			if (SQLITE_GetColName(statement, i) == _columnName) return i;
+		}
+
+		return -1;
+	}
+
+	function Get(_columnName)
+	{
+		if (!sqlite) return null;
+		if (!statement) return null;
+		if (currentRowPtr < 0) return null;
+		_index = FindColumn(_columnName);
+		DebugAssert(_index != -1);
+		// if (_index == -1)
+		// {
+		// 	exitMsg("Column Name: " + _columnName + " not found");
+		// 	return null;
+		// }
+		return SQLITE_GetColValue(statement, _index);
+	}
+
+	function GetRowCount()
+	{
+		if (!sqlite) return 0;
+		if (!statement) return 0;
+		if (cacheRowCount >= 0) return cacheRowCount;
+		//ResetPointer();
+		//_old = currentRowPtr;
+		cacheRowCount = 0;
+		while (SQLITE_NextQuery(statement))
+			cacheRowCount++;
+
+		SQLite_ResetQuery(statement);
+		return cacheRowCount;
+	}
+
+	function Exec(_sql)
+	{
+		if (!sqlite) return false;
+
+		DebugMsg("EXEC:", _sql);
+		return SQLITE_Query(sqlite, _sql) == 0;
+	}
+
+	function GetLastId(_tableName)
+	{
+		if (!sqlite) return -1;
+
+		_sql = "SELECT seq from sqlite_sequence where name = '" + _tableName + "' COLLATE NOCASE"; // el collate nocase es para que sea case insensitive ya que las tablas están en mayusculas y minusculas
+		Load(_sql);
+		_res = SQLITE_NextQuery(statement);
+		if (!_res) return -1;
+		return int(SQLITE_GetColValue(statement, 0));
+	}
+
+	function GetMax(_tableName, _columnName)
+	{
+		if (!sqlite) return 0;
+
+		_sql = "SELECT MAX(" + _columnName + ") from " + _tableName;
+		Load(_sql);
+		_res = SQLITE_NextQuery(statement);
+		if (!_res) return 0;
+		return int(SQLITE_GetColValue(statement, 0));
+	}
+
+	function GetCount(_tableName)
+	{
+		if (!sqlite) return 0;
+
+		_sql = "SELECT COUNT(0) from " + _tableName;
+		Load(_sql);
+		_res = SQLITE_NextQuery(statement);
+		if (!_res) return 0;
+		return int(SQLITE_GetColValue(statement, 0));
+	}
+
+	function Delete(_table, _id, _onlyMark = false)
+	{
+		if (_onlyMark)
+		{
+			return Exec("UPDATE " + _table + " SET deleted = 1 WHERE ID = " + _id);
+		}
+		return Exec("DELETE FROM " + _table + " WHERE ID = " + _id);
+	}
+
+	function DeleteByCol(_table, _col, _id, _onlyMark = false)
+	{
+		if (_onlyMark)
+		{
+			return Exec("UPDATE " + _table + " SET deleted = 1 WHERE " + _col + " = " + _id);
+		}
+
+		return Exec("DELETE FROM " + _table + " WHERE " + _col + " = " + _id);
+	}
+
+	function BeginTrans()
+	{
+		if (!sqlite) return false;
+
+		return SQLITE_Query(sqlite, "BEGIN TRANSACTION;");
+	}
+
+	function Commit()
+	{
+		if (!sqlite) return false;
+
+		return SQLITE_Query(sqlite, "COMMIT");
+	}
+
+	function Rollback()
+	{
+		if (!sqlite) return false;
+
+		return SQLITE_Query(sqlite, "ROLLBACK");
+	}
+
+	function GetLastError()
+	{
+		if (!sqlite) return "";
+
+		return SQLite_GetLastError(sqlite);
+	}
+
+	function TruncateTable(_table)
+	{
+		_result = Exec("DELETE FROM " + _table);
+		if (_result) _result = Exec("DELETE FROM sqlite_sequence WHERE name='" + _table + "' COLLATE NOCASE");
+		return _result;
+	}
+
+	function StoreTable(_table)
+	{
+		if (!sqlite) return false;
+
+		for (i = 0; i < _table.GetRowCount(); i++)
+		{
+			_sql = _table.GetSQLOfRow(i);
+			if (_sql == null) continue;
+
+			_res = Exec(_sql);
+			if (!_res)
+			{
+				DebugMsg("Error in last SQL execution:", GetLastError());
+				return false;
+			}
+		}
+		return true;
+	}
+
+
+// int SQLITE_Query (SQLITE *handle, String queryStr)
+// List SQLITE_GetRow (SQLITE *stat)
+}

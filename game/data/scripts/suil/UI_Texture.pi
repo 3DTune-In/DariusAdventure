@@ -1,0 +1,371 @@
+class UI_Texture implements UI_InternalRegion
+{
+	properties:
+		useSolid = false;
+		autoReleaseTextures = true;
+
+		internetTexturePending = 0;
+		loadWithCache = true;
+
+		texAddr = [TA_CLAMP, TA_CLAMP]; // U, V
+
+	function _operator_new(_uisystem, _name)
+	{
+		::_operator_new(_uisystem, _name);
+		Sprite_SetProperty(sprite, SPRITE_ANISPEED, 0);
+		Sprite_SetProperty(sprite, SPRITE_AUTORELEASE_TEXTURES, autoReleaseTextures);
+
+		//SetAlpha(255);
+	}
+
+	function _operator_delete()
+	{
+		if (internetTexturePending)
+		{
+			_textureService = Service_Get("UI_InternetTextureService");
+			if (_textureService) _textureService.DeleteTextureQuery(this);
+		}
+
+		::_operator_delete();
+	}
+
+	function SetAutoReleaseTextures(_value)
+	{
+		autoReleaseTextures = _value;
+		Sprite_SetProperty(sprite, SPRITE_AUTORELEASE_TEXTURES, autoReleaseTextures);
+	}
+
+	function GetAutoReleaseTextures()
+	{
+		return autoReleaseTextures;
+	}
+
+	// function AreAllTexturesLoaded()
+	// {
+	// 	for (i = 0; i < Sprite_GetProperty(sprite, SPRITE_NUM_FRAMES); i++)
+	// 	{
+	// 		_tex = Sprite_GetFrameProperty(sprite, i, SPRITE_TEX);
+	// 		if (_tex && !Texture_IsLoaded(_tex))
+	// 			return false;
+	// 	}
+	// 	return true;
+	// }
+
+	function SetTextureLoadWithCache(_value)
+	{
+		loadWithCache = _value;
+	}
+
+
+	function SetTexture(_fileName, _ox = 0, _oy = 0)
+	{
+		_lastMipMap = Render_GetProperty (RP_MIPMAPPING);
+		_lastTexAddrU = Render_GetProperty(RP_TEXADDRU);
+		_lastTexAddrV = Render_GetProperty(RP_TEXADDRV);
+		Render_SetProperty (RP_TEXADDRV, texAddr[1]);
+		Render_SetProperty (RP_MIPMAPPING, false);
+		Render_SetProperty (RP_TEXADDRU, texAddr[0]);
+		Render_SetProperty (RP_TEXADDRV, texAddr[1]);
+		_flags = 0;
+		_texture = Texture_Load(_fileName, loadWithCache);
+		Render_SetProperty (RP_MIPMAPPING, _lastMipMap);
+		Render_SetProperty (RP_TEXADDRU, _lastTexAddrU);
+		Render_SetProperty (RP_TEXADDRV, _lastTexAddrV);
+		SetTexturePtr(_texture, _ox, _oy);
+	}
+
+	function SetTexturePtr(_texture, _ox = 0, _oy = 0)
+	{
+		if (_texture)
+		{
+			_bounds = GetBounds();
+			Sprite_AddFrame(sprite, _texture, _ox, _oy);
+			SetBounds(_bounds);
+			// if (_changeAnimationFrames)
+			// {
+			// 	SetAnimation(0, Sprite_GetProperty(sprite, SPRITE_NUM_FRAMES) - 1);
+			// }
+		}
+
+		useSolid = false;
+		EnableDraw(false);
+
+		InvalidateRT();
+	}
+
+	function SetUrlTexture(_url)
+	{
+		_textureService = Service_Get("UI_InternetTextureService");
+		if (_textureService == null) _textureService = Service_Run("UI_InternetTextureService", "UI_InternetTextureService");
+
+		internetTexturePending++;
+		return _textureService.QueryTexture(this, _url);
+	}
+
+	// Se parseará el ifl y se establecerá casa textura en cada frame.
+	// Las texturas deben estar en la misma carpeta que el ifl, sino establecer _textureFolder diferente a null con la ruta de las carpetas (Terminado en /)
+	function SetIFLTexture(_ifl, _textureFolder = null, _createAnimationsForFrames = true, _speedForAnimation = 1)
+	{
+		_split = Path_Split(_ifl);
+		_file = File_Open(_ifl, FILE_MODE_READ);
+		if (_file == null)
+		{
+			DebugMsg("IFL", _ifl, "not found.");
+			return;
+		}
+
+		if (_textureFolder == null)
+			_textureFolder = _split[0] + _split[1];
+
+		_l = "";
+		do
+		{
+			_l = File_ReadText(_file);
+			_arrStr = String_ToArray(_l, " ");
+
+			if(_l != "")
+			{
+				_isEvent = String_FindStr(Array_GetItem(_arrStr, 0), "@event") == 1;
+				_isEndfix = String_FindStr(Array_GetItem(_arrStr, 0), "@endfix") == 1;
+				if (!_isEvent && !_isEndfix)
+				{
+					_numOfFrames = int(Array_GetItem(_arrStr, 1));
+					for(i=0;i<_numOfFrames;i++)
+					{
+						_texture = _textureFolder + Array_GetItem(_arrStr, 0);
+						SetTexture(_texture);
+					}
+				}
+			}
+
+			Array_Delete(_arrStr);
+		}	while(_l != "\0");
+
+		File_Close(_file);
+
+		if (_createAnimationsForFrames)
+			SetAnimationForFrames(_speedForAnimation);
+	}
+
+
+	function OnInternetTextureReceived(_nlktex)
+	{
+		internetTexturePending--;
+		ClearFrames();
+		SetTexturePtr(_nlktex);
+	}
+
+	function SetTexture(_a, _r, _g, _b)
+	{
+		SetAlpha(_a);
+		SetVertexColor(_r, _g, _b);
+
+		useSolid = true;
+		EnableDraw(true, 1);
+
+		InvalidateRT();
+	}
+
+	function SetTextureColor(_color)
+	{
+		SetAlpha(Color_GetA(_color));
+		SetVertexColor(Color_GetR(_color), Color_GetG(_color), Color_GetB(_color));
+
+		useSolid = true;
+		EnableDraw(true, 1);
+
+		InvalidateRT();
+	}
+
+	// Para asignar el rendertarget como textura al sprite
+	function SetRenderTargetTexture()
+	{
+		ClearFrames();
+		if (CreateRenderTarget())
+		{
+			SetTexturePtr (rt_tex);
+			SetAutoReleaseTextures(false);
+		}
+	}
+
+	// function SetVerticalGradient(_fromColor, _toColor)
+	// {
+	// 	SetAlpha(Color_GetA(_color));
+	// 	SetVertexColor(Color_GetR(_color), Color_GetG(_color), Color_GetB(_color));
+
+	// 	useSolid = true;
+	// 	EnableDraw(true, 1);
+	// }
+
+	function GetTexture(_frameIndex = 0)
+	{
+		return Sprite_GetFrameProperty(sprite, _frameIndex, SPRITE_TEX);
+	}
+
+	function Draw(sprite, _x, _y, _w, _h, _level)
+	{
+		Render_DrawBox(_x, _y, _w, _h, Sprite_GetProperty(sprite, SPRITE_COLOR));
+	}
+
+	function SetBounds(_left, _top, _width, _height)
+	{
+		for (i = 0; i < Sprite_GetProperty(sprite, SPRITE_NUM_FRAMES); i++)
+		{
+			Sprite_SetFrameProperty(sprite, i, SPRITE_W, _width);
+			Sprite_SetFrameProperty(sprite, i, SPRITE_H, _height);
+			Sprite_SetFrameProperty(sprite, i, SPRITE_CW, _width);
+			Sprite_SetFrameProperty(sprite, i, SPRITE_CH, _height);
+		}
+
+		::SetBounds(_left, _top, _width, _height);
+	}
+
+	function ClearFrames()
+	{
+		Sprite_ClearFrames(sprite);
+
+		if (useSolid)
+			SetVertexColor(255, 255, 255);
+
+		useSolid = false;
+		EnableDraw(false);
+	}
+
+	function SetFrameTexture(_frame, _texture)
+	{
+		if (autoReleaseTextures)
+		{
+			_tex = Sprite_GetFrameProperty(sprite, _frame, SPRITE_TEX);
+			if (_tex) Texture_Delete(_tex);
+		}
+
+		// TODO Comprobar que no cambia el tamaño al establecer la textura
+		Sprite_SetFrameProperty(sprite, _frame, SPRITE_TEX, _texture);
+	}
+
+	function GetFramesCount()
+	{
+		return Sprite_GetProperty(sprite, SPRITE_NUM_FRAMES);
+	}
+
+	function SetFrame(_index)
+	{
+		Sprite_SetProperty(sprite, SPRITE_FRAME, _index);
+
+		InvalidateRT();
+	}
+
+	function SetAnimationForFrames(_speed = 0)
+	{
+		_frames = GetFramesCount();
+		SetAnimation(0, _frames - 1, -1);
+		SetAnimationSpeed(_speed);
+	}
+
+	function SetAnimation(_start, _end, _loop = -1)
+	{
+		if (_loop == -1) _loop = _start;
+		Sprite_SetAnimation(sprite, _start, _end, _loop);
+	}
+
+	// NOTA el SPRITE_ANILOOPS es solo de lectura
+	// function SetLoopCount(_count)
+	// {
+	// 	Sprite_SetProperty(sprite, SPRITE_ANILOOPS, _count);
+	// }
+
+
+	function SetAnimationSpeed(_speed)
+	{
+		Sprite_SetProperty(sprite, SPRITE_ANISPEED, _speed);
+	}
+
+	function SetRadians(_rad)
+	{
+		Sprite_SetProperty(sprite, SPRITE_ANGLE, _rad);
+	}
+
+	function SetDegrees(_deg)
+	{
+		Sprite_SetProperty(sprite, SPRITE_ANGLE, DegToRad(_deg));
+	}
+
+	function GetDegrees()
+	{
+		return RadToDeg(Sprite_GetProperty(sprite, SPRITE_ANGLE));
+	}
+
+	function GetRadians()
+	{
+		return Sprite_GetProperty(sprite, SPRITE_ANGLE);
+	}
+
+	function SetTexCoord(_x, _y, _w, _h)
+	{
+		//Debug_ObsoleteMark("SetTexCoord(_x, _y, _w, _h)", "Usar SetTexCoord(_frame, _x, _y, _w, _h) para aplicar a 1 frame o SetTexCoordAll(_x, _y, _w, _h) para aplicarlos a todos");
+		uiSystem.MarkAsObsolete(Class_Id(this), __LINE__, "SetTexCoord(_x, _y, _w, _h) :: Usar SetTexCoord(_frame, _x, _y, _w, _h) para aplicar a 1 frame o SetTexCoordAll(_x, _y, _w, _h) para aplicarlos a todos");
+		Sprite_SetFrameProperty (sprite, 0, SPRITE_TEX_X, _x);
+		Sprite_SetFrameProperty (sprite, 0, SPRITE_TEX_Y, _y);
+		Sprite_SetFrameProperty (sprite, 0, SPRITE_TEX_W, _w);
+		Sprite_SetFrameProperty (sprite, 0, SPRITE_TEX_H, _h);
+	}
+
+	function SetTexCoord(_frame, _x, _y, _w, _h)
+	{
+		Sprite_SetFrameProperty (sprite, _frame, SPRITE_TEX_X, _x);
+		Sprite_SetFrameProperty (sprite, _frame, SPRITE_TEX_Y, _y);
+		Sprite_SetFrameProperty (sprite, _frame, SPRITE_TEX_W, _w);
+		Sprite_SetFrameProperty (sprite, _frame, SPRITE_TEX_H, _h);
+	}
+
+	function SetTexCoordAll(_x, _y, _w, _h)
+	{
+		for (i = 0; i < Sprite_GetProperty(sprite, SPRITE_NUM_FRAMES); i++)
+		{
+			Sprite_SetFrameProperty (sprite, i, SPRITE_TEX_X, _x);
+			Sprite_SetFrameProperty (sprite, i, SPRITE_TEX_Y, _y);
+			Sprite_SetFrameProperty (sprite, i, SPRITE_TEX_W, _w);
+			Sprite_SetFrameProperty (sprite, i, SPRITE_TEX_H, _h);
+		}
+	}
+
+	function SetVertexColor(_r, _g, _b)
+	{
+		_a = Color_GetA(Sprite_GetProperty(sprite, SPRITE_COLOR));
+		Sprite_SetProperty(sprite, SPRITE_COLOR, ARGB(_a, _r, _g, _b));
+	}
+
+	function FlipHorizontal(_enable)
+	{
+		_flags = Sprite_GetProperty(sprite, SPRITE_FLAGS);
+		if (_enable)
+			_flags |= DTE_HFLIP;
+		else
+			_flags &= ~DTE_HFLIP;
+
+		Sprite_SetProperty(sprite, SPRITE_FLAGS, _flags);
+	}
+
+	function HasHorizontalFlip()
+	{
+		_flags = Sprite_GetProperty(sprite, SPRITE_FLAGS);
+		return (_flags & DTE_HFLIP) == DTE_HFLIP;
+	}
+
+	function FlipVertical(_enable)
+	{
+		_flags = Sprite_GetProperty(sprite, SPRITE_FLAGS);
+		if (_enable)
+			_flags |= DTE_VFLIP;
+		else
+			_flags &= ~DTE_VFLIP;
+
+		Sprite_SetProperty(sprite, SPRITE_FLAGS, _flags);
+	}
+
+	function HasVerticalFlip()
+	{
+		_flags = Sprite_GetProperty(sprite, SPRITE_FLAGS);
+		return (_flags & DTE_VFLIP) == DTE_VFLIP;
+	}
+}

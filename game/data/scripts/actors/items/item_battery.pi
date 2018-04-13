@@ -1,0 +1,99 @@
+class Actor implements Item
+{
+	properties:
+		refList = [];
+		timerRespawn = 0;
+		curRef = 0;
+		
+	virtual Init ()
+	{	
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "item_battery.msh");
+		
+		EndLoadResources ();
+
+		name = "item_battery";
+		shadow = true;
+
+		refList = []; 
+		for (i=0; i<5; i++)
+		{
+			_ref = Scene_GetObject (scene, "ha_pos_" + string(i+1), OBJECT_CLASSID_REFERENCE);
+			if (_ref) 
+				refList += [_ref];
+		}
+
+		sclX = 0.5f;
+		sclY = sclX;
+		sclZ = sclX;
+	}
+
+	virtual Final ()
+	{
+	}
+	
+	virtual Start ()
+	{
+		_player = game.GetPlayer();
+		SetEnabled (true);
+		curRef = Rand(0, sizeof(refList)-1); 
+		_ref = refList[curRef];
+		posX = SceneObj_GetPosX (_ref);
+		posY = SceneObj_GetPosY (_ref);
+		posZ = SceneObj_GetPosZ (_ref);
+		_change("quiet");	
+	}	
+	
+	virtual Move()
+	{
+	}
+	
+	function Respawn()
+	{
+		SetEnabled(false);
+		SetVisible(false);
+		timerRespawn = 1000.0f;
+		_change ("respawn");
+	}
+	
+	state "quiet"
+	{
+		posZ += GetFTime() * sin(angleZ);
+		angleZ += GetFTime() * 0.25f;
+	}
+	
+	state "respawn"
+	{
+		if (timerRespawn <= 0.0f)
+		{
+			SetVisible(true);
+			SetEnabled(true);
+			curRef = (curRef + 1) % sizeof(refList);
+			_ref = refList[curRef];
+			posX = SceneObj_GetPosX (_ref);
+			posY = SceneObj_GetPosY (_ref);
+			posZ = SceneObj_GetPosZ (_ref);
+			_change ("quiet");
+		}
+		else
+			timerRespawn -= GetFTime();
+	}
+	
+	virtual Draw ()
+	{
+	}
+	
+	virtual OnCursorClick()
+	{
+		if (enabled)
+		{
+			_player = game.GetPlayer();
+			_player.TaskDone("pickup_battery");
+			game.hud.OpenPlayerTID ("player_item_battery");
+			_player.RenewBattery();
+			Respawn();
+		}
+	}
+}

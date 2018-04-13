@@ -1,0 +1,78 @@
+class GUI_MsgBox<Service>
+{
+	properties:
+		frame = null;
+		text = "";
+		okButton = null;
+		cancelButton = null;
+		okCtx = null;
+		okEvent = "";
+		cancelCtx = null;
+		cancelEvent = "";
+		sndButton = null;
+
+	function Init ()
+	{
+		main = Service_Get("main");
+		
+		System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/menus/");
+	
+		_frame = UI_CreateFrame("GUI_Frame");
+		_frame.SetBounds ((RESX-868)/2, (RESY-227)/2, 868, 227);
+		_frame.CreateImage ("user_window.png");
+		frame = _frame;
+		
+		_frame.EnableModal();
+		
+		_label = _frame.CreateLabel (0, 0, _frame.GetWidth(), 100);
+		_label.SetFont (DEFAULT_MENU_FONT, 30);
+		_label.SetTextAlign (DT_CENTER | DT_VCENTER);
+		_label.SetText (text);
+		
+		_button = _frame.CreateButton (100, 130, 72, 79);
+		_button.SetNormalTexture ("user_button_accept.png");
+		okButton = _button;
+		okButton.SetOnClick (this, "OnDefaultOk");
+
+		_button = _frame.CreateButton (700, 130, 72, 79);
+		_button.SetNormalTexture ("user_button_cancel.png");
+		cancelButton = _button;
+		cancelButton.SetOnClick (this, "OnDefaultCancel");
+		
+		System_SetDirectory (DIRECTORY_SOUND, "data/sounds/");
+		sndButton = Sound_Load ("ui_menu_move.ogg");
+	}
+	
+	function Final ()
+	{
+		delete frame;
+	}
+	
+	function SetOnOk (_ctx, _event)
+	{
+		okCtx = _ctx;
+		okEvent = _event;
+	}
+
+	function SetOnCancel (_ctx, _event)
+	{
+		cancelCtx = _ctx;
+		cancelEvent = _event;
+	}
+
+	function OnDefaultOk (_button)
+	{
+		g_main.PlayFX(sndButton);
+		Service_Delete (this);
+		if (okCtx)
+			okCtx._call(okEvent);
+	}
+
+	function OnDefaultCancel (_button)
+	{
+		g_main.PlayFX(sndButton);
+		Service_Delete (this);
+		if (cancelCtx)
+			cancelCtx._call(cancelEvent);
+	}
+}

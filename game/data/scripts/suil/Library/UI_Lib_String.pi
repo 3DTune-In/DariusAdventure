@@ -1,0 +1,443 @@
+// Partial de UI_Library
+class UI_String
+{
+	defines:
+    CHARCATEGORY_UPPERCASELETTER = 0;
+    CHARCATEGORY_LOWERCASELETTER = 1;
+    CHARCATEGORY_TITLECASELETTER = 2;
+    CHARCATEGORY_MODIFIERLETTER = 3;
+    CHARCATEGORY_OTHERLETTER = 4;
+    CHARCATEGORY_NONSPACINGMARK = 5;
+    CHARCATEGORY_SPACINGCOMBININGMARK = 6;
+    CHARCATEGORY_ENCLOSINGMARK = 7;
+    CHARCATEGORY_DECIMALDIGITNUMBER = 8;
+    CHARCATEGORY_LETTERNUMBER = 9;
+    CHARCATEGORY_OTHERNUMBER = 10;
+    CHARCATEGORY_SPACESEPARATOR = 11;
+    CHARCATEGORY_LINESEPARATOR = 12;
+    CHARCATEGORY_PARAGRAPHSEPARATOR = 13;
+    CHARCATEGORY_CONTROL = 14;
+    CHARCATEGORY_FORMAT = 15;
+    CHARCATEGORY_SURROGATE = 16;
+    CHARCATEGORY_PRIVATEUSE = 17;
+    CHARCATEGORY_CONNECTORPUNCTUATION = 18;
+    CHARCATEGORY_DASHPUNCTUATION = 19;
+    CHARCATEGORY_OPENPUNCTUATION = 20;
+    CHARCATEGORY_CLOSEPUNCTUATION = 21;
+    CHARCATEGORY_INITIALQUOTEPUNCTUATION = 22;
+    CHARCATEGORY_FINALQUOTEPUNCTUATION = 23;
+    CHARCATEGORY_OTHERPUNCTUATION = 24;
+    CHARCATEGORY_MATHSYMBOL = 25;
+    CHARCATEGORY_CURRENCYSYMBOL = 26;
+    CHARCATEGORY_MODIFIERSYMBOL = 27;
+    CHARCATEGORY_OTHERSYMBOL = 28;
+    CHARCATEGORY_OTHERNOTASSIGNED = 29;
+
+	properties:
+		charCategory = [
+         14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14,
+         14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14,
+         11, 0x18, 0x18, 0x18, 0x1a, 0x18, 0x18, 0x18, 20, 0x15, 0x18, 0x19, 0x18, 0x13, 0x18, 0x18,
+         8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 0x18, 0x18, 0x19, 0x19, 0x19, 0x18,
+         0x18, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0x18, 0x15, 0x1b, 0x12,
+         0x1b, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+         1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 20, 0x19, 0x15, 0x19, 14,
+         14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14,
+         14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14,
+         11, 0x18, 0x1a, 0x1a, 0x1a, 0x1a, 0x1c, 0x1c, 0x1b, 0x1c, 1, 0x16, 0x19, 0x13, 0x1c, 0x1b,
+         0x1c, 0x19, 10, 10, 0x1b, 1, 0x1c, 0x18, 0x1b, 10, 1, 0x17, 10, 10, 10, 0x18,
+         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+         0, 0, 0, 0, 0, 0, 0, 0x19, 0, 0, 0, 0, 0, 0, 0, 1,
+         1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+         1, 1, 1, 1, 1, 1, 1, 0x19, 1, 1, 1, 1, 1, 1, 1, 1];
+
+	function Core_Init_String()
+	{
+		System_AddScriptGlobalFunction("String_Split", this, "String_Split");
+		System_AddScriptGlobalFunction("String_TrimRight", this, "String_TrimRight");
+		System_AddScriptGlobalFunction("String_TrimLeft", this, "String_TrimLeft");
+		System_AddScriptGlobalFunction("String_CharIsControl", this, "String_CharIsControl");
+		System_AddScriptGlobalFunction("String_CharIsLetter", this, "String_CharIsLetter");
+		System_AddScriptGlobalFunction("String_AddAutoEllipsis", this, "String_AddAutoEllipsis");
+		System_AddScriptGlobalFunction("String_IsEmptyOrNull", this, "String_IsEmptyOrNull");
+		System_AddScriptGlobalFunction("String_RandomText", this, "String_RandomText");
+		System_AddScriptGlobalFunction("String_FormatNumber", this, "String_FormatNumber");
+		System_AddScriptGlobalFunction("String_Fill", this, "String_Fill");
+		System_AddScriptGlobalFunction("String_GetFontForRect", this, "String_GetFontForRect");
+		System_AddScriptGlobalFunction("String_GetCharCategory", this, "String_GetCharCategory");
+		System_AddScriptGlobalFunction("String_Capitalize", this, "String_Capitalize");
+		System_AddScriptGlobalFunction("String_EndsWith", this, "String_EndsWith");
+		System_AddScriptGlobalFunction("String_FormatJson", this, "String_FormatJson");
+		System_AddScriptGlobalFunction("String_IsNumber", this, "String_IsNumber");
+	}
+
+	function Core_Uninit_String()
+	{
+	}
+
+	function String_Split(_str, _separator)
+	{
+		_list = [];
+		i = 0;
+		_li = 0;
+		_len = strlen(_str);
+		while (i < _len)
+		{
+			if (CharIs(_str[i], _separator))
+			{
+				_startStr = String_SubStr(_str, _li, i - _li);
+				_list += [_startStr];
+				_li = i + 1;
+			}
+			else if (i == _len - 1)
+			{
+				_startStr = String_SubStr(_str, _li, -1);//i + 1);
+				_list += [_startStr];
+			}
+			i++;
+		}
+		return _list;
+	}
+
+	function String_EndsWith(_str, _end)
+	{
+		_len = strlen(_end);
+		if (_len == 0) return true;
+
+		_txt = String_Right(_str, _len);
+		if (String_Compare(_txt, _end) == 0)
+			return true;
+
+		return false;
+	}
+
+
+	function CharIs(_c, _charList)
+	{
+		for (i = 0; i < sizeof(_charList); i++)
+		{
+			if (_c == _charList[i]) return true;
+		}
+		return false;
+	}
+
+	function String_TrimSpaces(_str)
+	{
+		_str = String_TrimLeft(_str);
+		_str = String_TrimRight(_str);
+		return _str;
+	}
+
+	function String_TrimLeft(_str)
+	{
+		while (strlen(_str) && _str[0] == ' ')
+		{
+			_str = String_SubStr(_str, 1, -1);
+		}
+		return _str;
+	}
+
+	function String_TrimRight(_str)
+	{
+		while (strlen(_str) && _str[strlen(_str) - 1] == ' ')
+		{
+			_str = String_SubStr(_str, 0, strlen(_str) - 1);
+		}
+		return _str;
+	}
+
+	function String_CharIsControl(_char)
+	{
+		//DebugMsg("THE CHAR", typeof(_char), typeof(int(_char)));
+		if (int(_char) >= sizeof(charCategory))
+			return CHARCATEGORY_UPPERCASELETTER;
+
+		return charCategory[int(_char)] == CHARCATEGORY_CONTROL;
+	}
+
+	function String_CharIsLetter(_char, _extended = false)
+	{
+		if (int(_char) >= sizeof(charCategory))
+			return true;
+
+		_cat = charCategory[int(_char)];
+		return (_cat == CHARCATEGORY_UPPERCASELETTER || _cat == CHARCATEGORY_LOWERCASELETTER);
+	}
+
+	function String_GetCharCategory(_char)
+	{
+		if (int(_char) >= sizeof(charCategory))
+			return CHARCATEGORY_UPPERCASELETTER;
+
+		return charCategory[int(_char)];
+	}
+
+	function String_AddAutoEllipsis(_font, _text, _w, _h, _flags = 0, _forward = true)
+	{
+		if ((_flags & DT_SINGLELINE) == DT_SINGLELINE)
+		{
+			_info = Font_GetTextSize(_font, _text, _w, _h, _flags);
+			if (_info[0] <= _w)
+			{
+				//DebugLog("1", _info, " > ", _w, _text);
+				return _text;
+			}
+		}
+		else
+		{
+			_info = Font_GetTextSize(_font, _text, _w, _h, _flags);
+			if (_info[1] <= _h)
+			{
+				//DebugLog("2", _info, " > ", _h, _text);
+				return _text;
+			}
+		}
+
+		_txtlen = strlen(_text);
+		_tmp = _text;
+		do
+		{
+			_info = Font_GetTextSize(_font, _tmp + "...", _w, _h, _flags);
+			if ((_flags & DT_SINGLELINE) == DT_SINGLELINE)
+			{
+				 //DebugLog(_info, " > ", _w, _tmp + "...");
+				if (_info[0] > _w)
+				{
+					_length = strlen(_tmp) - 1;
+					if (_length <= 0) return "...";
+
+					if (_forward)
+						_tmp = String_SubStr(_tmp, 0, _length);
+					else
+						_tmp = String_SubStr(_tmp, strlen(_tmp) - _length, -1);//strlen(_tmp));
+				}
+				else
+				{
+					if (_forward) return _tmp + "...";
+				 	else return "..." + _tmp;
+				}
+			}
+			else
+			{
+				//DebugLog(_info, " > ", _h, _tmp + "...");
+				if (_info[1] > _h)
+				{
+					_length = strlen(_tmp) - 1;
+					if (_length <= 0) return "...";
+					if (_forward)
+						_tmp = String_SubStr(_tmp, 0, _length);
+					else
+						_tmp = String_SubStr(_tmp, strlen(_tmp) - _length, -1);//strlen(_tmp));
+				}
+				else
+				{
+					if (_forward) return _tmp + "...";
+				 	else return "..." + _tmp;
+				}
+			}
+		} while (true);
+
+		return "";
+	}
+
+	function String_IsEmptyOrNull(_txt)
+	{
+		//return (typeof(_txt) == TYPE_POINTER || typeof(_txt) == 0) || strlen(_txt) == 0;
+		return _txt == null || strlen(_txt) == 0;
+		//return strlen(_txt) == 0;
+	}
+
+	function String_RandomText(_size = 10)
+	{
+		_str = "";
+		for (i = 0; i < _size; i++)
+		{
+			_str += ascii(rand(65, 90));
+		}
+		return _str;
+	}
+
+/* Demo
+		DebugMsg(String_FormatNumber(-1000000.7f, 0, false));
+		DebugMsg(String_FormatNumber(-1000000.2f, 0, false));
+		DebugMsg(String_FormatNumber(1000000.7f, 0, false));
+		DebugMsg(String_FormatNumber(1000000.2f, 0, false));
+		DebugMsg(String_FormatNumber(100000000, 2, false));
+		DebugMsg(String_FormatNumber(23455.1266f, 2, false));
+		DebugMsg(String_FormatNumber(123455.1246f, 2, false));
+		DebugMsg(String_FormatNumber(-123455.1246f, 2, false));
+		DebugMsg(String_FormatNumber(23455.0000f, 2, false));
+		DebugMsg(String_FormatNumber(23455.00f, 0, false));
+		DebugMsg(String_FormatNumber(2455.006f, 2, true));
+*/
+	function String_FormatNumber(_value, _decimals, _removeDecimalsIfEmpty = false)
+	{
+		//DebugMsg("VALUE", _value, _decimals, _removeDecimalsIfEmpty, String_Format("%." + _decimals + "f", _value));
+		_value = String_Format("%0." + _decimals + "lf", _value);
+		_parts = String_ToList(_value, ".");
+		if (sizeof(_parts) == 0) return "0";
+
+		//DebugMsg("A", _parts, _value);
+		_realPart = Core_Group(Core_RemoveStartingZero(_parts[0]));
+		if (_decimals == 0) return _realPart;
+
+		//DebugMsg("B", _realPart);
+		// rellenamos con 0 la parte decimal
+		if (sizeof(_parts) == 1)
+		{
+			if (_removeDecimalsIfEmpty) return _realPart;
+			return _realPart + "," + String_Fill("0", _decimals);
+		}
+
+		if (int(_parts[1]) == 0 && _removeDecimalsIfEmpty) return _realPart;
+		return _realPart + "," + _parts[1];
+	}
+
+	function Core_Group(_value)
+	{
+		_data = "";
+		_last = (strlen(_value) - 1);
+		for (i = _last; i >= 0; i--)
+		{
+			_curr = _last - i;
+			if (_value[i] != '-' && _value[i] != '+' && (_curr % 3) == 0 && i != _last) _data = "." + _data;
+			_data = ascii(_value[i]) + _data;
+		}
+		return _data;
+	}
+
+	function String_Fill(_txt, _length)
+	{
+		_str = "";
+		for (i = 0; i < _length; i++)
+		{
+			_str += _txt;
+		}
+		return _str;
+	}
+
+	function Core_RemoveStartingZero(_value)
+	{
+		_ix = 0;
+		for (i = 0; i < strlen(_value); i++)
+		{
+			if (_value[i] != '0') break;
+			_ix++;
+		}
+
+		if (_ix == strlen(_value)) return "0";
+		return String_Right(_value, strlen(_value) - _ix);
+	}
+
+	function String_GetFontForRect(_font, _text, _textAlign, _w, _h, _grow = false)
+	{
+		_org = Font_GetInfo(_font);
+
+		_count = 0;
+		while (true)
+		{
+			_info = Font_GetTextSize(_font, _text, _w, _h, _textAlign);
+			//DebugMsg("UNGROW", _text, _info);
+			if (_info[0] < _w && _info[1] < _h) break;
+			_count++;
+
+			_size = Font_GetInfo(_font);
+			_factor = _size[1] / _size[2];
+			Font_SetSize(_font, _size[1] - _factor, _size[2] - 1);
+		}
+
+		if (_count == 0 && _grow)
+		{
+			_size = Font_GetInfo(_font);
+			_lastSize = _size;
+			while (true)
+			{
+				_info = Font_GetTextSize(_font, _text, _w, _h, _textAlign);
+				//DebugMsg("GROW", _text, _info);
+				if (_info[0] >= _w  || _info[1] >= _h)
+				{
+					//DebugMsg(_info, _w, _h);
+					Font_SetSize(_font, _lastSize[1], _lastSize[2]);
+					break;
+				}
+
+				_lastSize = _size;
+				_size = Font_GetInfo(_font);
+				_factor = _size[1] / _size[2];
+				Font_SetSize(_font, _size[1] + _factor, _size[2] + 1);
+			}
+		}
+
+		_size = Font_GetInfo(_font);
+		Font_SetSize(_font, _org[1], _org[2]);
+		return [_size[1], _size[2]];
+	}
+
+	function String_Capitalize(_str)
+	{
+		_str = String_LowerCase(_str);
+		for (i = 0; i < strlen(_str); i++)
+		{
+			_cat = String_GetCharCategory(_str[i]);
+			if (_cat == CHARCATEGORY_UPPERCASELETTER || _cat == CHARCATEGORY_LOWERCASELETTER || _cat == CHARCATEGORY_TITLECASELETTER)
+			{
+				_left = "";
+				if (i > 0)
+					_left = String_Left(_str, i - 1);
+				_upper = String_UpperCase(ascii(_str[i]));
+				_right = "";
+				if (i < strlen(_str) - 1)
+					_right = String_Right(_str, strlen(_str) - i - 1);
+				return _left + _upper + _right;
+			}
+		}
+		return _str;
+	}
+
+	function String_FormatJson(_str)
+	{
+		_str = String_Replace(_str, "\\", "\\\\");
+		_str = String_Replace(_str, "\"", "\\\"");
+		_str = String_Replace(_str, "\t", "\\t");
+		_str = String_Replace(_str, "\b", "\\b");
+		_str = String_Replace(_str, "\f", "\\f");
+		_str = String_Replace(_str, "\n", "\\n");
+		_str = String_Replace(_str, "\r", "\\r");
+		// Ver http://stackoverflow.com/questions/19176024/how-to-escape-special-characters-in-building-a-json-string
+		// Faltaría \u followed by four-hex-digits
+		return _str;
+	}
+
+	function String_IsNumber(_str)
+	{
+		_len = strlen(_str);
+		if (_len == 0)
+			return false;
+
+		_si = 0;
+		if (_str[0] == '-' || _str[0] == '+')
+		{
+			_si++;
+		}
+
+		_dot = false;
+		for (i = _si; i < _len; i++)
+		{
+			//_cat = charCategory[int(_str[i])];
+			_cat = String_GetCharCategory(_str[i]);
+			//DebugMsg("CAT", _cat, _str[i], int(_str[i]));
+			if (_cat != CHARCATEGORY_DECIMALDIGITNUMBER)
+			{
+				if ((_str[i] == '.') && !_dot)
+				{
+					_dot = true;
+					continue;
+				}
+				return false;
+			}
+		}
+
+		return true;
+	}
+}

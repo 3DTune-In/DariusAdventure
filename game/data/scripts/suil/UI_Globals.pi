@@ -1,0 +1,313 @@
+/*
+defines que puede utilizar la UI
+_UISYS_GLOBAL_NAME_UNIQUE_ -> Los nombres de los sean obligatoriamente únicos
+_UISYS_NAME_NOT_EMPTY_ -> Los nombres de los controles no pueden ser null o ""
+_UISYS_SIMULATE_IOS_ -> Ciertos controles intentan simular la funcionalidad de IOS
+_UISYS_DISABLE_MULTIADDFRAME_OPTIMIZATION_ -> Desactiva la optimización para agregar varios frames (En algunos casos puede provocar problemas)
+_UISYS_DISABLE_GLOBAL_NAME_ -> Deshabilita el registrar los nombres en el diccionario global
+_UISYS_ALLOW_NEGATIVE_SIZES_ -> Habilita el poder utilizar dimensiones negativas. Sino, al establecer un width o height < 0 se establece a 0
+_UISYS_DISABLE_CHANGE_ADVICES_ -> No muestra las notificaciones de cambio
+_UISYS_ALLOW_RENDER_TARGET_
+*/
+class UI_Globals
+{
+	defines:
+
+// --------------------------------------------------------------------------------------------------------------------------------------------------
+// SUBSECTION: Eventos
+// --------------------------------------------------------------------------------------------------------------------------------------------------
+		UI_EVENT_INIT = 1; // Parametros: []
+		UI_EVENT_DESTROY; // Parametros: []
+		//UI_EVENT_DESTROYED; // Parametros: []
+		UI_EVENT_ENTER; // Parametros: []
+		UI_EVENT_LEAVE; // Parametros: []
+		UI_EVENT_MOUSE_MOVE; // Parametros: [_btnId, _mx, _my] En btnId solo se usa si está el touch activo y corresponde al id
+		UI_EVENT_MOUSE_DOWN; // Parametros: [_btnId, _mx, _my]
+		UI_EVENT_MOUSE_UP; // Parametros: [_btnId, _mx, _my]
+		UI_EVENT_MOUSE_WHEEL; // Parametros: [_offset]
+		UI_EVENT_CLICK; // Parametros: [_btnId, _mx, _my]
+		UI_EVENT_DOUBLE_CLICK; // Parametros: [_btnId, _mx, _my]
+		UI_EVENT_VALIDATING; // Parametros: [ValidateArgs]
+		UI_EVENT_VALIDATED; // Parametros: []
+		UI_EVENT_FOCUS_LEAVE; // Parametros [Control_Pierde_Foco, Control_Gana_Foco]
+		UI_EVENT_FOCUS_ENTER; // Parametros [Control_Pierde_Foco, Control_Gana_Foco]
+		UI_EVENT_POSITION_CHANGED; // Parametros: []
+		UI_EVENT_SIZE_CHANGED; // Parametros: []
+		UI_EVENT_BOUNDS_CHANGED; // Parametros: []
+		UI_EVENT_ENABLE_CHANGED; // Parametros: []
+		UI_EVENT_DRAG_START; // Parametros: []
+		UI_EVENT_DRAG_END; // Parametros: [_frame, _cancel]
+		UI_EVENT_DRAG_RECEIVED; // Parametros: [_frame, _x, _y]
+		UI_EVENT_KEYDOWN; // Parametros: [_key]
+		UI_EVENT_KEYUP; // Parametros: [_key]
+		UI_EVENT_CHAR; // Parametros: [_char]
+		UI_EVENT_CHECKED_CHANGED; // Parametros: []
+		UI_EVENT_PRESSED_CHANGED; // Parametros: []
+
+		UI_EVENT_VALUE_CHANGED; // Parametros: []
+		UI_EVENT_MINVALUE_CHANGED; // Parametros: []
+		UI_EVENT_MAXVALUE_CHANGED; // Parametros: []
+
+		UI_EVENT_ANIMATION_PLAY; // Parametros: []
+		UI_EVENT_ANIMATION_PAUSED; // Parametros: [ _factor]
+		// UI_EVENT_ANIMATION_STEP; // Parametros: [_factor]
+		UI_EVENT_ANIMATION_STOP; // Parametros: [_userStop]
+		UI_EVENT_ANIMATION_LOOP; // Parametros: []
+
+		UI_EVENT_FONT_CHANGED; // Parametros: []
+
+		// UI_EVENT_TOUCH_DOWN; // Parametros: [_btnId, _x, _y]
+		// UI_EVENT_TOUCH_UP; // Parametros: [_btnId, _x, _y]
+		// UI_EVENT_TOUCH_PRESS; // Parametros: [_btnId, _x, _y]
+		// UI_EVENT_GESTURE; // Parametros: [_gesture]
+		UI_EVENT_TEXT_CHANGED;
+		// UI_EVENT_NAVIGATOR_POPCONTROL; // Parametros: [_popControl]
+		// UI_EVENT_SELECTEDINDEX_CHANGED; // Parametros: [_selectedIndex]
+		// UI_EVENT_MODAL_CLOSED;  // Parametros: []
+		// UI_EVENT_TABLE_CELL_DELETE;  // Parametros: [_cellIndex]
+		UI_EVENT_TEXTDOC_CURSOR_CHANGED; // Parametros: [_x, _y, _sy]
+		UI_EVENT_SCROLL_HORIZONTAL; // Parametros: []
+		UI_EVENT_SCROLL_VERTICAL; // Parametros: []
+
+		UI_EVENT_MAX; // Así cogera el valor después del último declarado
+		UI_EVENT_USER = UI_EVENT_MAX + 1;
+
+	// EVENTOS DEL SYSTEM
+
+		UI_SYS_MOUSE_DOWN = 0; // Los mismos que el evento del control
+		UI_SYS_MOUSE_UP; // Los mismos que el evento del control
+		UI_SYS_MOUSE_MOVE; // Los mismos que el evento del control
+		UI_SYS_MOUSE_WHEEL; // Los mismos que el evento del control
+		UI_SYS_KEYDOWN; // Los mismos que el evento del control
+		UI_SYS_KEYUP; // Los mismos que el evento del control
+		UI_SYS_CHAR; // Los mismos que el evento del control
+		UI_SYS_PRIORITY;
+		UI_SYS_ENTER; // Los mismos que el evento del control
+		UI_SYS_LEAVE; // Los mismos que el evento del control
+		UI_SYS_OPEN_VIRTUAL_KEYBOARD; // Parametros: [_caller]
+		UI_SYS_CLOSE_VIRTUAL_KEYBOARD; // Parametros: [_caller]
+		UI_SYS_TAB_PRESSED; // Parametros: []
+		UI_SYS_MAX;
+
+	// EVENTOS DE INPUT INTERNOS
+		UI_INPUTEV_KEYDOWN = 1;
+		UI_INPUTEV_KEYUP;
+		UI_INPUTEV_KEYCHAR;
+		UI_INPUTEV_TOUCHDOWN;
+		UI_INPUTEV_TOUCHUP;
+		UI_INPUTEV_TOUCHMOVE;
+		UI_INPUTEV_MOUSEMOVE;
+		UI_INPUTEV_MOUSEDOWN;
+		UI_INPUTEV_MOUSEUP;
+		UI_INPUTEV_MOUSEWHEEL;
+		UI_INPUTEV_MAX;
+
+// --------------------------------------------------------------------------------------------------------------------------------------------------
+// SUBSECTION: Capas (Strata y Layers)
+// --------------------------------------------------------------------------------------------------------------------------------------------------
+
+		// El strata solo se aplica a los frames que tienen como padre el desktop. En los demás no se tiene en cuenta.
+		UI_STRATA_LOW = 0;
+		UI_STRATA_NORMAL;
+		UI_STRATA_HIGH;
+		UI_STRATA_DIALOG;
+		UI_STRATA_FULLSCREEN;
+		UI_STRATA_FULLSCREEN_DIALOG;
+		UI_STRATA_TOOLTIP;
+		UI_STRATA_GAME_EDITOR; // Para poner editores ingame y que salgan sobre too
+		UI_STRATA_EDITOR; // Interno
+		UI_STRATA_CURSOR;
+		UI_STRATA_MAX;
+
+		UI_LAYER_BACKGROUND = 0;
+		UI_LAYER_BORDER;
+		UI_LAYER_NORMAL;
+		UI_LAYER_OVERLAY;
+		UI_LAYER_HIGHLIGHT;
+		UI_LAYER_FRAMES; // Reservada
+		UI_LAYER_MAX;
+
+	// HOOK
+		// UI_HOOK_TOUCH_DOWN = 1;
+		// UI_HOOK_TOUCH_UP;
+		// UI_HOOK_TOUCH_MOVE;
+
+		// UI_HOOK_MAX;
+
+	// Motivos por los que cancelar un touch
+		// UI_TOUCH_CANCEL_NONE = 0; // No se cancela
+		// UI_TOUCH_CANCEL_SCROLL = 1; // Se ha hecho un scroll en vez de un up
+
+
+	// Estilos del textbox
+		// UI_TEXTBOX_STYLE_NONE = 0;
+		// UI_TEXTBOX_STYLE_FONTNAME = 1;
+		// UI_TEXTBOX_STYLE_FONTW = 2;
+		// UI_TEXTBOX_STYLE_FONTH = 4;
+		// UI_TEXTBOX_STYLE_FONTTYPE = 8;
+		// UI_TEXTBOX_STYLE_COLORFG = 16;
+		// UI_TEXTBOX_STYLE_COLORBG = 32;
+		// UI_TEXTBOX_STYLE_ALL = UI_TEXTBOX_STYLE_FONTNAME | UI_TEXTBOX_STYLE_FONTW | UI_TEXTBOX_STYLE_FONTH | UI_TEXTBOX_STYLE_FONTTYPE |
+		// 					 							UI_TEXTBOX_STYLE_COLORFG | UI_TEXTBOX_STYLE_COLORBG;
+
+	// Estilo de la tabla
+		// UI_TABLE_STYLE_GROUPED = 1;
+  //     UI_TABLE_STYLE_PLAIN = 2;
+
+   // TrackBar
+      // UI_TRACKBAR_STYLE_HORINZONTAL = 0;
+      // UI_TRACKBAR_STYLE_VERTICAL = 1;
+
+   // Navigator
+      // UI_NAVIGATOR_HEADERITEM_STYLE_LEFT = 0;
+      // UI_NAVIGATOR_HEADERITEM_STYLE_CENTER = 1;
+      // UI_NAVIGATOR_HEADERITEM_STYLE_RIGHT = 2;
+
+   // General
+      UI_POINT_CENTER = 1;
+      UI_POINT_LEFT = 2;
+      UI_POINT_TOP = 4;
+      UI_POINT_RIGHT = 8;
+      UI_POINT_BOTTOM = 16;
+      UI_POINT_LEFTTOP = UI_POINT_LEFT | UI_POINT_TOP;
+      UI_POINT_LEFTBOTTOM = UI_POINT_LEFT | UI_POINT_BOTTOM;
+      UI_POINT_RIGHTBOTTOM = UI_POINT_RIGHT | UI_POINT_BOTTOM;
+      UI_POINT_RIGHTTOP = UI_POINT_RIGHT | UI_POINT_TOP;
+
+   // Pin de los frames
+      UI_PIN_LEFT = 1;
+      UI_PIN_TOP = 2;
+      UI_PIN_RIGHT = 4;
+      UI_PIN_BOTTOM = 8;
+      UI_PIN_LEFTTOP = UI_PIN_LEFT | UI_PIN_TOP;
+      UI_PIN_RIGHTBOTTOM = UI_PIN_RIGHT | UI_PIN_BOTTOM;
+      UI_PIN_ALL = UI_PIN_LEFT | UI_PIN_TOP | UI_PIN_RIGHT | UI_PIN_BOTTOM;
+
+   // General
+      UI_NONE = 0;
+      UI_LEFT = 1;
+      UI_TOP = 2;
+      UI_RIGHT = 4;
+      UI_BOTTOM = 8;
+      UI_VCENTER = 16; // Centro entre Y y Height
+      UI_HCENTER = 32; // Centro entre X y Width
+      UI_CENTER = UI_VCENTER | UI_HCENTER;
+      UI_LEFTTOP = UI_LEFT | UI_TOP;
+      UI_LEFTBOTTOM = UI_LEFT | UI_BOTTOM;
+      UI_RIGHTBOTTOM = UI_RIGHT | UI_BOTTOM;
+      UI_RIGHTTOP = UI_RIGHT | UI_TOP;
+
+      UI_HORIZONTAL = 0;
+      UI_VERTICAL = 1;
+
+// --------------------------------------------------------------------------------------------------------------------------------------------------
+// SUBSECTION: TOOLTIP
+// --------------------------------------------------------------------------------------------------------------------------------------------------
+
+		UI_TOOLTIP_ANCHOR_LEFT = 1;
+		UI_TOOLTIP_ANCHOR_TOP = 2;
+		UI_TOOLTIP_ANCHOR_RIGHT = 4;
+		UI_TOOLTIP_ANCHOR_BOTTOM = 8;
+		UI_TOOLTIP_ANCHOR_CURSOR = 17;
+		UI_TOOLTIP_ANCHOR_FIXED = 18;
+
+// --------------------------------------------------------------------------------------------------------------------------------------------------
+// SUBSECTION: BUTTON
+// --------------------------------------------------------------------------------------------------------------------------------------------------
+
+		UI_BUTTON_STATE_NORMAL = 0;
+		UI_BUTTON_STATE_PRESSED = 1;
+		UI_BUTTON_STATE_CHECKED = 2;
+		UI_BUTTON_STATE_HIGHLIGHT = 3;
+		UI_BUTTON_STATE_DISABLED = 4;
+
+// --------------------------------------------------------------------------------------------------------------------------------------------------
+// SUBSECTION: Textbox
+// --------------------------------------------------------------------------------------------------------------------------------------------------
+
+	UI_TEXTBOX_CURSOR_POINTER = 0;
+	UI_TEXTBOX_LEFT_SELECTION_POINTER = 1;
+	UI_TEXTBOX_RIGHT_SELECTION_POINTER = 2;
+
+// --------------------------------------------------------------------------------------------------------------------------------------------------
+// SUBSECTION: Fuentes
+// --------------------------------------------------------------------------------------------------------------------------------------------------
+
+		UI_FONT_EFFECT_BORDER = 1;
+		UI_FONT_EFFECT_SHADOW = 2;
+
+// --------------------------------------------------------------------------------------------------------------------------------------------------
+// SUBSECTION: Animaciones
+// --------------------------------------------------------------------------------------------------------------------------------------------------
+
+		UI_LOOP_TYPE_NONE = 0;
+		UI_LOOP_TYPE_ENDFIX;
+      UI_LOOP_TYPE_BOUNCE;
+		UI_LOOP_TYPE_REPEAT;
+
+		UI_LOOP_STATE_FORWARD = 0;
+		UI_LOOP_STATE_NONE = 1;
+		UI_LOOP_STATE_REVERSE = 2;
+
+		UI_ANI_STATE_NONE = 0;
+		//UI_ANI_STATE_PENDING = 1;
+		UI_ANI_STATE_PLAYING = 2;
+		UI_ANI_STATE_PAUSED = 4;
+		UI_ANI_STATE_FINISHING = 8;
+		UI_ANI_STATE_FINISHED = 16;
+
+		UI_ANI_SMOOTH_NONE = 0; // Progresses at a constant rate from beginning to end
+		UI_ANI_SMOOTH_IN; // Initially progressing slowly and accelerating towards the end
+		UI_ANI_SMOOTH_IN_OUT; // Initially progressing slowly and accelerating towards the middle, then slowing down towards the end
+		UI_ANI_SMOOTH_OUT; // Initially progressing quickly and slowing towards the end
+
+		UI_ANI_FLAG_POSITION = 1;
+		UI_ANI_FLAG_ALPHA = 2;
+		UI_ANI_FLAG_SCALE = 4;
+		UI_ANI_FLAG_ROTATION = 8;
+
+// --------------------------------------------------------------------------------------------------------------------------------------------------
+// SUBSECTION: Propiedades para edición
+// --------------------------------------------------------------------------------------------------------------------------------------------------
+
+		UI_EDIT_TYPE_INT = 1;
+		UI_EDIT_TYPE_FLOAT = 2;
+		UI_EDIT_TYPE_STRING = 3;
+		UI_EDIT_TYPE_BOOL = 4;
+		UI_EDIT_TYPE_COLOR = 5;
+		UI_EDIT_TYPE_FLAG = 6;
+		UI_EDIT_TYPE_FILE = 7;
+
+
+// --------------------------------------------------------------------------------------------------------------------------------------------------
+// SUBSECTION: SISTEMA
+// --------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+   // INPUT
+		// INPUT_EVENT_MOVED = 1;
+		// INPUT_EVENT_PRESSED = 2;
+		// INPUT_EVENT_RELEASED = 3;
+
+		// GESTURE_TYPE_NONE           = 0x0000;
+
+		// // Con estos eventos podremos controlar el mouse/over, aunque no sean gestures como tal
+		// GESTURE_TYPE_PRESS          = 0x0001; // Se ha empezado a pulsar
+		// GESTURE_TYPE_RELEASE        = 0x0002; // Se ha soltado
+
+		// GESTURE_TYPE_TAP            = 0x0004; // Un click
+		// GESTURE_TYPE_DOUBLETAP      = 0x0008; // Doble click
+		// GESTURE_TYPE_HOLD           = 0x0010; // Se mantiene pulsado durante 1 seg mas o menos.
+		// GESTURE_TYPE_HORIZONTALDRAG = 0x0020; // Se mueve de derecha-izqquierda o viceversa
+		// GESTURE_TYPE_VERTICALDRAG   = 0x0040; // Se mueve de arriba-abajo o viceversa
+		// GESTURE_TYPE_FREEDRAG       = 0x0080; // Se mueve libremente (sin ser vert o horz)
+		// GESTURE_TYPE_PINCH          = 0x0100; // Se pulsan los 2 dedos
+		// GESTURE_TYPE_FLICK          = 0x0200; // Se mueve rápidamente
+		// GESTURE_TYPE_DRAGCOMPLETE   = 0x0400; // Se termina cualquier drag
+		// GESTURE_TYPE_PINCHCOMPLETE  = 0x0800; // Se termina el pinch (suelta una pulsacion o ambas)
+
+		// GESTURE_TYPE_ALL 		= GESTURE_TYPE_TAP | GESTURE_TYPE_DOUBLETAP | GESTURE_TYPE_HOLD |
+		// 									GESTURE_TYPE_HORIZONTALDRAG | GESTURE_TYPE_VERTICALDRAG |
+		// 									GESTURE_TYPE_FREEDRAG | GESTURE_TYPE_PINCH | GESTURE_TYPE_FLICK |
+		// 									GESTURE_TYPE_DRAGCOMPLETE | GESTURE_TYPE_PINCHCOMPLETE;
+}

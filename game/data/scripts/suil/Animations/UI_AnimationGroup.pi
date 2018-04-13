@@ -1,0 +1,527 @@
+class UI_AnimationGroup implements UI_ParentedObject, UI_IEventController
+{
+    properties:
+        animationId = null; // La da el region
+        parent = null;
+        name = null;
+        eventManager = null;
+        animations = null;
+        destroyWhenFinish = true;
+
+        initialOffset = [0, 0];
+        loopType = UI_LOOP_TYPE_NONE;
+        loopState = UI_LOOP_STATE_NONE;
+        maxloopCount = 0;
+
+        // Datos sobre la animación actual
+        lastTick = 0;
+        animationGroupTime = 0; // ms. Lo incremantamos para saber el tiempo actual
+        animState = UI_ANI_STATE_NONE;
+        loopCount = 0;
+
+        // Cache de datos utiles
+        duration = 0; // Duración ENTERA de la animacion teniendo en cuenta grupos
+        lastAnimationOfGroup = []; // Contiene el índice de las últimas posiciones del grupo sizeof(lastAnimationOfGroup) devuelve en nº de grupos
+        groupDuration = [];
+
+        deleted = false;
+
+    function _operator_new(_uisystem, _parent, _name)
+    {
+        ::_operator_new(_uisystem);
+        parent = _parent;
+        name = _name;
+
+        eventManager = EventManager_New(UI_EVENT_MAX + uiSystem.maxUserEvents);
+        animations = new List();
+    }
+
+    function _operator_delete()
+    {
+        deleted = true;
+        Core_FinishAnimation(false);
+
+        uiSystem.UnRegisterObject(this);
+        if (eventManager) EventManager_Delete(eventManager);
+
+        for (i = 0; i < animations.Count(); i++)
+        {
+            _item = animations.Get(i);
+            delete _item;
+        }
+        delete animations;
+
+        Core_UnregisterAnimation();
+
+        //::_operator_delete();
+    }
+
+    function Core_UnregisterAnimation()
+    {
+        if (animationId) GetParent().Core_RemoveAnimationGroup(this);
+    }
+
+    function AutoDelete(_value)
+    {
+        destroyWhenFinish = _value;
+    }
+
+    function CreateAnimation(_animation, _name = null)
+    {
+        _anim = Class_New(_animation, uisystem, _name);
+        _anim.SetParent(this);
+        uiSystem.RegisterObject(_anim);
+        return _anim;
+    }
+
+    function Core_AddChild(_animation, _updateCache = true)
+    {
+        _max = GetMaxOrder();
+        if (_max == -1 || _max <= _animation.GetOrder())
+        {
+            animations.Add(_animation);
+            if (_updateCache) Core_UpdateCache();
+            return;
+        }
+
+        // Insertamos la animacion teniendo el cuenta el orden
+        for (i = 0; i < animations.Count(); i++)
+        {
+            _item = animations.Get(i);
+            if (_item.GetOrder() > _animation.GetOrder())
+            {
+                animations.Insert(_animation, i - 1);
+                break;
+            }
+        }
+        if (_updateCache) Core_UpdateCache();
+    }
+
+    function Core_RemoveChild(_animation, _updateCache = true)
+    {
+        animations.Remove(_animation);
+        if (_updateCache) Core_UpdateCache();
+    }
+
+    function GetAnimations()
+    {
+        return animations.AsList();
+    }
+
+    // Causes animations within the group to complete and stop
+    function Finish()
+    {
+        if ((animState & UI_ANI_STATE_PLAYING) != UI_ANI_STATE_PLAYING)
+        {
+            Core_FinishAnimation(false);
+            return;
+        }
+
+        if ((animState & UI_ANI_STATE_FINISHING) == UI_ANI_STATE_FINISHING) return;
+        animState |= UI_ANI_STATE_FINISHING;
+    }
+
+    // Starts animating the group
+    function Play()
+    {
+        // UI_ANI_STATE_PENDING no tiene sentido
+        if ((animState & UI_ANI_STATE_PLAYING) == UI_ANI_STATE_PLAYING) return;
+
+        if (animState == UI_ANI_STATE_PAUSED)
+        {
+
+        }
+        else
+        {
+            //startPoint.Init(GetParent());
+            //uisystem.animationService.Register(this);
+            GetParent().Core_PlayAnimation(this);
+
+            // Actualizamos las duraciones
+            Core_CalculateDuration();
+
+            // Reiniciamos
+            animationGroupTime = 0;
+            loopCount = 0;
+            loopState = UI_LOOP_STATE_FORWARD;
+        }
+        lastTick = GetAnimationTick();
+        animState = UI_ANI_STATE_PLAYING;
+
+        CallEvent(UI_EVENT_ANIMATION_PLAY);
+        Core_UpdateElapsed(0);
+        //DebugMSg("DURATION", duration, "TICK", lastTick);
+    }
+
+    // Stops animation of the group
+    function Stop()
+    {
+        Core_FinishAnimation(true);
+    }
+
+    // Pauses animation of the group
+    function Pause()
+    {
+        Core_DoUpdate();
+        animState = UI_ANI_STATE_PAUSED;
+        CallEvent(UI_EVENT_ANIMATION_PAUSED);
+    }
+
+    function IsDone()
+    {
+        return (animState & UI_ANI_STATE_FINISHED) == UI_ANI_STATE_FINISHED;
+    }
+
+    function IsPaused()
+    {
+        return (animState & UI_ANI_STATE_PAUSED) == UI_ANI_STATE_PAUSED;
+    }
+
+    function IsPlaying()
+    {
+        return (animState & UI_ANI_STATE_PLAYING) == UI_ANI_STATE_PLAYING;
+    }
+
+    // Returns the current state of the animation group's progress
+    function GetProgress()
+    {
+        return animationGroupTime / duration;
+    }
+
+    // Returns the duration of a single loop cycle for the group, as determined by its child animations
+    function GetDuration()
+    {
+        return duration;
+    }
+
+    // Returns the highest order amongst the animations in the group
+    function GetMaxOrder()
+    {
+        if (animations.Count()) return animations.GetLast().GetOrder();
+        return -1;
+    }
+
+    // Sets a static translation for the animated region
+    function SetInitialOffset(_x, _y)
+    {
+        initialOffset = [_x, _y];
+        //if (IsPlaying()) UpdatePosition();
+    }
+
+    // Returns the starting static translation for the animated region
+    function GetInitialOffset()
+    {
+        return initialOffset;
+    }
+
+    // Sets the looping behavior of the group
+    function SetLooping(_loopType)
+    {
+        loopType = _loopType;
+    }
+
+    function SetMaxLoopCount(_value)
+    {
+        maxloopCount = _value;
+    }
+
+    // Returns the current loop state of the group
+    function GetLoopState()
+    {
+        return loopState;
+    }
+
+    // Returns the looping behavior of the group
+    function GetLooping()
+    {
+        return loopType;
+    }
+
+    function GetAnimationTick()
+    {
+        return uisystem.animationService.GetTick();
+    }
+
+    function Core_DoUpdate()
+    {
+        if ((animState & UI_ANI_STATE_PLAYING) == UI_ANI_STATE_PLAYING)
+        {
+            if (sizeof(lastAnimationOfGroup) == 0)
+                return false;
+
+            _now = GetAnimationTick();
+            _time = _now - lastTick;
+            lastTick = _now;
+            return Core_UpdateElapsed(_time);
+        }
+        else if ((animState & UI_ANI_STATE_PAUSED) == UI_ANI_STATE_PAUSED)
+        {
+            return Core_UpdateElapsed(0);
+        }
+    }
+
+    function Core_UpdateElapsed(_time)
+    {
+        // Añadimos el tiempo en base al loop
+        _direction = 1;
+        if (loopState == UI_LOOP_STATE_REVERSE) _direction = -1;
+        animationGroupTime += _time * _direction;
+        //DebugMsg("ANITIME", d_var(animationGroupTime), d_var(duration));
+
+        // Comprobamos el estado del loop, que ejecutaremos dependiendo de ciertos aspectos (el final lo aplazamos hasta aplicar el valor correcto)
+        _doFinish = false;
+        _addLoop = false;
+        if (loopType == UI_LOOP_TYPE_ENDFIX || loopType == UI_LOOP_TYPE_NONE)
+        {
+            if (animationGroupTime >= duration)
+            {
+                if (loopType == UI_LOOP_TYPE_NONE) animationGroupTime = 0;
+                else animationGroupTime = duration;
+                _doFinish = true;
+            }
+        }
+        else if (loopType == UI_LOOP_TYPE_REPEAT && animationGroupTime >= duration)
+        {
+            if (IsPendingFinish())
+            {
+                animationGroupTime = duration;
+                _doFinish = true;
+                _addLoop = true;
+            }
+            else
+            {
+                _canContinue = Core_AddLoop();
+                if (_canContinue)
+                    animationGroupTime -= duration;
+                else
+                {
+                    animationGroupTime = duration;
+                    _doFinish = true;
+                }
+            }
+        }
+        else if (loopType == UI_LOOP_TYPE_BOUNCE)
+        {
+            if (animationGroupTime > duration && loopState == UI_LOOP_STATE_FORWARD)
+            {
+                animationGroupTime = duration - (animationGroupTime - duration);
+                loopState = UI_LOOP_STATE_REVERSE;
+            }
+            else if (animationGroupTime <= 0 && loopState == UI_LOOP_STATE_REVERSE)
+            {
+                if (IsPendingFinish())
+                {
+                    animationGroupTime = 0;
+                    _doFinish = true;
+                    _addLoop = true;
+                }
+                else
+                {
+                    _canContinue = Core_AddLoop();
+                    loopState = UI_LOOP_STATE_FORWARD;
+                    if (_canContinue)
+                    {
+                        animationGroupTime = abs(animationGroupTime);
+                    }
+                    else
+                    {
+                        animationGroupTime = 0;
+                        _doFinish = true;
+                    }
+                }
+            }
+        }
+
+        // Aplicamos la animación
+        _acumTime = 0;
+        // currentPoint.Clear();
+        // currentPoint.x = initialOffset[0];
+        // currentPoint.y = initialOffset[1];
+        //DebugMsg("ANITIME", d_var(animationGroupTime), d_var(duration));
+        for (cg = 0; cg < sizeof(groupDuration); cg++)
+        {
+            //DebugMSg("GROUP INDEX", cg);
+            _groupFullTime = groupDuration[cg];
+
+            //DebugMSg("GROUP INDEX", _acumTime > animationGroupTime, _acumTime, animationGroupTime);
+            //DebugMSg("1");
+            if (_acumTime > animationGroupTime) break;
+//DebugMSg("2");
+            //_currentGroupTime = animationGroupTime > _acumTime ? _groupFullTime: animationGroupTime - _acumTime;
+            _currentGroupTime = animationGroupTime < (_acumTime + _groupFullTime) ? animationGroupTime - _acumTime : _groupFullTime;
+
+            _group = Core_GetAnimationRange(cg);
+            for (i = _group[0]; i <= _group[1]; i++)
+            {
+                //DebugMSg("3", _currentGroupTime);
+                animations.Get(i).Core_Update(_currentGroupTime);//, _time);
+            }
+            _acumTime += _groupFullTime;
+        }
+
+        //DebugMsg("parent.point", parent.animationCurrentPoint.x, _doFinish);
+        // Aplicamos el punto a la region
+        //GetParent().Core_ApplyAnimation();
+
+        // Realizamos las operaciones pendientes
+        if (_addLoop)
+        {
+            _canContinue = Core_AddLoop();
+            if (!_canContinue) _doFinish = true;
+        }
+
+        // Si ejecutamos esto aqui, se envia el evento de final pero sin haber actualizado aún el último frame
+        //if (_doFinish) Core_FinishAnimation(false);
+        return _doFinish;
+    }
+
+    function Core_FinishAnimation(_userStop)
+    {
+        if ((animState & UI_ANI_STATE_FINISHED) == UI_ANI_STATE_FINISHED ||
+            (animState == UI_ANI_STATE_NONE)) return;
+
+
+        animState = UI_ANI_STATE_FINISHED;
+        loopState = UI_LOOP_STATE_NONE;
+
+        // Core_UnregisterAnimation();
+        GetParent().Core_StopAnimation(this);
+
+        CallEvent(UI_EVENT_ANIMATION_STOP, [_userStop]);
+
+        //DebugMsg("STOPPPPPPPPPPPPPP!", GetName());
+        if (destroyWhenFinish && !deleted) delete this;
+    }
+
+    function Core_AddLoop()
+    {
+        loopCount++;
+        CallEvent(UI_EVENT_ANIMATION_LOOP);
+        if (maxloopCount > 0 && loopCount >= maxloopCount) return false;
+        return true;
+    }
+
+    function IsPendingFinish()
+    {
+        return (animState & UI_ANI_STATE_FINISHING) == UI_ANI_STATE_FINISHING;
+    }
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Utiles
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+    function Core_UpdateCache()
+    {
+        Core_UpdateGroups();
+        // Core_CalculateDuration();
+    }
+
+    function Core_UpdateGroups()
+    {
+        lastAnimationOfGroup = [];
+        if (animations.Count() == 0) return;
+
+        _c = animations.GetFirst().GetOrder();
+        for (i = 1; i < animations.Count(); i++)
+        {
+            _item = animations.Get(i);
+            if (_item.GetOrder() > _c)
+            {
+                lastAnimationOfGroup += [i - 1];
+                _c = _item.GetOrder();
+            }
+        }
+
+        lastAnimationOfGroup += [animations.Count() - 1];
+    }
+
+    function Core_CalculateDuration()
+    {
+        // Antes de llamar a esta funcion los grupos deben haberse actualizado con Core_UpdateGroups()
+        duration = 0;
+        _startOfGroup = 0;
+        groupDuration = [];
+        for (g = 0; g < sizeof(lastAnimationOfGroup); g++)
+        {
+            _maxOfGroup = 0;
+            _lastOfGroup = lastAnimationOfGroup[g];
+            for (i = _startOfGroup; i <= _lastOfGroup; i++)
+            {
+                _itemDur = animations.Get(i).GetFullDuration();
+                //DebugMsg("DURATION", _itemDur);
+                _maxOfGroup = (_itemDur > _maxOfGroup ? _itemDur : _maxOfGroup);
+            }
+            groupDuration += [_maxOfGroup];
+            duration += _maxOfGroup;
+            _startOfGroup = _lastOfGroup + 1;
+        }
+    }
+
+    function Core_GetAnimationRange(_group)
+    {
+        if (_group < 0 || _group >= sizeof(lastAnimationOfGroup)) return [-1, -1];
+
+        _start = 0;
+        if (_group > 0) _start = lastAnimationOfGroup[_group - 1] + 1;
+        _end = lastAnimationOfGroup[_group];
+        return [_start, _end];
+    }
+
+    function GetCurrentGroupIndex(_time)
+    {
+        _ac = 0;
+        for (i = 0; i < sizeof(groupDuration); i++)
+        {
+            _ac += groupDuration[i];
+            if (_time <= _ac) return i;
+        }
+
+        return sizeof(groupDuration) - 1;
+    }
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: UI_IEventController
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+    function CallEvent(_event, _params = [])
+    {
+        EventManager_DoEvent(eventManager, _event, [this, _event, _params]);
+    }
+
+    function HookEvent(_event, _context, _function)
+    {
+        EventManager_AddEvent(eventManager, _event, _context, _function);
+    }
+
+    function RemoveEvent(_event, _context)
+    {
+        EventManager_RemoveEvent(eventManager, _event, _context);
+    }
+
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: UI_ParentedObject
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+    function GetParent()
+    {
+        return parent;
+    }
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: UI_Object
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+    function GetName()
+    {
+        return name;
+    }
+}

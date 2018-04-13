@@ -1,0 +1,47 @@
+class Actor implements Item
+{
+	properties:
+		
+	virtual Init ()
+	{	
+		StartLoadResources ();
+			
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "item_jim_coveralls.msh");
+		
+		EndLoadResources ();
+		
+		name = "item_jim_coveralls";
+	}
+	
+	virtual Final ()
+	{
+	}
+
+	virtual Start ()
+	{
+		if (game.IsItemUsed(name) || game.IsItemInInventory(name))  // En el inventario o puesto
+		{
+			visible = false;
+			SetEnabled (false);
+		}
+		else
+		{
+			visible = false;
+			shadow = true;
+		}	
+	}
+	
+	function OnCursorClick()
+	{
+		if (enabled)
+		{
+			_player = game.GetPlayer();
+			_player.TaskDone("pickup_jim_coveralls");
+			_player.AddTask("put_jim_coveralls");
+			_player.AddTask("talk_with_jim");
+			game.hud.OpenPlayerTID ("player_item_jim_coveralls_1");
+			_player.AddInventory (this);	
+		}
+	}
+}

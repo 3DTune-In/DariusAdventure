@@ -1,0 +1,310 @@
+class UI_Animation implements UI_ParentedObject, UI_IEventController
+{
+	properties:
+		parent = null;
+		name = null;
+		eventManager = null;
+
+		smoothing = UI_ANI_SMOOTH_NONE;
+
+		order = 0;
+		startDelay = 0;
+		endDelay = 0;
+		duration = 0;
+		time = 0; // Tiempo actual
+
+		// Curvas
+		curveIn = null;
+		curveOut = null;
+		curveInOut = null;
+
+	function _operator_new(_uisystem, _name)
+	{
+	  ::_operator_new(_uisystem);
+	  name = _name;
+
+	  eventManager = EventManager_New(UI_EVENT_MAX + uiSystem.maxUserEvents);
+	  curveIn = new UI_Curve_In();
+	  curveOut = new UI_Curve_Out();
+	  curveInOut = new UI_Curve_InOut();
+	}
+
+	function _operator_delete()
+	{
+	  uiSystem.UnRegisterObject(this);
+	  if (eventManager) EventManager_Delete(eventManager);
+
+	  delete curveIn;
+	  delete curveOut;
+	  delete curveInOut;
+
+	  // ::_operator_delete();
+	}
+
+	// Sets the order for the animation to play within its parent group
+	function SetOrder(_order)
+	{
+		if (order == _order) return;
+		order = _order;
+		if (parent)
+		{
+			// Hacemos como si se cambiase el padre para provocar la organización de la animación
+			parent.Core_RemoveChild(this, false);
+			parent.Core_AddChild(this);
+		}
+	}
+
+	function GetOrder()
+	{
+		return order;
+	}
+
+	// Returns the time for the animation to progress from start to finish
+	function GetDuration()
+	{
+		return duration;
+	}
+
+	function GetFullDuration()
+	{
+		return duration + startDelay + endDelay;
+	}
+
+	// Returns the amount of time since the animation began playing.  This amount includes start and end delays.
+	// En ms
+	function GetElapsed()
+	{
+		return time;
+	}
+
+	// Returns the amount of time the animation delays after finishing
+	function GetEndDelay()
+	{
+		return endDelay;
+	}
+
+	// Returns the progress of an animation, ignoring smoothing effects
+	// De 0 a 1
+	function GetProgress()
+	{
+		if (time < startDelay) return 0.0f;
+		if (time > (startDelay + duration)) return 1.0f;
+		if (duration == 0) return 1.0f;
+		return float(time - startDelay) / float(duration);
+	}
+
+	// Returns the progress of the animation and associated delays
+	// De 0 a 1
+	function GetProgressWithDelay()
+	{
+		return float(time) / float(GetFullDuration());
+	}
+
+	// Returns the `Region` object on which the animation operates
+	function GetRegionParent()
+	{
+		if (!parent) return null;
+		return parent.GetParent();
+	}
+
+	// Returns the progress of the animation (ignoring start and end delay)
+	// function GetSmoothProgress()
+	// {
+	// }
+
+	// Returns the smoothing type for the animation
+	function GetSmoothing()
+	{
+		return smoothing;
+	}
+
+	// Returns the amount of time the animation delays before its progress begins
+	function GetStartDelay()
+	{
+		return startDelay;
+	}
+
+	// Returns whether the animation is currently in the middle of a start or end delay
+	function IsDelaying()
+	{
+		return time < startDelay || time > (startDelay + duration);
+	}
+
+	// Returns whether the animation has finished playing
+	function IsDone()
+	{
+
+	}
+
+	// Returns whether the animation is currently paused
+	function IsPaused()
+	{
+
+	}
+
+	// Returns whether the animation is currently playing
+	function IsPlaying()
+	{
+
+	}
+
+	// Returns whether the animation is currently stopped
+	function IsStopped()
+	{
+
+	}
+
+	// Pauses the animation
+	function Core_Pause()
+	{
+
+	}
+
+	// Plays the animation
+	function Core_Play()
+	{
+
+	}
+
+	// Sets the time for the animation to progress from start to finish
+	function SetDuration(_duration)
+	{
+		duration = _duration;
+	}
+
+	// Sets the amount of time for the animation to delay after finishing
+	function SetEndDelay(_delay)
+	{
+		endDelay = _delay;
+	}
+
+	// Sets the smoothing type for the animation
+	function SetSmoothing(_smoothType)
+	{
+		smoothing = _smoothType;
+	}
+
+	// Sets the amount of time for the animation to delay before its progress begins
+	function SetStartDelay(_delay)
+	{
+		startDelay = _delay;
+	}
+
+	// Stops the animation
+	function Core_Stop()
+	{
+
+	}
+
+	// _groupTime Tiempo actual dentro del grupo de animaciones
+	// _timeElapsed Tiempo que ha pasado desde el último tick
+	function Core_Update(_groupTime)//, _timeElapsed)
+	{
+		time = _groupTime;
+		// DebugMsg("TIME", time, GetFullDuration());
+		if (time > GetFullDuration()) time = GetFullDuration();
+		//if (IsDelaying()) return;
+		Core_InternalUpdate();
+	}
+
+	function Core_InternalUpdate()
+	{
+
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: UI_IEventController
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function CallEvent(_event, _params = [])
+	{
+		EventManager_DoEvent(eventManager, _event, [this, _event, _params]);
+	}
+
+	function HookEvent(_event, _context, _function)
+	{
+	  	EventManager_AddEvent(eventManager, _event, _context, _function);
+	}
+
+	function RemoveEvent(_event, _context)
+	{
+	  	EventManager_RemoveEvent(eventManager, _event, _context);
+	}
+
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: UI_ParentedObject
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function SetParent(_parent)
+	{
+		if (parent == _parent) return;
+
+		if (parent) parent.Core_RemoveChild(this);
+    	parent = _parent;
+    	if (parent) parent.Core_AddChild(this);
+	}
+
+	function GetParent()
+	{
+ 	  return parent;
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: UI_Object
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function GetName()
+	{
+		return name;
+	}
+
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+// SECTION: Interpolacion
+// *******************************************************************************************************************************************************
+// *******************************************************************************************************************************************************
+
+	function Interpolate(_lowValue, _highValue, _t, _reverse = false)
+	{
+		if (_reverse)
+		{
+			_tmp = _highValue;
+			_highValue = _lowValue;
+			_lowValue = _tmp;
+		}
+
+		if (smoothing == UI_ANI_SMOOTH_NONE)
+		{
+			// Mirar que haga bien el reverso
+			return slerp(_lowValue, _highValue, _t);
+		}
+
+		_curve = null;
+		if (smoothing == UI_ANI_SMOOTH_IN)
+		{
+			_curve = curveIn;
+		}
+		else if (smoothing == UI_ANI_SMOOTH_IN_OUT)
+		{
+			_curve = curveInOut;
+		}
+		else if (smoothing == UI_ANI_SMOOTH_OUT)
+		{
+			_curve = curveOut;
+		}
+
+		_ipolValues = _curve.GetXY(_t); // X es el tiempo, Y el pctg
+		//_value =  ((_highValue - _lowValue) * _ipolValues[1]) + _lowValue;
+		//_value = abs(_highValue - _lowValue) * _ipolValues[1];
+		_value = (_highValue - _lowValue) * _ipolValues[1]; // Con el abs() no funciona bien con negativos. Si hay otro problema usar una var _makeAbs para diferenciar de caso
+		if (_reverse) return _lowValue - _value;
+		else return _lowValue + _value;
+	}
+}

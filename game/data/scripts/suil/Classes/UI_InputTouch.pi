@@ -1,0 +1,78 @@
+class UI_InputTouch implements UI_Input
+{
+	properties:
+		// Input
+		firstTouchId = -1;
+		touchSeqDown = [];
+
+	function Enable()
+	{
+		::Enable();
+
+		if (enabled)
+		{
+			Input_AddEvent(INPUT_EVENT_TOUCHSTART, this, "InputEventTouchStart");
+			Input_AddEvent(INPUT_EVENT_TOUCHMOVE, this, "InputEventTouchMove");
+			Input_AddEvent(INPUT_EVENT_TOUCHEND, this, "InputEventTouchEnd");
+		}
+	}
+
+	function Disable()
+	{
+		::Disable();
+
+		if (!enabled)
+		{
+			Input_RemoveEvent(INPUT_EVENT_TOUCHSTART, this);
+			Input_RemoveEvent(INPUT_EVENT_TOUCHMOVE, this);
+			Input_RemoveEvent(INPUT_EVENT_TOUCHEND, this);
+		}
+	}
+
+	// function Core_SequenceIdToBtnId(_id)
+	// {
+	// 	_btnId = _id;
+	// 	if (firstTouchId == -1 || _id == firstTouchId)
+	// 	{
+	// 		_btnId = MOUSE_LEFT;
+	// 		firstTouchId = _id;
+	// 	}
+	// 	return _btnId;
+	// }
+
+	function InputEventTouchStart(_id, _x, _y, _z, _time)
+	{
+		// _id = int(_id);
+		// _btnId = Core_SequenceIdToBtnId(_id + 100);
+		if (firstTouchId == -1 || _id == firstTouchId)
+		{
+			firstTouchId = _id;
+		}
+
+		touchSeqDown += [_id];
+		CallEvent(UI_INPUTEV_TOUCHDOWN, [_id, _x, _y, _z, sizeof(touchSeqDown)]);
+	}
+
+	function InputEventTouchEnd(_id, _x, _y, _z, _time)
+	{
+		// _id = int(_id);
+		// _btnId = Core_SequenceIdToBtnId(_id + 100);
+
+		touchSeqDown -= [_id];
+		CallEvent(UI_INPUTEV_TOUCHUP, [_id, _x, _y, _z, sizeof(touchSeqDown)]);
+		if (_id == firstTouchId)
+		{
+			firstTouchId = -1;
+		}
+		// if (_btnId == MOUSE_LEFT)
+		// 	firstTouchId = -1;
+	}
+
+	function InputEventTouchMove(_id, _x, _y, _z, _offx, _offy, _offz, _time)
+	{
+		// _id = int(_id);
+		// _btnId = Core_SequenceIdToBtnId(_id + 100);
+
+		CallEvent(UI_INPUTEV_TOUCHMOVE, [_id, _x, _y, _z, _offx, _offy, _offz]);
+	}
+}

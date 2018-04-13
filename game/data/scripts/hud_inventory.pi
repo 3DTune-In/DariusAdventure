@@ -1,0 +1,355 @@
+class HUD_Inventory
+{
+	constants:
+		CLOSE_BUTTON_SIZE = 64;
+		PANEL_W = 1024*0.8f;
+		PANEL_H = 576*0.8f;
+		EXIT_X = 10;
+		EXIT_Y = RESY-128-10;
+		EXIT_W = 128;
+		EXIT_H = 128;			                      
+		CONFIG_X = EXIT_X + EXIT_W + 10;
+		CONFIG_Y = EXIT_Y;
+		CONFIG_W = 128;
+		CONFIG_H = 128;			                      
+		CARDS_X = CONFIG_X + CONFIG_W + 10;
+		CARDS_Y = CONFIG_Y;
+		CARDS_W = 128;
+		CARDS_H = 128;			                      
+		
+	properties:
+		ICON_SIZE = 128;
+		hud = null;
+		bgTex = null;
+		closeTex = null;
+		exitTex = null;
+		configTex = null;
+		cardsTex = null;
+		dragItem = null;
+		dragItemTex = null;
+		dragOver = null;
+		tutoTex = null;
+		itemIconList = [];
+		
+	function _operator_new (_hud)
+	{
+		hud = _hud;
+		
+		System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/hud/");
+
+		bgTex = Texture_Load ("inventory_window.png");
+		closeTex = Texture_Load ("inventory_button_close.png");
+		exitTex = Texture_Load ("button_exit.png");
+		configTex = Texture_Load ("config.png");
+		//cardsTex = Texture_Load("button_cards.png");
+		
+		_itemList = 
+		[
+			"apple",
+			"book_gift",
+			"cap",
+			"cat",
+			"celery", 
+			"chocolate", 
+			"cone", 
+			"cotton_ball", 
+			"dog",
+			"desert",
+			"drink",
+			"feather", 
+			"frisbee", 
+			"garlic", 
+			"green_ball", 
+			"hearing_aid",
+			"icecreams", 
+			"jim_coveralls", 
+			"key", 
+			"lettuce",
+			"lever_1", 
+			"lever_2", 
+			"lever_3", 
+			"love_letter_1",
+			"love_letter_2",
+			"michael_photo",
+			"milk",
+			"mime_photo",
+			"mobile",
+			"mobile_phone_red",
+			"mobile_phone_green",
+			"mobile_phone_blue",
+			"mobile_phone_orange",
+			"mobile_phone_yellow",
+			"parsley",
+			"pepper",
+			"petra_photo",
+			"pirate_cooking_book",
+			"pliers",
+			"potatoe",
+			"rat",
+			"red_ball",
+			"red_book",
+			"shovel",
+			"spoon",
+			"stone_photo", 
+			"sugar_cube",
+			"sandwich",
+			"tomato",
+			"treasure_map",
+			"vase",
+			"vase_with_water",
+			"vase_with_fish",
+			"spare_dish",
+		];
+		
+		System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/");
+
+		for (i=0; i<sizeof(_itemList); i++)
+		{
+			itemIconList += [["item_" + _itemList[i], Texture_Load ("icon_item_" + _itemList[i] + ".png")]];
+		} 
+	}
+	
+	function _operator_delete ()
+	{
+		Texture_Delete (bgTex);
+		Texture_Delete (closeTex);
+		Texture_Delete (exitTex);
+		Texture_Delete (configTex);
+		//Texture_Delete (cardsTex);
+		for (i=0; i<sizeof(itemIconList); i++) Texture_Delete (itemIconList[i][1]);
+	}
+	
+	function Open ()
+	{
+		_player = hud.game.GetPlayer();
+		if (_player == null)
+			return;
+
+		_game = hud.game;
+		if (!_game.IsItemUsed("npc_scrapyard_door") && _game.IsItemInInventory("item_hearing_aid") && !_player.HasHearingAid())
+		{
+			System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/");
+			tutoTex = Texture_Load ("tutorial/tutorial04.png");
+		} 
+	
+		dragItem = "";
+		dragItemTex = null;
+		dragOver = null;
+		
+		// Check ICON_SIZE
+		if (sizeof(_player.inventoryList))
+		{
+			_w = PANEL_W;
+			_h = PANEL_H;
+			_x = (RESX-_w)/2;
+			_y = (RESY-_h)/2;
+			ICON_SIZE = 128+16;
+			do
+			{
+				ICON_SIZE -= 16;
+				_xi = _x + 32;
+				_yi = _y + 32;
+				for (i=0; i<sizeof(_player.inventoryList); i++)
+				{
+					_itemName = _player.inventoryList[i];
+					if (_xi >= _w - 128)
+					{
+						_xi = _x + 32;
+						_yi += ICON_SIZE + 8;
+					}
+					else
+					{
+						_xi += ICON_SIZE + 32;
+					}
+				}
+			}
+			while (ICON_SIZE > 16 && (_yi+ICON_SIZE+8) > (_y + PANEL_H));
+		}
+	}
+	
+	function Close ()
+	{
+		if (tutoTex) 
+		{
+			Texture_Delete (tutoTex);
+			tutoTex = null;
+		}
+	}
+	
+	function OnFade ()
+	{
+		Service_Run ("menu", "menu");
+		Service_Delete (Service_Get("game"));
+		g_fade.Off ();
+	}
+	
+	function OnFadeOptions ()
+	{
+		hud.game.bShowScene = false;
+		Service_Run ("menu", "menu_options");
+		Service_Pause (hud.game);
+		Service_SetVisible (hud, false);
+		g_fade.Off();
+	}
+	
+	/*function OnFadeCards ()
+	{
+		hud.game.bShowScene = false;
+		Service_Run ("menu", "menu_cards");
+		Service_Pause (hud.game);
+		Service_SetVisible (hud, false);
+		g_fade.Off();
+	} */
+
+	function OnMouseLeftPress ()
+	{
+		_w = PANEL_W;
+		_h = PANEL_H;
+		_x = (RESX-_w)/2;
+		_y = (RESY-_h)/2;
+		if (Cursor_IsOverRect (_x + _w - 48, _y - 16, CLOSE_BUTTON_SIZE, CLOSE_BUTTON_SIZE))
+		{
+			hud.CloseInventory();
+		}
+		else if (Cursor_IsOverRect (EXIT_X, EXIT_Y, EXIT_W, EXIT_H))
+		{
+			hud.CloseInventory();
+			g_fade.On (this, "OnFade");				
+		}
+		else if (Cursor_IsOverRect (CONFIG_X, CONFIG_Y, CONFIG_W, CONFIG_H))
+		{
+			g_main.PlayFX(hud.sndOpenInventory);
+			g_fade.On(this, "OnFadeOptions");
+			return;
+		}
+		/*else if (Cursor_IsOverRect (CARDS_X, CARDS_Y, CARDS_W, CARDS_H))
+		{
+			g_main.PlayFX(hud.sndOpenInventory);
+			g_fade.On(this, "OnFadeCards");
+			return;
+		} */
+		
+		_xi = _x + 32;
+		_yi = _y + 32;
+		_player = hud.game.GetPlayer();
+		for (i=0; i<sizeof(_player.inventoryList); i++)
+		{
+			if (Cursor_IsOverRect (_xi, _yi, ICON_SIZE, ICON_SIZE))
+			{
+				_itemName = _player.inventoryList[i];
+				dragItem = _itemName;
+				dragItemTex = itemIconList[dragItem];
+				hud.OpenPopup("\\2" + g_language.GetText(_itemName) + "\\0 - " + g_language.GetText("player_" + _itemName));
+				g_main.PlayFX(hud.sndDrag);
+				break;
+			}
+			if (_xi >= _w - 128)
+			{
+				_xi = _x + 32;
+				_yi += ICON_SIZE + 8;
+			}
+			else
+			{
+				_xi += ICON_SIZE + 32;
+			}
+		}
+	}
+	
+	function OnMouseMove (_x, _y)
+	{
+		dragOver = hud.game.CheckMouseOver(dragItem);
+	}
+	
+	function OnMouseLeftRelease()
+	{
+		if (dragItemTex)
+		{
+			hud.ClosePopup(); // Abierto por el item para mostrar su información
+			
+			if (dragOver)
+			{
+				g_main.PlayFX(hud.sndDrop);
+				_ret = dragOver.OnDropItem (dragItem);
+			}
+			else
+			{
+				_ret = false;
+			}
+				
+			if (_ret)
+			{
+				hud.game.GetPlayer().UseInventory (dragItem);
+				hud.CloseInventory();
+				g_main.PlayFX(hud.sndOk);
+			}
+			else
+			{
+				g_main.PlayFX(hud.sndError);
+			}
+
+			dragOver = null;
+			dragItem = "";
+			dragItemTex = null;
+		}
+	}
+	
+	function DrawDrag ()
+	{
+		if (dragItemTex)
+		{
+			Render_DrawTex (dragItemTex, Cursor_GetX(), Cursor_GetY(), ICON_SIZE, ICON_SIZE, 0, -1);
+		}
+	}
+	
+	function Draw ()
+	{
+		if (tutoTex)
+		{
+			_w = 442;
+			_h = 150;
+			Render_DrawTex (tutoTex, (RESX-_w)/2, 10, _w, _h, 0, -1);
+		}
+
+		if (dragItemTex)
+		{
+			Render_DrawTex (dragItemTex, Cursor_GetX(), Cursor_GetY(), ICON_SIZE, ICON_SIZE, 0, -1);
+		}
+		else
+		{
+			_w = PANEL_W;
+			_h = PANEL_H;
+			_x = (RESX-_w)/2;
+			_y = (RESY-_h)/2; 
+			Render_DrawTex (bgTex, _x, _y, _w, _h, 0, -1);
+			Render_DrawTex (closeTex, _x + _w - 48, _y - 16, CLOSE_BUTTON_SIZE, CLOSE_BUTTON_SIZE, 0, -1);
+			                      
+			Render_DrawTex (exitTex, EXIT_X, EXIT_Y, EXIT_W, EXIT_H, 0, -1);
+			Render_DrawTex (configTex, CONFIG_X, CONFIG_Y, CONFIG_W, CONFIG_H, 0, -1);
+			//Render_DrawTex (cardsTex, CARDS_X, CARDS_Y, CARDS_W, CARDS_H, 0, -1);
+			                      
+			_xi = _x + 32;
+			_yi = _y + 32;
+			_player = hud.game.GetPlayer();
+			for (i=0; i<sizeof(_player.inventoryList); i++)
+			{
+				_itemName = _player.inventoryList[i];
+				_quantity = hud.game.GetItemQuantity (_itemName);
+				_max = hud.game.GetItemMaxQuantity (_itemName);
+				Render_DrawTex (itemIconList[_itemName], _xi, _yi, ICON_SIZE, ICON_SIZE, 0, -1);
+				if (_max > 0)
+				{
+					Render_Print (hud.font, _xi, _yi, string(_quantity) + " / " + string(_max), ARGB(255,255,255,255));
+				}
+				if (_xi >= _w - 128)
+				{
+					_xi = _x + 32;
+					_yi += ICON_SIZE + 8;
+				}
+				else
+				{
+					_xi += ICON_SIZE + 32;
+				}
+			}
+		}
+	}
+}

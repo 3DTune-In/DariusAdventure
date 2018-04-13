@@ -1,0 +1,90 @@
+class Camera
+{
+	constants:
+		MAX_SHAKE = 40;
+		
+	properties:
+		type = 0;
+		time = 0.0f;
+		toSrcX = 0.0f;
+		toSrcY = 0.0f;
+		toSrcZ = 0.0f;
+		toDstX = 0.0f;
+		toDstY = 0.0f;
+		toDstZ = 0.0f;
+		toFOV = 0.0f;
+		toSpeed = 0.25f;
+		shake = 0.0f;
+
+	function Init ()
+	{
+		Camera_SetFov (this, DEGTORAD(30));
+		Camera_SetNearPlane (this, 10);
+		Camera_SetFarPlane (this, 10000);
+		Camera_SetUpVector (this, 0, 0, 1);
+		Camera_SetAspectRatio (this, float(RESX)/RESY);
+		Camera_SetAngle (this, 0,0,0);
+		toFOV = Camera_GetFov(this);
+	}
+
+	function SetOrtho (_v, _factor = 1.0f)
+	{
+		Camera_SetOrtho (this, _v);
+		Camera_SetAspectRatio (this, _factor);
+	}
+
+	function Start ()
+	{
+		time = 0.0f;
+	}
+	
+	function Reset ()
+	{
+		fov = toFOV;
+		srcX = toSrcX;
+		srcY = toSrcY;
+		srcZ = toSrcZ;
+		dstX = toDstX;
+		dstY = toDstY;
+		dstZ = toDstZ;
+		shake = 0;
+	}
+	
+	function Located ()
+	{
+		//return (srcX == toSrcX && srcY == toSrcY && srcZ == toSrcZ);
+		return PointDistance (srcX, srcY, srcZ, toSrcX, toSrcY, toSrcZ) <= 100;
+	}
+	
+	function Fix ()
+	{
+		srcX = toSrcX;
+		srcY = toSrcY;
+		srcZ = toSrcZ;
+		dstX = toDstX;
+		dstY = toDstY;
+		dstZ = toDstZ;
+	}
+	
+	function Move ()
+	{
+		_shakeX = FRand(-shake, shake);
+		_shakeZ = FRand(-shake, shake);
+		
+		speed = GetFTime() * toSpeed;
+		srcX = IncreaseValueWithInertia (srcX, toSrcX, speed) + _shakeX;
+		srcY = IncreaseValueWithInertia (srcY, toSrcY, speed);
+		srcZ = IncreaseValueWithInertia (srcZ, toSrcZ, speed) + _shakeZ;
+		dstX = IncreaseValueWithInertia (dstX, toDstX, speed) + _shakeX;
+		dstY = IncreaseValueWithInertia (dstY, toDstY, speed);
+		dstZ = IncreaseValueWithInertia (dstZ, toDstZ, speed) + _shakeZ;
+		fov = IncreaseValueWithInertia (fov, toFOV, speed);
+		
+		shake = clamp (shake - GetFTime(), 0, 100);
+	}
+	
+	function Shake (_value = 10.0f)
+	{
+		shake = clamp (shake + _value, 0, MAX_SHAKE);
+	}
+}

@@ -1,0 +1,20 @@
+class UI_HookArgs
+{
+	properties:
+		target = null;
+		params = [];
+		cancel = false;
+		handled = false;
+
+	function _operator_new()
+	{
+	}
+
+	function Clear(_target = null, _params = [])
+	{
+		target = _target;
+		params = _params;
+		cancel = false;
+		handled = false;
+	}
+}

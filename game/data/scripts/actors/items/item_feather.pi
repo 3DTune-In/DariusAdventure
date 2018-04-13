@@ -1,0 +1,88 @@
+class Actor implements Item
+{
+	properties:
+		snd = null;
+		baseName = "";
+		id = 0;
+		
+	virtual Init ()
+	{	
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "item_feather.msh");
+		
+		snd = Actor_LoadSound (this, "feather.ogg");
+		
+		EndLoadResources ();
+		
+		baseName = name;
+		name = "item_feather";
+		
+		useAngles = true;
+		shadow = true;
+		shadowSize = 50;
+		sclX = 1.2f;
+		sclY = sclX;
+		sclZ = sclX;
+		maxq = TOTAL_FEATHERS;
+	}
+	
+	virtual Final ()
+	{
+	}
+	
+	virtual Start ()
+	{
+		//DebugMsg (">>>>>>>>>>>>>>>>>>>>", baseName, game.stageID, game.GetLandMark (baseName + string(game.stageID)));
+		 
+		if (game.GetLandMark (baseName + string(game.stageID)) == 1) // Ya hemos cogido esta pluma
+		{
+			SetEnabled(false);
+			SetVisible(false);
+		}
+		else
+		{
+			SetEnabled(true);
+		}
+	}
+
+	function Fall ()
+	{
+		main.PlayFX(snd);
+		posZ = 500;
+		_change ("falling");
+	}
+	
+	state "falling"
+	{
+		posZ -= GetFTime() * 4.0f;
+		posX += cos(angleZ) * GetFTime() * 4.0f;
+		angleZ += GetFTime() * 0.25f;
+		_ret = Scene_GetFloorZ (scene, posX, posY, posZ, 5);
+		if (_ret[0]) 
+		{
+			SetEnabled (true);
+			posZ = _ret[1];
+			_change ("quiet");
+		}  
+	}
+
+	state "quiet"
+	{
+	}
+
+	function OnCursorClick()
+	{
+		if (enabled)
+		{
+			if (game.stageID == STAGE_SCRAPYARD && id == 1)
+			{
+				stage.FindActor("npc_scrapyard_door").Open();
+			}
+			game.hud.OpenPlayerTID ("player_item_feather_3");
+			game.AddLandMark (baseName + string(game.stageID), 1);
+			game.GetPlayer().AddInventory (this);	
+		}
+	}
+}

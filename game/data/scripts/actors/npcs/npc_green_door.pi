@@ -1,0 +1,86 @@
+class Actor implements NPC
+{
+	properties:
+		ANI_CLOSED = null;
+		ANI_OPEN = null;
+		ANI_OPENED = null;
+		sndOpen = null;
+		
+	virtual Init ()
+	{	
+		StartLoadResources ();
+			
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_green_door.msh");
+		
+		ANI_CLOSED = Actor_LoadKinematic (this, "npc_green_door_closed.kin");
+		ANI_OPEN = Actor_LoadKinematic (this, "npc_green_door_open.kin");
+		ANI_OPENED = Actor_LoadKinematic (this, "npc_green_door_opened.kin");
+		
+		sndOpen = LoadSound("door_open.ogg"); 
+
+		EndLoadResources ();
+		name = "npc_green_door";
+		useAngles = 0;
+		gravity = false;
+		shadow = false;
+	}
+	
+	virtual Final ()
+	{
+	}
+
+	virtual Start ()
+	{                                                  	
+		if (game.IsItemUsed(name))
+		{
+			SetEnabled (false);
+			Actor_SetKin (this, ANI_OPENED, KINMODE_LOOP);
+			_change ("opened");
+		}
+		else
+		{
+			SetEnabled (game.IsItemInInventory(name));
+			Actor_SetKin (this, ANI_CLOSED, KINMODE_LOOP);
+			_change ("closed");
+		}
+	}
+	
+	state "closed"
+	{
+	}
+	
+	function Open ()
+	{
+		game.SetItemUsed(name);
+		Actor_SetKin (this, ANI_OPEN, KINMODE_ENDFIX);
+		main.PlayFX(sndOpen);
+		_change ("opening");
+	}
+	
+	state "opening"
+	{
+		if (Actor_IsKinTimeEnd (this))
+		{
+			SetEnabled (false);
+			Actor_SetKin (this, ANI_OPENED, KINMODE_LOOP);
+			_change ("opened");
+		}
+	}
+	
+	state "opened"
+	{
+	}
+
+	function OnDropItem (_itemName)
+	{
+		if (_itemName == "item_key")
+		{
+			stage.FindActor("item_jim_coveralls").SetEnabled(true);
+			game.GetPlayer().UseInventory (_itemName);
+			Open();
+			return true;
+		}
+		return false;
+	}
+}

@@ -1,0 +1,178 @@
+class Service
+{
+	constants:
+
+	properties:
+		frame = null;
+		profile = null;
+		profileID = 0;
+		sndOk = null;
+		sndBack = null;
+		sndError = null;
+		bg = null;
+		bgX = 0.0f;
+	
+	function Init ()
+	{
+		System_SetDirectory (DIRECTORY_TEXTURE, "data/textures/menus/");
+	
+		profile = new Profile();
+
+        RefreshFrame ();
+        
+		System_SetDirectory (DIRECTORY_SOUND, "data/sounds/");
+        sndOk = Sound_Load ("ui_menu_ok.ogg");
+        sndBack = Sound_Load ("ui_menu_back.ogg");
+        sndError = Sound_Load ("ui_error.ogg");
+	}
+	
+	function Final ()
+	{
+		Sound_Delete (sndOk);
+		Sound_Delete (sndBack);
+		Sound_Delete (sndError);
+		delete profile;
+		delete frame;
+	}
+	
+	function RefreshFrame ()
+	{
+		if (frame)	
+			delete frame;
+	
+		_frame = UI_CreateFrame("GUI_Frame");
+		_frame.SetBounds (0, 0, RESX, RESY);
+		bg = _frame.CreateImage ("menu_background.jpg", true);
+		_frame.CreateImage ("menu_background_fixed.png");
+		frame = _frame;
+		
+		for (i=0; i<4; i++)
+		{
+			_bOk = profile.Load(i+1);
+		
+			_button = frame.CreateButton ((RESX-833)/2, 150+i*130, 833, 130);
+			_button.SetFontSize(40);
+			_button.SetUserData (i+1);
+
+			if (!_bOk) // EMPTY  (not exists or corrupted)
+			{
+				_button.SetNormalTexture ("slot_empty_button.png");
+				_button.SetText(g_language.GetText("menu_new"));
+				_button.SetOnClick (this, "OnNew");
+			}
+			else
+			{
+				_button.SetOnClick (this, "OnPlay");
+				if (profile.playTime == 0) _button.SetNormalTexture ("slot_new_button.png");
+				else _button.SetNormalTexture ("slot_old_button.png");
+				_button.SetText(profile.name);
+				_button.SetTextColor (ARGB(255,91,44,3));
+
+				_cb = _button.CreateButton (_button.GetWidth()-48-5, 5, 48, 48);
+				_cb.SetNormalTexture ("close_button.png");
+				_cb.SetOnClick (this, "OnDeleteProfile");
+				_cb.SetUserData(i+1);
+				
+				_cb = _button.CreateLabel (25, 15, 200, 20);
+				_cb.SetFont (DEFAULT_FONT, 30);
+				_cb.SetText (GetTimeString(profile.playTime));
+				_cb.SetTextColor (ARGB(255,250,250,250));
+				
+				//_cb = _button.CreateImage ("auditive_level_" + string(profile.deafness+1) + ".png", _button.GetWidth()-200, _button.GetHeight()-70, 170, 48);
+
+				_cb = _button.CreateImage (profile.lang + "_flag.jpg", 25, _button.GetHeight()-60, 64, 32);
+			}
+		}
+		_button = frame.CreateButton (5, 5, 104, 107);
+		_button.SetNormalTexture ("back_button.png");
+		_button.SetOnClick (this, "OnBack");
+	}
+	
+	function GetTimeString (_ms)
+	{
+		DebugMsg ("MS:", _ms);
+		_ms = _ms / 1000; // a segundos
+		_hours = _ms / 3600;
+		DebugMsg ("MS2:", _ms % 3600);
+		_minutes = (_ms % 3600) / 60;
+		_seconds = (_ms % 3600) % 60;
+		return String_Format ("%02d:", _hours, "%02d:", _minutes, "%02d", _seconds);
+	}
+	
+	function Start ()
+	{
+	}
+
+	function Move ()
+	{
+		bg.SetTexCoordAll (bgX, 0, 1, 1);
+		bgX += GetFTime()*0.001f;
+	}
+	
+	function OnFadeOff()
+	{
+		Service_Delete (parent);
+	}
+	
+	function OnFadePlay ()
+	{
+		_game = Service_Run ("game", "game", ["profileID", profileID]);
+		g_fade.Off (this, "OnFadeOff");
+		Music_FadeOff(32);
+	}
+	
+	function OnPlay (_button)
+	{
+		profileID = _button.GetUserData();
+		frame.SetEnabled (false);
+		g_fade.On (this, "OnFadePlay");
+		g_main.PlayFX(sndOk);
+	}
+
+	function OnFadeEdit ()
+	{
+		parent.LoadMenu ("profile", ["profileID", profileID]);
+		g_fade.Off ();
+	}
+	
+	function OnEdit ()
+	{
+		frame.SetEnabled (false);
+		g_fade.On (this, "OnFadeEdit");
+	}
+	
+	function OnNew (_button)
+	{
+		profileID = _button.GetUserData();
+		_msgbox = Service_Run ("msgbox", "gui_msgbox", ["text", g_language.GetText ("menu_confirm_new_profile")]);
+		_msgbox.SetOnOk (this, "OnEdit");
+		g_main.PlayFX(sndError);
+	}
+		
+	function OnFadeBack()
+	{
+		parent.LoadMenu ("main");
+		g_fade.Off ();
+	}
+	
+	function OnBack (_button)
+	{
+		frame.SetEnabled (false);
+		g_fade.On (this, "OnFadeBack");
+		g_main.PlayFX(sndBack);
+	}
+	
+	function OnDelete ()
+	{
+		profile.Remove(profileID);
+		RefreshFrame();
+	}
+	
+	function OnDeleteProfile (_button)
+	{
+		profileID = _button.GetUserData();
+		_msgbox = Service_Run ("msgbox", "gui_msgbox", ["text", g_language.GetText ("menu_confirm_delete_profile")]);
+		_msgbox.SetOnOk (this, "OnDelete");
+		g_main.PlayFX(sndError);
+	}
+}

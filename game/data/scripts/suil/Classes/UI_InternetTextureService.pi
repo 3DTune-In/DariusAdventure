@@ -1,0 +1,123 @@
+class SERVICE
+{
+	properties:
+	queryList = [];
+	uiSystem = null;
+
+	function Init()
+	{
+		Internet_Init (INTERNET_FLAG_ASYNC);
+		uiSystem = suil_system;
+	}
+
+	function Final()
+	{
+		Internet_Exit();
+	}
+
+	function QueryTexture(_tex, _url)
+	{
+		_split = String_ToList (_url, ".");
+		_file_ext = String_LowerCase(_split[sizeof(_split) - 1]);
+		_fileName = String_Replace(_url, "/", "_");
+		_fileName = String_Replace(_fileName, ":", "_");
+		_fileName = String_Replace(_fileName, "?", "_");
+
+		if (uiSystem.internetTextureCacheFolder != null)
+		{
+			_file = uiSystem.internetTextureCacheFolder + _fileName;
+			if (File_Exists(_file))
+			{
+				_lastDir = System_GetDirectory(DIRECTORY_TEXTURE);
+				System_SetDirectory (DIRECTORY_TEXTURE, uiSystem.internetTextureCacheFolder);
+				_nlktex = Texture_Load(_fileName);
+				System_SetDirectory (DIRECTORY_TEXTURE, _lastDir);
+				if (_nlktex)
+				{
+					_tex.OnInternetTextureReceived(_nlktex);
+					return true;
+				}
+			}
+		}
+
+		_buffer = Buffer_New();
+		_iNet = Internet_Open("");
+
+		if (Internet_StartQuery (_iNet, _url, _buffer))
+		{
+			queryList += [[_inet, _buffer, _tex, _file_ext, _fileName]];
+			return true;
+		}
+		else
+		{
+			Buffer_Delete (_buffer);
+			Internet_Close (_iNet);
+
+			return false;
+		}
+	}
+
+	function DeleteTextureQuery(_uiTex)
+	{
+		for (i = sizeof(queryList) - 1; i >= 0; i--)
+		{
+			_tex = queryList[i][2];
+			if (_tex == _uiTex)
+			{
+				_buffer = queryList[i][1];
+				_iNet = queryList[i][0];
+				queryList /= i;
+
+				Buffer_Delete (_buffer);
+				Internet_Close (_iNet);
+			}
+		}
+	}
+
+
+	function Move()
+	{
+		for (i = sizeof(queryList) - 1; i >= 0; i--)
+		{
+			_iNet = queryList[i][0];
+			if (!Internet_IsQueryInProcess(_iNet))
+			{
+				_buffer = queryList[i][1];
+				_tex = queryList[i][2];
+				_file_ext = queryList[i][3];
+				_fileName = queryList[i][4];
+				queryList /= i;
+
+				_format = 0;
+				if (_file_ext == "jpg") _format = TF_JPG;
+				else if (_file_ext == "png") _format = TF_PNG;
+
+				if (_format && Buffer_Len (_buffer))
+				{
+					if (uiSystem.internetTextureCacheFolder != null)
+					{
+						_file = uiSystem.internetTextureCacheFolder + _fileName;
+						if (!File_Exists(_file))
+						{
+							_handle = File_Open(_file, FILE_MODE_WRITE);
+							if (_handle)
+							{
+								File_Write(_handle, _buffer, 0, 0);
+								File_Close(_handle);
+							}
+						}
+					}
+
+					_nlktex = Texture_CreateFromBuffer ("", _tex.GetWidth(), _tex.GetHeight(), _format, _buffer);
+					_tex.OnInternetTextureReceived(_nlktex);
+				}
+
+				Buffer_Delete (_buffer);
+				Internet_Close (_iNet);
+			}
+		}
+
+		if (sizeof(queryList) == 0) Service_Delete(this);
+	}
+
+}

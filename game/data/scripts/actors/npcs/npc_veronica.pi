@@ -1,0 +1,71 @@
+class Actor implements NPC
+{
+	properties:    	
+		KIN_QUIET = 0;
+		KIN_SPEAK = 0;
+		mildred = null;
+		frisbee = null;
+		
+	virtual Init ()
+	{
+		StartLoadResources ();
+		
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "npc_veronica.msh");
+		
+		KIN_QUIET = Actor_LoadKinematic (this, "npc_veronica_quiet.kin");
+		KIN_SPEAK = Actor_LoadKinematic (this, "npc_veronica_speak.kin");                                            
+		
+		EndLoadResources ();
+		
+		frisbee = Scene_NewActor (scene, "frisbee", "item_frisbee", 0, 0, 0);
+		Actor_AddChild (this, frisbee, Actor_FindDummy (this, "frisbee"));
+		
+		collide = true;
+		Scene_AddStatic (scene, this);
+		bMoveHead = true;
+		
+		name = "npc_veronica";
+		voiceID = VOICE_GIRL;
+	}
+
+	virtual Start ()
+	{
+		mildred = game.FindActor ("npc_mildred");
+	}
+	
+	function Quiet ()
+	{
+		if (!mildred) mildred = game.FindActor ("npc_mildred");
+		if (mildred.GetState() >= 1)
+		{
+			_kin = Actor_GetKinematic(this, KIN_QUIET);
+			Kinematic_SetTimeStart(_kin, 90);
+			Kinematic_SetLoopStart(_kin, 90);
+			Kinematic_SetTimeEnd(_kin, 95);
+			Actor_SetKin (this, KIN_QUIET, KINMODE_PINGPONG);
+			Actor_SetKinSpeed(this, 0.15f);
+		}
+		else
+		{
+			Actor_BlendKin (this, KIN_QUIET, KINMODE_LOOP);
+			Actor_SetKinSpeed(this, 1);
+		}
+	}
+	
+	function Speak ()
+	{
+		Actor_BlendKin (this, KIN_SPEAK, KINMODE_LOOP);
+		Actor_SetKinSpeed(this, 1);
+	}
+
+	function OnDropItem (_itemName)
+	{	
+		return mildred.OnDropItem (_itemName);
+	}
+
+	function OnCursorClick()
+	{
+		mildred.OnCursorClick();
+	}
+}

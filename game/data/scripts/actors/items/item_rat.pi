@@ -1,0 +1,96 @@
+class Actor implements Item_Unique_Interface
+{
+	constants: 
+		POS_LIST = [500, 1400, 0];
+		
+	properties:
+		KIN_QUIET = 0;
+		//KIN_WALK = 0;
+		sndFail = null;
+		sndOk = null;
+		sndPos = null;
+		time = 0.0f;
+		
+	virtual Init ()
+	{	
+		StartLoadResources ();
+	
+		Actor_SetNumLODS (this, 1);
+		Actor_LoadMesh (this, 0, "item_rat.msh");
+
+		KIN_QUIET = Actor_LoadKinematic (this, "item_rat_quiet.kin");
+		//KIN_WALK = Actor_LoadKinematic (this, "item_rat_walk.kin");                                            
+		
+		sndFail = LoadSound ("rat_fail.ogg");
+		sndOk = LoadSound ("rat_ok.ogg");
+		sndPos = LoadSound3D ("rat_pos.ogg");  
+		
+		EndLoadResources ();
+		name = "item_rat";
+		useAngles = 0;
+	}
+	
+	function Quiet ()
+	{
+		Actor_BlendKin (this, KIN_QUIET, KINMODE_LOOP);                 
+	}
+	
+	function LightOff()
+	{
+		// Seteo iluminación de la alcantarilla.
+		Light_SetAmbient (stage.light, ARGB(255,10,10,10));
+		Light_SetDiffuse (stage.light, ARGB(255,25,25,25));
+	}
+	
+	function LightOn()
+	{
+		Light_SetAmbient (stage.light, ARGB(255,200,200,200));
+		Light_SetDiffuse (stage.light, ARGB(255,255,255,255));
+	}
+	
+	virtual Start ()
+	{
+		if (GetState() < sizeof(POS_LIST))
+		{
+			LightOff();
+			time = FRand(50, 100);
+			Sound_SetProperty (sndPos, SOUND_3D_RADIUS, 500);
+			posX = POS_LIST[GetState()];
+		}
+	}
+	
+	virtual Move ()
+	{
+		if (enabled)
+		{
+			if (!Sound_IsPlaying(sndPos) && time <= 0.0f)
+			{
+				time = FRand(50, 100);
+				main.PlayFX(sndPos);
+			}
+			else
+				time -= GetFTime();
+		}
+	}
+	
+	function OnCursorClick ()
+	{
+		if (enabled)
+		{
+			SetState(GetState() + 1);
+			if (GetState() >= sizeof(POS_LIST))
+			{
+				game.hud.OpenPlayerTID ("player_" + name);
+				game.GetPlayer().AddInventory(this);
+				Sound_Stop (sndPos);
+				LightOn();
+			}
+			else
+			{
+				game.hud.OpenPlayerTID ("rat_1");
+				main.PlayFX(sndFail);
+				posX = POS_LIST[GetState()];
+			}
+		}
+	}
+}
